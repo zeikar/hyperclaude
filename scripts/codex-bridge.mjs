@@ -41,6 +41,37 @@ export function renderFrontmatter({
   return lines.join('\n');
 }
 
+// ---------- code-review frontmatter ----------
+
+export function slugifyRef(ref) {
+  if (ref === 'main') return 'vs-main';
+  const body = ref.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!body) return 'vs-ref';
+  return 'vs-' + body;
+}
+
+export function renderCodeReviewFrontmatter({ slug, generated, codexVersion, gitHead, reviewTarget, baseRef, commit, title }) {
+  const lines = ['---'];
+  lines.push('mode: code-review');
+  lines.push(`slug: ${slug}`);
+  lines.push(`generated: ${generated}`);
+  lines.push(`codex-version: ${codexVersion}`);
+  lines.push('codex-subcommand: review');
+  lines.push(`git-head: ${JSON.stringify(gitHead)}`);
+  if (reviewTarget === 'base') lines.push(`base-ref: ${JSON.stringify(baseRef)}`);
+  if (reviewTarget === 'commit') lines.push(`commit: ${JSON.stringify(commit)}`);
+  if (title) lines.push(`title: ${JSON.stringify(title)}`);
+  lines.push('---');
+  lines.push('');
+  return lines.join('\n');
+}
+
+export function getGitHead() {
+  const r = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', cwd: process.cwd() });
+  if (r.error || r.status !== 0) return 'unknown';
+  return r.stdout.trim();
+}
+
 // ---------- templates ----------
 
 export function loadTemplate(templateText, vars) {
@@ -60,11 +91,18 @@ import { existsSync } from 'node:fs';
 
 // ---------- args ----------
 
+const ALLOWED_FLAGS_PER_MODE = {
+  research:      new Set(['--task', '--task-file', '--slug', '--out', '--dry-run', '--timeout']),
+  review:        new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout']),
+  'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--out', '--dry-run', '--timeout']),
+};
+
 export function parseArgs(argv) {
   const [mode, ...rest] = argv;
-  if (mode !== 'research' && mode !== 'review') {
+  if (mode !== 'research' && mode !== 'review' && mode !== 'code-review') {
     throw new Error(`unknown mode: ${mode}`);
   }
+  const allowed = ALLOWED_FLAGS_PER_MODE[mode];
   const out = {
     mode,
     task: null,
@@ -74,6 +112,10 @@ export function parseArgs(argv) {
     out: null,
     dryRun: false,
     timeout: 300,
+    reviewTarget: null,
+    baseRef: null,
+    commit: null,
+    title: null,
   };
   for (let i = 0; i < rest.length; i++) {
     const flag = rest[i];
@@ -82,6 +124,9 @@ export function parseArgs(argv) {
       if (v === undefined) throw new Error(`flag ${flag} expects a value`);
       return v;
     };
+    if (!allowed.has(flag)) {
+      throw new Error(`unknown flag for mode ${mode}: ${flag}`);
+    }
     switch (flag) {
       case '--task':       out.task = next(); break;
       case '--task-file':  out.taskFile = next(); break;
@@ -97,8 +142,37 @@ export function parseArgs(argv) {
       case '--out':        out.out = next(); break;
       case '--timeout':    out.timeout = Number(next()); break;
       case '--dry-run':    out.dryRun = true; break;
-      default: throw new Error(`unknown flag: ${flag}`);
+      case '--base': {
+        if (out.reviewTarget !== null) throw new Error('--base, --uncommitted, and --commit are mutually exclusive');
+        const v = next();
+        if (!v || v.startsWith('-') || !/^[A-Za-z0-9._/-]+$/.test(v)) {
+          throw new Error(`--base must be a non-empty git ref ([A-Za-z0-9._/-]+, no leading dash), got: "${v}"`);
+        }
+        out.reviewTarget = 'base';
+        out.baseRef = v;
+        break;
+      }
+      case '--uncommitted': {
+        if (out.reviewTarget !== null) throw new Error('--base, --uncommitted, and --commit are mutually exclusive');
+        out.reviewTarget = 'uncommitted';
+        break;
+      }
+      case '--commit': {
+        if (out.reviewTarget !== null) throw new Error('--base, --uncommitted, and --commit are mutually exclusive');
+        const v = next();
+        if (!/^[0-9a-f]{7,40}$/.test(v)) {
+          throw new Error(`--commit must be a hex SHA (7-40 hex chars), got: "${v}"`);
+        }
+        out.reviewTarget = 'commit';
+        out.commit = v;
+        break;
+      }
+      case '--title': out.title = next(); break;
     }
+  }
+  if (mode === 'code-review' && !out.reviewTarget) {
+    out.reviewTarget = 'base';
+    out.baseRef = 'main';
   }
   if (mode === 'research' && out.task && out.taskFile) throw new Error('--task and --task-file are mutually exclusive');
   if (mode === 'research' && !out.task && !out.taskFile) throw new Error('--task or --task-file is required for research');
@@ -148,12 +222,25 @@ function extractSlugFromPlanFilename(planPath) {
 
 export function buildInvocation({ args, now = new Date() }) {
   const timestamp = formatTimestamp(now);
-  const slug = args.slug ?? (
-    args.mode === 'research'
-      ? slugify(args.task)
-      : extractSlugFromPlanFilename(args.planPath)
-  );
-  const dir = args.out ?? `.hyperclaude/${args.mode === 'research' ? 'research' : 'reviews'}`;
+  let slug;
+  let dir;
+  if (args.mode === 'code-review') {
+    if (args.reviewTarget === 'base') {
+      slug = slugifyRef(args.baseRef);
+    } else if (args.reviewTarget === 'uncommitted') {
+      slug = 'uncommitted';
+    } else {
+      slug = 'commit-' + args.commit.slice(0, 7);
+    }
+    dir = args.out ?? '.hyperclaude/code-reviews';
+  } else {
+    slug = args.slug ?? (
+      args.mode === 'research'
+        ? slugify(args.task)
+        : extractSlugFromPlanFilename(args.planPath)
+    );
+    dir = args.out ?? `.hyperclaude/${args.mode === 'research' ? 'research' : 'reviews'}`;
+  }
   const filename = slug ? `${timestamp}-${slug}.md` : `${timestamp}.md`;
   const baseOutputPath = path.join(dir, filename);
   const outputPath = pickAvailablePath(baseOutputPath);

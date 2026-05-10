@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef } from '../scripts/codex-bridge.mjs';
+import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead } from '../scripts/codex-bridge.mjs';
 
 test('slugify: simple ASCII task', () => {
   assert.equal(slugify('Add OAuth login to the API'), 'add-oauth-login-to-the');
@@ -818,4 +818,24 @@ test('renderCodeReviewFrontmatter: base-ref JSON-stringified to handle slashes',
     title: null,
   });
   assert.match(fm, /base-ref: "origin\/main"/);
+});
+
+// ── getGitHead ────────────────────────────────────────────────────────────────
+
+test('getGitHead: returns sha string in a git repo', () => {
+  const sha = getGitHead();
+  assert.match(sha, /^[0-9a-f]{40}$/);
+});
+
+test('getGitHead: returns \'unknown\' outside a git repo', () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-nogit-'));
+  const orig = process.cwd();
+  try {
+    process.chdir(tmp);
+    const sha = getGitHead();
+    assert.equal(sha, 'unknown');
+  } finally {
+    process.chdir(orig);
+    rmSync(tmp, { recursive: true, force: true });
+  }
 });
