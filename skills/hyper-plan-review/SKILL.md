@@ -16,7 +16,7 @@ Plan review gate. Locates a plan file, sends it to Codex for critique, saves the
 
 **Invocation argument:** $ARGUMENTS
 
-`--resume` is supported in v0.4. Paths with spaces are unsupported.
+`--resume` is supported. Paths with spaces are unsupported.
 
 ### Argv grammar
 

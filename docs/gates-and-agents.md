@@ -18,7 +18,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 - **Writes:** `.hyperclaude/research/<timestamp>-<slug>.md` — frontmatter + Codex's Prior Art / Pitfalls / Recommendations.
 - **Use when:** about to design a non-trivial change and you want prior art / failure modes before committing to an approach.
 - **Skip when:** the task is one-line / mechanical / well-trodden.
-- **`--resume`:** not supported in v0.4 (research is not iterative).
+- **`--resume`:** not supported (research is not iterative).
 - **Source:** [skills/hyper-research/SKILL.md](../skills/hyper-research/SKILL.md), template [templates/codex/research.md](../templates/codex/research.md).
 
 ### `hyper-plan` — Claude plan generator
@@ -54,7 +54,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
   - `vs <ref>` → branch diff vs that ref.
 - **Mode:** `code-review` (Codex `exec review` subcommand — separate from `exec`; `--sandbox` not exposed because the subcommand is review-only by design).
 - **Writes:** `.hyperclaude/code-reviews/<timestamp>-<slug>.md` — Codex's findings, with frontmatter recording `codex-thread-id`, `cwd`, `git-head`, and (depending on target) `base-ref`, `commit`, or the optional `title`. Frontmatter records `codex-resume-status: fresh`. The `uncommitted` target has no dedicated frontmatter field; it's identifiable from `slug: uncommitted` and the heading.
-- **`--resume`:** not supported in v0.4 (`codex exec review` and `codex exec resume` semantics differ); deferred to v0.5.
+- **`--resume`:** not supported (`codex exec review` and `codex exec resume` semantics differ); deferred.
 - **Use when:** post-implementation, before shipping a release, before opening a PR.
 - **Source:** [skills/hyper-code-review/SKILL.md](../skills/hyper-code-review/SKILL.md). No template — `codex exec review` owns its own prompt.
 

@@ -19,7 +19,7 @@ Code review gate. Calls Codex via `codex exec review` against a branch diff, unc
 
 ## How to invoke
 
-`--resume` is not supported in v0.4 (deferred — `codex exec review` semantics differ from generic exec resume; will be designed in v0.5).
+`--resume` is not supported (deferred — `codex exec review` semantics differ from generic exec resume).
 
 **Invocation argument:** $ARGUMENTS
 

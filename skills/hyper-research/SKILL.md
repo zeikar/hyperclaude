@@ -18,7 +18,7 @@ Skip when:
 
 ## How to invoke
 
-`--resume` is not supported in v0.4 (deferred — research is not iterative).
+`--resume` is not supported (deferred — research is not iterative).
 
 **Invocation argument:** $ARGUMENTS
 

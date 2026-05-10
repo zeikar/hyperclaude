@@ -160,7 +160,7 @@ Status taxonomy recorded in `codex-resume-status` frontmatter:
 | `fallback` | `--resume auto` miss; ran fresh |
 | `resume-failed` | resume spawn died after validation passed |
 
-`code-review` and `research` do NOT support `--resume` in v0.4 (deferred to v0.5; see decisions.md).
+`code-review` and `research` do NOT support `--resume` (deferred; see decisions.md).
 
 ## 8. Ship — tag and push (manual)
 

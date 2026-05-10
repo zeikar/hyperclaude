@@ -21,7 +21,7 @@ Documentation accuracy gate. Sends docs (single file or directory) to Codex for 
 
 **Invocation argument:** $ARGUMENTS
 
-`--resume` is supported in v0.4. Paths with spaces are unsupported.
+`--resume` is supported. Paths with spaces are unsupported.
 
 ### Argv grammar
 
