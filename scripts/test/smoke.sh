@@ -59,6 +59,7 @@ for f in \
   skills/hyper-plan-review/SKILL.md \
   skills/hyper-tdd/SKILL.md \
   skills/hyper-debug/SKILL.md \
+  skills/hyper-implement/SKILL.md \
   agents/planner.md \
   agents/implementer.md \
   agents/verifier.md

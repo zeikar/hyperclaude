@@ -41,7 +41,7 @@ Thesis: **Claude is the builder, Codex is the critic.** You get better software 
 Three layers:
 
 1. **Slash commands** — `/hyperclaude:hyper-research`, `/hyperclaude:hyper-plan-review` (plugin-namespaced per Claude Code's contract)
-2. **Skills** — gate behaviors (`hyper-research`, `hyper-plan-review`) + implementation discipline (`hyper-tdd`, `hyper-debug`)
+2. **Skills** — gate behaviors (`hyper-research`, `hyper-plan-review`) + implementation discipline (`hyper-tdd`, `hyper-debug`) + plan execution (`hyper-implement`)
 3. **Agents** — Claude implementation arm (`planner`, `implementer`, `verifier`)
 
 The earlier nudge / `UserPromptSubmit` hook layer is deferred to v0.2.
