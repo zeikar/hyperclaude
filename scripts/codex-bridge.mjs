@@ -368,15 +368,18 @@ async function main(argv) {
   }
   const inv = buildInvocation({ args });
   if (args.dryRun) {
-    // Fail fast if the prompt template is missing — better to find out now.
-    try {
-      await readTemplateFile(args.mode);
-    } catch (err) {
-      process.stdout.write(JSON.stringify({
-        ok: false,
-        error: `failed to read prompt template: ${err.message}`,
-      }) + '\n');
-      process.exit(1);
+    // code-review has no prompt template and does not require codex on PATH for dry-run.
+    if (args.mode !== 'code-review') {
+      // Fail fast if the prompt template is missing — better to find out now.
+      try {
+        await readTemplateFile(args.mode);
+      } catch (err) {
+        process.stdout.write(JSON.stringify({
+          ok: false,
+          error: `failed to read prompt template: ${err.message}`,
+        }) + '\n');
+        process.exit(1);
+      }
     }
     process.stdout.write(JSON.stringify({
       ok: true,
@@ -388,6 +391,80 @@ async function main(argv) {
     }) + '\n');
     return;
   }
+
+  // code-review path: uses `codex review` subcommand, no prompt template.
+  if (args.mode === 'code-review') {
+    const v = getCodexVersion();
+    if (!v.ok) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: v.reason,
+        hint: 'Install or upgrade codex-cli (>= 0.128.0). See: https://github.com/openai/codex',
+      }) + '\n');
+      process.exit(1);
+    }
+
+    const reviewArgv = [];
+    if (args.reviewTarget === 'base') {
+      reviewArgv.push('--base', args.baseRef);
+    } else if (args.reviewTarget === 'uncommitted') {
+      reviewArgv.push('--uncommitted');
+    } else {
+      reviewArgv.push('--commit', args.commit);
+    }
+    if (args.title) {
+      reviewArgv.push('--title', args.title);
+    }
+
+    const gitHead = getGitHead();
+    const result = await runCodexReview(reviewArgv, args.timeout);
+    await mkdir(inv.dir, { recursive: true });
+
+    const fm = renderCodeReviewFrontmatter({
+      slug: inv.slug,
+      generated: new Date().toISOString(),
+      codexVersion: v.version,
+      gitHead,
+      reviewTarget: args.reviewTarget,
+      baseRef: args.baseRef,
+      commit: args.commit,
+      title: args.title,
+    });
+
+    let heading;
+    if (args.title) {
+      heading = `# Code review: ${args.title}`;
+    } else if (args.reviewTarget === 'base') {
+      heading = `# Code review: vs ${args.baseRef}`;
+    } else if (args.reviewTarget === 'uncommitted') {
+      heading = `# Code review: uncommitted`;
+    } else {
+      heading = `# Code review: commit ${args.commit.slice(0, 7)}`;
+    }
+
+    const body = result.ok
+      ? result.stdout
+      : `# (codex failed)\n\n${result.stdout}\n\n## stderr\n\n${result.stderr}\n`;
+
+    await writeFile(inv.outputPath, fm + heading + '\n\n' + body, 'utf8');
+
+    if (!result.ok) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: result.reason,
+        path: inv.outputPath,
+      }) + '\n');
+      process.exit(1);
+    }
+
+    process.stdout.write(JSON.stringify({
+      ok: true,
+      path: inv.outputPath,
+      slug: inv.slug,
+    }) + '\n');
+    return;
+  }
+
   // Real path: version-check codex, load template, build prompt, spawn, write file.
   const v = getCodexVersion();
   if (!v.ok) {

@@ -839,3 +839,15 @@ test('getGitHead: returns \'unknown\' outside a git repo', () => {
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('cli: code-review --dry-run does not require templates or codex on PATH', () => {
+  const result = spawnSync(
+    process.execPath,
+    [BRIDGE, 'code-review', '--dry-run'],
+    { encoding: 'utf8', env: { ...process.env, PATH: '/nonexistent' } }
+  );
+  assert.equal(result.status, 0, `expected exit 0, stderr: ${result.stderr}`);
+  const out = JSON.parse(result.stdout);
+  assert.equal(out.ok, true);
+  assert.equal(out.dryRun, true);
+});
