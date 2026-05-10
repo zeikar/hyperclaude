@@ -97,6 +97,10 @@ test('parseArgs: research mode', () => {
     out: null,
     dryRun: false,
     timeout: 300,
+    reviewTarget: null,
+    baseRef: null,
+    commit: null,
+    title: null,
   });
 });
 
@@ -330,4 +334,185 @@ test('cli: --task-file path drives the dry-run slug', () => {
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+// ── code-review mode parseArgs tests ──────────────────────────────────────────
+
+test('parseArgs: code-review mode accepted — defaults to base main when no target flag given', () => {
+  const a = parseArgs(['code-review']);
+  assert.equal(a.mode, 'code-review');
+  assert.equal(a.reviewTarget, 'base');
+  assert.equal(a.baseRef, 'main');
+  assert.equal(a.commit, null);
+  assert.equal(a.title, null);
+});
+
+test('parseArgs: code-review with --base <ref>', () => {
+  const a = parseArgs(['code-review', '--base', 'origin/main']);
+  assert.equal(a.reviewTarget, 'base');
+  assert.equal(a.baseRef, 'origin/main');
+});
+
+test('parseArgs: code-review with --uncommitted', () => {
+  const a = parseArgs(['code-review', '--uncommitted']);
+  assert.equal(a.reviewTarget, 'uncommitted');
+});
+
+test('parseArgs: code-review with --commit <sha>', () => {
+  const a = parseArgs(['code-review', '--commit', 'abc1234f']);
+  assert.equal(a.reviewTarget, 'commit');
+  assert.equal(a.commit, 'abc1234f');
+});
+
+test('parseArgs: code-review with --title', () => {
+  const a = parseArgs(['code-review', '--title', 'my review']);
+  assert.equal(a.title, 'my review');
+});
+
+test('parseArgs: code-review --commit rejects non-hex', () => {
+  for (const bad of ['HEAD', 'HEAD~1', 'main', 'abc123x']) {
+    assert.throws(
+      () => parseArgs(['code-review', '--commit', bad]),
+      /--commit must be a hex SHA/
+    );
+  }
+});
+
+test('parseArgs: code-review --commit rejects too-short SHA', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--commit', 'abc123']),
+    /--commit must be a hex SHA/
+  );
+});
+
+test('parseArgs: code-review --base and --uncommitted are mutually exclusive', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--base', 'main', '--uncommitted']),
+    /mutually exclusive/
+  );
+});
+
+test('parseArgs: code-review --base and --commit are mutually exclusive', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--base', 'main', '--commit', 'abc1234f']),
+    /mutually exclusive/
+  );
+});
+
+test('parseArgs: code-review --uncommitted and --commit are mutually exclusive', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--uncommitted', '--commit', 'abc1234f']),
+    /mutually exclusive/
+  );
+});
+
+// ── --base validation tests ───────────────────────────────────────────────────
+
+test('parseArgs: --base accepts valid refs', () => {
+  assert.equal(parseArgs(['code-review', '--base', 'main']).baseRef, 'main');
+  assert.equal(parseArgs(['code-review', '--base', 'origin/main']).baseRef, 'origin/main');
+  assert.equal(parseArgs(['code-review', '--base', 'release/2026.05']).baseRef, 'release/2026.05');
+  assert.equal(parseArgs(['code-review', '--base', 'feature_branch-1']).baseRef, 'feature_branch-1');
+});
+
+test('parseArgs: --base rejects empty string', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--base', '']),
+    /--base must be a non-empty git ref/
+  );
+});
+
+test('parseArgs: --base rejects leading dash', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--base', '-rf']),
+    /--base must be a non-empty git ref/
+  );
+});
+
+test('parseArgs: --base rejects whitespace', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--base', 'origin main']),
+    /--base must be a non-empty git ref/
+  );
+});
+
+test('parseArgs: --base rejects shell metacharacters', () => {
+  for (const bad of ['main;rm', 'main$(rm)', 'main`rm`', 'main|rm']) {
+    assert.throws(
+      () => parseArgs(['code-review', '--base', bad]),
+      /--base must be a non-empty git ref/
+    );
+  }
+});
+
+// ── per-mode flag-isolation tests ─────────────────────────────────────────────
+
+test('parseArgs: code-review rejects --task', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--task', 'x']),
+    /unknown flag for mode code-review: --task/
+  );
+});
+
+test('parseArgs: code-review rejects --task-file', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--task-file', '/tmp/x.txt']),
+    /unknown flag for mode code-review: --task-file/
+  );
+});
+
+test('parseArgs: code-review rejects --plan-path', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--plan-path', '/tmp/p.md']),
+    /unknown flag for mode code-review: --plan-path/
+  );
+});
+
+test('parseArgs: research rejects --base', () => {
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--base', 'main']),
+    /unknown flag for mode research: --base/
+  );
+});
+
+test('parseArgs: research rejects --uncommitted', () => {
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--uncommitted']),
+    /unknown flag for mode research: --uncommitted/
+  );
+});
+
+test('parseArgs: research rejects --commit', () => {
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--commit', 'abc1234f']),
+    /unknown flag for mode research: --commit/
+  );
+});
+
+test('parseArgs: research rejects --title', () => {
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--title', 'my review']),
+    /unknown flag for mode research: --title/
+  );
+});
+
+test('parseArgs: review rejects --task', () => {
+  assert.throws(
+    () => parseArgs(['review', '--plan-path', '/tmp/p.md', '--task', 'x']),
+    /unknown flag for mode review: --task/
+  );
+});
+
+test('parseArgs: review rejects --base', () => {
+  assert.throws(
+    () => parseArgs(['review', '--plan-path', '/tmp/p.md', '--base', 'main']),
+    /unknown flag for mode review: --base/
+  );
+});
+
+test('parseArgs: review rejects --uncommitted', () => {
+  assert.throws(
+    () => parseArgs(['review', '--plan-path', '/tmp/p.md', '--uncommitted']),
+    /unknown flag for mode review: --uncommitted/
+  );
 });
