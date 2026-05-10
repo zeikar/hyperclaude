@@ -13,7 +13,7 @@ A Claude Code plugin built around a deliberate division of labor between two AI 
 
 Thesis: **Claude is the builder, Codex is the critic.** You get better software with a smarter cost split.
 
-## Architecture (v0.1)
+## Architecture (v0.2)
 
 ```
     ┌────────────────────────────────────────────────────────────────────┐
@@ -45,7 +45,7 @@ Three layers:
 2. **Skills** — gate behaviors (`hyper-research`, `hyper-plan-review`, `hyper-code-review`) + implementation discipline (`hyper-tdd`, `hyper-debug`) + plan execution (`hyper-implement`)
 3. **Agents** — Claude implementation arm (`planner`, `implementer`, `verifier`)
 
-The earlier nudge / `UserPromptSubmit` hook layer is deferred to v0.2.
+The earlier nudge / `UserPromptSubmit` hook layer is deferred to a future release.
 
 When hyperclaude invokes `codex exec` (research, plan-review), it always passes `--sandbox read-only`. When it invokes `codex review` (code review), it relies on the subcommand's review-only design — `codex review` analyzes diffs and does not author patches; the bridge keeps the argv minimal and auditable (no `-c` overrides). In both cases, Codex's role in hyperclaude is *critic*, never *editor*.
 
@@ -109,7 +109,7 @@ Zero npm dependencies. Node 18+ stdlib only.
 
 ## Status
 
-**v0.1 (alpha).** Personal customization project, open-sourced. Use at your own risk; expect breaking changes between minor versions until v1.0.
+**v0.2 (alpha).** Personal customization project, open-sourced. Use at your own risk; expect breaking changes between minor versions until v1.0.
 
 ## Acknowledgements
 
