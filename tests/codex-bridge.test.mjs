@@ -101,6 +101,9 @@ test('parseArgs: research mode', () => {
     baseRef: null,
     commit: null,
     title: null,
+    docsPath: null,
+    docsDir: null,
+    diffBase: null,
   });
 });
 
@@ -861,4 +864,159 @@ test('cli: code-review --dry-run does not require templates or codex on PATH', (
   const out = JSON.parse(result.stdout);
   assert.equal(out.ok, true);
   assert.equal(out.dryRun, true);
+});
+
+// ── docs-review mode parseArgs tests ──────────────────────────────────────────
+
+test('parseArgs: docs-review mode accepted with --docs-path', () => {
+  const a = parseArgs(['docs-review', '--docs-path', 'docs/api.md']);
+  assert.equal(a.mode, 'docs-review');
+  assert.equal(a.docsPath, 'docs/api.md');
+  assert.equal(a.docsDir, null);
+  assert.equal(a.diffBase, null);
+});
+
+test('parseArgs: docs-review mode accepted with --docs-dir', () => {
+  const a = parseArgs(['docs-review', '--docs-dir', 'docs/']);
+  assert.equal(a.docsDir, 'docs/');
+  assert.equal(a.docsPath, null);
+  assert.equal(a.diffBase, null);
+});
+
+test('parseArgs: docs-review --diff-base sets diffBase', () => {
+  const a = parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--diff-base', 'main']);
+  assert.equal(a.diffBase, 'main');
+});
+
+test('parseArgs: docs-review requires --docs-path or --docs-dir', () => {
+  assert.throws(
+    () => parseArgs(['docs-review']),
+    /--docs-path or --docs-dir is required for docs-review/
+  );
+});
+
+test('parseArgs: docs-review --docs-path and --docs-dir are mutually exclusive', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--docs-dir', 'docs/']),
+    /mutually exclusive/
+  );
+});
+
+test('parseArgs: docs-review --docs-path rejects empty string', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', '']),
+    /--docs-path must be a non-empty path/
+  );
+});
+
+test('parseArgs: docs-review --docs-path rejects leading dash', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', '-rf']),
+    /--docs-path must be a non-empty path/
+  );
+});
+
+test('parseArgs: docs-review --docs-dir rejects empty string', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-dir', '']),
+    /--docs-dir must be a non-empty path/
+  );
+});
+
+test('parseArgs: docs-review --docs-dir rejects leading dash', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-dir', '-rf']),
+    /--docs-dir must be a non-empty path/
+  );
+});
+
+test('parseArgs: docs-review --diff-base rejects empty string', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--diff-base', '']),
+    /--diff-base must be a non-empty git ref/
+  );
+});
+
+test('parseArgs: docs-review --diff-base rejects leading dash', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--diff-base', '-rf']),
+    /--diff-base must be a non-empty git ref/
+  );
+});
+
+test('parseArgs: docs-review --diff-base rejects shell metacharacters', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--diff-base', 'main;rm']),
+    /--diff-base must be a non-empty git ref/
+  );
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--diff-base', 'main$(rm)']),
+    /--diff-base must be a non-empty git ref/
+  );
+});
+
+test('parseArgs: docs-review --diff-base accepts valid refs', () => {
+  assert.equal(
+    parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--diff-base', 'main']).diffBase,
+    'main'
+  );
+  assert.equal(
+    parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--diff-base', 'origin/main']).diffBase,
+    'origin/main'
+  );
+  assert.equal(
+    parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--diff-base', 'release/2026.05']).diffBase,
+    'release/2026.05'
+  );
+});
+
+// ── per-mode flag-isolation: docs-review rejects non-docs flags ───────────────
+
+test('parseArgs: docs-review rejects --task', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--task', 'x']),
+    /unknown flag for mode docs-review: --task/
+  );
+});
+
+test('parseArgs: docs-review rejects --plan-path', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--plan-path', '/tmp/p.md']),
+    /unknown flag for mode docs-review: --plan-path/
+  );
+});
+
+test('parseArgs: docs-review rejects --base', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--base', 'main']),
+    /unknown flag for mode docs-review: --base/
+  );
+});
+
+test('parseArgs: docs-review rejects --uncommitted', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--uncommitted']),
+    /unknown flag for mode docs-review: --uncommitted/
+  );
+});
+
+test('parseArgs: research rejects --docs-path', () => {
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--docs-path', 'docs/api.md']),
+    /unknown flag for mode research: --docs-path/
+  );
+});
+
+test('parseArgs: code-review rejects --docs-path', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--docs-path', 'docs/api.md']),
+    /unknown flag for mode code-review: --docs-path/
+  );
+});
+
+test('parseArgs: review rejects --docs-dir', () => {
+  assert.throws(
+    () => parseArgs(['review', '--plan-path', '/tmp/p.md', '--docs-dir', 'docs/']),
+    /unknown flag for mode review: --docs-dir/
+  );
 });
