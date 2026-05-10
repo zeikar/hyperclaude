@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slugify, renderFrontmatter, loadTemplate } from '../scripts/codex-bridge.mjs';
+import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef } from '../scripts/codex-bridge.mjs';
 
 test('slugify: simple ASCII task', () => {
   assert.equal(slugify('Add OAuth login to the API'), 'add-oauth-login-to-the');
@@ -515,4 +515,307 @@ test('parseArgs: review rejects --uncommitted', () => {
     () => parseArgs(['review', '--plan-path', '/tmp/p.md', '--uncommitted']),
     /unknown flag for mode review: --uncommitted/
   );
+});
+
+// ── buildInvocation: code-review mode ─────────────────────────────────────────
+
+test('buildInvocation: code-review --base main → slug vs-main, dir .hyperclaude/code-reviews', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'code-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: 'base',
+      baseRef: 'main',
+      commit: null,
+      title: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'vs-main');
+  assert.match(inv.outputPath, /\.hyperclaude\/code-reviews\/\d{8}-\d{4}-vs-main\.md$/);
+});
+
+test('buildInvocation: code-review --base origin/main → slug vs-origin-main', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'code-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: 'base',
+      baseRef: 'origin/main',
+      commit: null,
+      title: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'vs-origin-main');
+});
+
+test('buildInvocation: code-review --base release/2026.05 → slug vs-release-2026-05', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'code-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: 'base',
+      baseRef: 'release/2026.05',
+      commit: null,
+      title: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'vs-release-2026-05');
+});
+
+test('buildInvocation: code-review --base feature_branch → slug vs-feature-branch', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'code-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: 'base',
+      baseRef: 'feature_branch',
+      commit: null,
+      title: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'vs-feature-branch');
+});
+
+test('buildInvocation: code-review --uncommitted → slug uncommitted', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'code-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: 'uncommitted',
+      baseRef: null,
+      commit: null,
+      title: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'uncommitted');
+});
+
+test('buildInvocation: code-review --commit abc1234f → slug commit-abc1234 (first 7 chars)', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'code-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: 'commit',
+      baseRef: null,
+      commit: 'abc1234f',
+      title: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'commit-abc1234');
+});
+
+test('buildInvocation: code-review --commit abc1234f567890 → slug commit-abc1234', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'code-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: 'commit',
+      baseRef: null,
+      commit: 'abc1234f567890',
+      title: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'commit-abc1234');
+});
+
+// ── slugifyRef ────────────────────────────────────────────────────────────────
+
+test('slugifyRef: main returns vs-main', () => {
+  assert.equal(slugifyRef('main'), 'vs-main');
+});
+
+test('slugifyRef: origin/main returns vs-origin-main', () => {
+  assert.equal(slugifyRef('origin/main'), 'vs-origin-main');
+});
+
+test('slugifyRef: release/2026.05 returns vs-release-2026-05', () => {
+  assert.equal(slugifyRef('release/2026.05'), 'vs-release-2026-05');
+});
+
+test('slugifyRef: refs/heads/develop returns vs-refs-heads-develop', () => {
+  assert.equal(slugifyRef('refs/heads/develop'), 'vs-refs-heads-develop');
+});
+
+test('slugifyRef: empty body falls back to vs-ref (input "@@@" has no alphanumeric content)', () => {
+  assert.equal(slugifyRef('@@@'), 'vs-ref');
+});
+
+// ── renderCodeReviewFrontmatter ───────────────────────────────────────────────
+
+test('renderCodeReviewFrontmatter: starts with --- and ends with ---\\n followed by blank line', () => {
+  const fm = renderCodeReviewFrontmatter({
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    slug: 'vs-main',
+    gitHead: 'unknown',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    title: null,
+  });
+  assert.match(fm, /^---\n/);
+  assert.match(fm, /\n---\n$/);
+});
+
+test('renderCodeReviewFrontmatter: base-ref variant has required fields and no template-version/task', () => {
+  const fm = renderCodeReviewFrontmatter({
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    slug: 'vs-main',
+    gitHead: 'abc1234567890abcd1234567890abcd1234567890',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    title: null,
+  });
+  assert.match(fm, /mode: code-review/);
+  assert.match(fm, /codex-subcommand: review/);
+  assert.match(fm, /base-ref: "main"/);
+  assert.match(fm, /git-head:/);
+  assert.match(fm, /generated:/);
+  assert.match(fm, /codex-version:/);
+  assert.match(fm, /slug:/);
+  assert.doesNotMatch(fm, /template-version:/);
+  assert.doesNotMatch(fm, /\btask:/);
+});
+
+test('renderCodeReviewFrontmatter: commit variant uses commit field, not base-ref', () => {
+  const fm = renderCodeReviewFrontmatter({
+    reviewTarget: 'commit',
+    baseRef: null,
+    commit: 'abc1234f',
+    slug: 'commit-abc1234',
+    gitHead: 'unknown',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    title: null,
+  });
+  assert.match(fm, /commit:/);
+  assert.doesNotMatch(fm, /base-ref:/);
+});
+
+test('renderCodeReviewFrontmatter: uncommitted variant has neither base-ref nor commit', () => {
+  const fm = renderCodeReviewFrontmatter({
+    reviewTarget: 'uncommitted',
+    baseRef: null,
+    commit: null,
+    slug: 'uncommitted',
+    gitHead: 'unknown',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    title: null,
+  });
+  assert.doesNotMatch(fm, /base-ref:/);
+  assert.doesNotMatch(fm, /\bcommit:/);
+});
+
+test('renderCodeReviewFrontmatter: title field present when provided (JSON-stringified)', () => {
+  const fm = renderCodeReviewFrontmatter({
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    slug: 'vs-main',
+    gitHead: 'unknown',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    title: 'my review title',
+  });
+  assert.match(fm, /title: "my review title"/);
+});
+
+test('renderCodeReviewFrontmatter: title field absent when not provided', () => {
+  const fm = renderCodeReviewFrontmatter({
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    slug: 'vs-main',
+    gitHead: 'unknown',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    title: null,
+  });
+  assert.doesNotMatch(fm, /title:/);
+});
+
+test('renderCodeReviewFrontmatter: git-head written as JSON-stringified string', () => {
+  const fmUnknown = renderCodeReviewFrontmatter({
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    slug: 'vs-main',
+    gitHead: 'unknown',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    title: null,
+  });
+  assert.match(fmUnknown, /git-head: "unknown"/);
+
+  const sha = 'abc1234567890abcd1234567890abcd1234567890';
+  const fmSha = renderCodeReviewFrontmatter({
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    slug: 'vs-main',
+    gitHead: sha,
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    title: null,
+  });
+  assert.match(fmSha, new RegExp(`git-head: "${sha}"`));
+});
+
+test('renderCodeReviewFrontmatter: base-ref JSON-stringified to handle slashes', () => {
+  const fm = renderCodeReviewFrontmatter({
+    reviewTarget: 'base',
+    baseRef: 'origin/main',
+    commit: null,
+    slug: 'vs-origin-main',
+    gitHead: 'unknown',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    title: null,
+  });
+  assert.match(fm, /base-ref: "origin\/main"/);
 });
