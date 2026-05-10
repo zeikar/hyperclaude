@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, renderDocsReviewFrontmatter } from '../scripts/codex-bridge.mjs';
+import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, renderDocsReviewFrontmatter, fmString, renderFailureBody } from '../scripts/codex-bridge.mjs';
 
 test('slugify: simple ASCII task', () => {
   assert.equal(slugify('Add OAuth login to the API'), 'add-oauth-login-to-the');
@@ -1250,4 +1250,72 @@ test('renderDocsReviewFrontmatter: docs-target JSON-stringified to handle spaces
     codexVersion: '0.128.0',
   });
   assert.match(fm, /docs-target: "docs\/api reference\.md"/);
+});
+
+// ── fmString ──────────────────────────────────────────────────────────────────
+
+test('fmString: simple value JSON-stringifies', () => {
+  assert.equal(fmString('slug', 'oauth-login'), 'slug: "oauth-login"');
+});
+
+test('fmString: handles quotes, colons, and backslashes safely', () => {
+  assert.equal(
+    fmString('task', 'add "OAuth": login'),
+    'task: "add \\"OAuth\\": login"',
+  );
+});
+
+test('fmString: handles paths with spaces', () => {
+  assert.equal(
+    fmString('docs-target', 'docs/api reference.md'),
+    'docs-target: "docs/api reference.md"',
+  );
+});
+
+// ── renderFailureBody ─────────────────────────────────────────────────────────
+
+test('renderFailureBody: shape with all fields populated', () => {
+  const body = renderFailureBody({
+    parseDiagnostics: {
+      threadId: 'abc-123',
+      hasTurnCompleted: false,
+      turnFailedMessage: 'rate limited',
+      topLevelErrors: ['e1', 'e2', 'e3', 'e4'],
+      malformedLines: 2,
+    },
+    lastMessageText: 'partial body content',
+    stderr: 'mock stderr line',
+    exit: { status: 7, signal: null, timedOut: false },
+  });
+  assert.match(body, /^# \(codex failed\)\n/);
+  assert.match(body, /## JSONL parser report/);
+  assert.match(body, /- thread\.started: yes, thread_id abc-123/);
+  assert.match(body, /- turn\.completed: no/);
+  assert.match(body, /- turn\.failed: yes, message "rate limited"/);
+  // top-level error events: count + last 3 messages.
+  assert.match(body, /- top-level error events: 4 \(last 3 messages: "e2", "e3", "e4"\)/);
+  assert.match(body, /- malformed lines: 2/);
+  assert.match(body, /## Last message \(from --output-last-message\)\npartial body content/);
+  assert.match(body, /## stderr\nmock stderr line/);
+  assert.match(body, /## Exit\nstatus=7, signal=null, timed-out=false/);
+});
+
+test('renderFailureBody: empty lastMessage renders "(empty)"', () => {
+  const body = renderFailureBody({
+    parseDiagnostics: {
+      threadId: null,
+      hasTurnCompleted: false,
+      turnFailedMessage: null,
+      topLevelErrors: [],
+      malformedLines: 0,
+    },
+    lastMessageText: '',
+    stderr: '',
+    exit: { status: null, signal: 'SIGTERM', timedOut: true },
+  });
+  assert.match(body, /- thread\.started: no/);
+  assert.match(body, /- turn\.failed: no/);
+  assert.match(body, /- top-level error events: 0\n/);
+  assert.match(body, /## Last message \(from --output-last-message\)\n\(empty\)/);
+  assert.match(body, /## Exit\nstatus=null, signal=SIGTERM, timed-out=true/);
 });

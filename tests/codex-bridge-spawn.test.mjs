@@ -21,37 +21,74 @@ const BRIDGE = path.join(
   'codex-bridge.mjs'
 );
 
-// Mock codex script that succeeds: records argv and stdin, returns fake output.
+// ---------------------------------------------------------------------------
+// Inline mock codex scripts.
+//
+// Codex >= 0.130 exposes `--json` + `--output-last-message <path>`. The bridge
+// inserts those flags right after the subcommand tokens. Each `exec`/`exec review`
+// mock therefore:
+//   - replies "codex-cli 0.130.0" to `--version`
+//   - records the full argv (one per line) to argv.log
+//   - parses --output-last-message from argv and writes the expected body there
+//   - captures stdin to stdin.log
+//   - emits JSONL on stdout (thread.started, turn.started, item.completed, turn.completed)
+//
+// `codex review` (the v0.3 path used by code-review until Task 5) does NOT support
+// --json; those mocks remain markdown-only.
+// ---------------------------------------------------------------------------
+
+// Mock codex script for `exec` success: emits JSONL stream + writes last message
+// to the path supplied via --output-last-message.
+//
+// We walk "$@" looking for --output-last-message and capture the next arg.
+// Use a `prev` flag so the script doesn't need indexed-array dereferences
+// (avoids \${!i}-style syntax that conflicts with JS template literals).
 const MOCK_CODEX_SUCCESS = `#!/usr/bin/env bash
 if [ "$1" = "--version" ]; then
-  echo 'codex-cli 0.128.0'
+  echo 'codex-cli 0.130.0'
   exit 0
 fi
-echo "$@" > "$(dirname "$0")/argv.log"
+printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+last_path=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output-last-message" ]; then last_path="$arg"; fi
+  prev="$arg"
+done
 cat > "$(dirname "$0")/stdin.log"
-echo '### Prior Art'
-echo '- nothing'
+printf '### Prior Art\\n- nothing\\n' > "$last_path"
+printf '%s\\n' '{"type":"thread.started","thread_id":"00000000-0000-0000-0000-000000000001"}'
+printf '%s\\n' '{"type":"turn.started"}'
+printf '%s\\n' '{"type":"item.completed","item":{"item_type":"agent_message","text":"### Prior Art\\n- nothing\\n"}}'
+printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}'
 exit 0
 `;
 
-// Mock codex script that exits 7 with partial output and stderr.
+// Mock codex script for `exec` failure: exits 7 with stderr; no turn.completed.
 const MOCK_CODEX_FAILURE = `#!/usr/bin/env bash
 if [ "$1" = "--version" ]; then
-  echo 'codex-cli 0.128.0'
+  echo 'codex-cli 0.130.0'
   exit 0
 fi
-echo "$@" > "$(dirname "$0")/argv.log"
+printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+last_path=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output-last-message" ]; then last_path="$arg"; fi
+  prev="$arg"
+done
 cat > "$(dirname "$0")/stdin.log"
-printf 'partial output before failure'
+printf 'partial output before failure' > "$last_path"
+printf '%s\\n' '{"type":"thread.started","thread_id":"00000000-0000-0000-0000-0000000000ff"}'
+printf '%s\\n' '{"type":"turn.started"}'
 printf 'mock codex failure' >&2
 exit 7
 `;
 
-// Mock codex script for code-review success: records argv one-per-line, captures stdin,
-// returns a fake review body.
+// Mock codex script for `codex review` (NOT exec review) success: v0.3 shape.
 const MOCK_CODEX_REVIEW_SUCCESS = `#!/usr/bin/env bash
 if [ "$1" = "--version" ]; then
-  echo 'codex-cli 0.128.0'
+  echo 'codex-cli 0.130.0'
   exit 0
 fi
 printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
@@ -60,10 +97,10 @@ printf '## Findings\\n- none\\n'
 exit 0
 `;
 
-// Mock codex script for code-review failure: exits 7 with partial stdout and stderr.
+// Mock codex script for `codex review` failure: v0.3 shape.
 const MOCK_CODEX_REVIEW_FAILURE = `#!/usr/bin/env bash
 if [ "$1" = "--version" ]; then
-  echo 'codex-cli 0.128.0'
+  echo 'codex-cli 0.130.0'
   exit 0
 fi
 printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
@@ -73,33 +110,49 @@ printf 'mock review failure' >&2
 exit 7
 `;
 
-// Mock codex script for docs-review success: records argv one-per-line, captures stdin,
-// returns a fake docs-review body.
+// Mock codex script for docs-review success (uses `codex exec`).
 const MOCK_CODEX_DOCS_REVIEW_SUCCESS = `#!/usr/bin/env bash
 if [ "$1" = "--version" ]; then
-  echo 'codex-cli 0.128.0'
+  echo 'codex-cli 0.130.0'
   exit 0
 fi
 printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+last_path=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output-last-message" ]; then last_path="$arg"; fi
+  prev="$arg"
+done
 cat > "$(dirname "$0")/stdin.log"
-printf '### Findings\\n- none\\n'
+printf '### Findings\\n- none\\n' > "$last_path"
+printf '%s\\n' '{"type":"thread.started","thread_id":"00000000-0000-0000-0000-0000000000d0"}'
+printf '%s\\n' '{"type":"turn.started"}'
+printf '%s\\n' '{"type":"item.completed","item":{"item_type":"agent_message","text":"### Findings\\n- none\\n"}}'
+printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":7,"output_tokens":3}}'
 exit 0
 `;
 
-// Mock codex script for docs-review failure: exits 7 with partial stdout and stderr.
+// Mock codex script for docs-review failure (uses `codex exec`): no turn.completed.
 const MOCK_CODEX_DOCS_REVIEW_FAILURE = `#!/usr/bin/env bash
 if [ "$1" = "--version" ]; then
-  echo 'codex-cli 0.128.0'
+  echo 'codex-cli 0.130.0'
   exit 0
 fi
 printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+last_path=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output-last-message" ]; then last_path="$arg"; fi
+  prev="$arg"
+done
 cat > "$(dirname "$0")/stdin.log"
-printf 'partial docs output'
+printf 'partial docs output' > "$last_path"
+printf '%s\\n' '{"type":"thread.started","thread_id":"00000000-0000-0000-0000-0000000000d1"}'
 printf 'mock docs failure' >&2
 exit 7
 `;
 
-test('mock codex: bridge spawns codex with exact argv and pipes prompt via stdin', () => {
+test('mock codex: bridge spawns codex exec with --json + --output-last-message inserted right after subcommand', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-spawn-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -121,9 +174,20 @@ test('mock codex: bridge spawns codex with exact argv and pipes prompt via stdin
     assert.equal(json.ok, true);
     assert.ok(typeof json.path === 'string' && json.path.length > 0, 'json.path should be a non-empty string');
 
-    // argv.log must contain exactly the four args (space-separated by echo "$@").
-    const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8').trim();
-    assert.equal(argvLog, 'exec --sandbox read-only -');
+    // argv.log is one arg per line. The semantic argv is `exec --sandbox read-only -`,
+    // and runCodexExec MUST insert `--json --output-last-message <tmp>` immediately
+    // after `exec` (i.e. before `--sandbox`).
+    const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+    const argv = argvLog.split('\n').filter((l) => l.length > 0);
+    assert.equal(argv[0], 'exec', `first arg should be exec, got: ${argv[0]}`);
+    assert.equal(argv[1], '--json', `second arg should be --json, got: ${argv[1]}`);
+    assert.equal(argv[2], '--output-last-message', `third arg should be --output-last-message, got: ${argv[2]}`);
+    assert.ok(argv[3] && argv[3].length > 0, 'fourth arg (tempfile path) should be non-empty');
+    assert.deepEqual(
+      argv.slice(4),
+      ['--sandbox', 'read-only', '-'],
+      `tail after injected flags should be [--sandbox, read-only, -], got: ${JSON.stringify(argv.slice(4))}`,
+    );
 
     // stdin.log must contain the rendered prompt with TASK substituted.
     const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
@@ -133,7 +197,7 @@ test('mock codex: bridge spawns codex with exact argv and pipes prompt via stdin
     );
 
     // Output .md file must exist at the reported path, have YAML frontmatter,
-    // and include the fake codex response.
+    // and include the body Codex wrote to --output-last-message (NOT raw stdout).
     const outputPath = json.path;
     assert.ok(existsSync(outputPath), `output file should exist at ${outputPath}`);
     const outputContent = readFileSync(outputPath, 'utf8');
@@ -141,14 +205,14 @@ test('mock codex: bridge spawns codex with exact argv and pipes prompt via stdin
     assert.ok(outputContent.includes('---'), 'output file should close YAML frontmatter');
     assert.ok(
       outputContent.includes('### Prior Art'),
-      'output file should include fake codex response'
+      'output file should include the body from --output-last-message'
     );
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }
 });
 
-test('mock codex: bridge handles failed codex (exit 7) — writes file and reports error', () => {
+test('mock codex: bridge handles failed codex (exit 7) — writes file and reports structured failure body', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-fail-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -177,23 +241,24 @@ test('mock codex: bridge handles failed codex (exit 7) — writes file and repor
       'json.path should be present even on failure'
     );
 
-    // Output file must still be written even on failure.
+    // Output file must still be written on failure with the structured failure body.
     const outputPath = json.path;
     assert.ok(existsSync(outputPath), `output file should exist at ${outputPath}`);
     const outputContent = readFileSync(outputPath, 'utf8');
     assert.ok(outputContent.startsWith('---\n'), 'output file should have YAML frontmatter');
-    assert.ok(
-      outputContent.includes('# (codex failed)'),
-      'output file should include failure marker'
-    );
-    assert.ok(
-      outputContent.includes('partial output before failure'),
-      'output file should include partial stdout'
-    );
-    assert.ok(
-      outputContent.includes('mock codex failure'),
-      'output file should include stderr'
-    );
+    assert.ok(outputContent.includes('# (codex failed)'), 'failure marker present');
+    // JSONL parser report sections must be present.
+    assert.ok(outputContent.includes('## JSONL parser report'), 'JSONL parser report section present');
+    assert.ok(outputContent.includes('thread.started: yes'), 'parser saw thread.started');
+    assert.ok(outputContent.includes('turn.completed: no'), 'parser saw NO turn.completed');
+    // Last message contents (tempfile body) must be embedded.
+    assert.ok(outputContent.includes('## Last message (from --output-last-message)'), 'last-message section present');
+    assert.ok(outputContent.includes('partial output before failure'), 'last-message body embedded');
+    // stderr verbatim.
+    assert.ok(outputContent.includes('## stderr'), 'stderr section present');
+    assert.ok(outputContent.includes('mock codex failure'), 'stderr verbatim');
+    // Exit line.
+    assert.ok(/status=7,\s*signal=(?:null|SIG[A-Z]+),\s*timed-out=false/.test(outputContent), 'exit line with status=7');
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }
@@ -407,10 +472,15 @@ test('mock codex: docs-review --docs-path spawns codex exec --sandbox read-only 
       const json = JSON.parse(result.stdout);
       assert.equal(json.ok, true);
 
-      // argv.log must be one-arg-per-line: ['exec', '--sandbox', 'read-only', '-']
+      // argv.log is one-arg-per-line. Pinned ordering: `--json --output-last-message <tmp>`
+      // are inserted by runCodexExec right after `exec`, before `--sandbox`.
       const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
-      const argv = argvLog.split('\n').slice(0, -1); // trim trailing empty from final \n
-      assert.deepEqual(argv, ['exec', '--sandbox', 'read-only', '-']);
+      const argv = argvLog.split('\n').filter((l) => l.length > 0);
+      assert.equal(argv[0], 'exec');
+      assert.equal(argv[1], '--json');
+      assert.equal(argv[2], '--output-last-message');
+      assert.ok(argv[3] && argv[3].length > 0, 'tempfile path arg should be non-empty');
+      assert.deepEqual(argv.slice(4), ['--sandbox', 'read-only', '-']);
 
       // stdin.log must contain the doc content AND a file marker so Codex
       // can attribute findings to the path.
