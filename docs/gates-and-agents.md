@@ -44,7 +44,7 @@ A gate skill mediates a step in the cycle that involves Codex and produces an ar
 - **Mode:** `code-review` (Codex `exec review` subcommand — separate from `exec`; `--sandbox` not exposed because the subcommand is review-only by design).
 - **Writes:** `.hyperclaude/code-reviews/<timestamp>-<slug>.md` — Codex's findings, with frontmatter recording `codex-thread-id`, `cwd`, `git-head`, and (depending on target) `base-ref`, `commit`, or the optional `title`. Frontmatter records `codex-resume-status: fresh`. The `uncommitted` target has no dedicated frontmatter field; it's identifiable from `slug: uncommitted` and the heading.
 - **`--resume`:** not supported in v0.4 (`codex exec review` and `codex exec resume` semantics differ); deferred to v0.5.
-- **Use when:** post-implementation, before tagging a release, before opening a PR.
+- **Use when:** post-implementation, before shipping a release, before opening a PR.
 - **Source:** [skills/hyper-code-review/SKILL.md](../skills/hyper-code-review/SKILL.md). No template — `codex exec review` owns its own prompt.
 
 ### `hyper-docs-sync` — Claude doc-sync orchestrator

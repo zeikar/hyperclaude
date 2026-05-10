@@ -7,7 +7,9 @@ For per-skill mechanics, see [gates-and-agents.md](gates-and-agents.md). For the
 ## The cycle
 
 ```
-research → plan → plan-review → implement → code-review → docs-sync → docs-review → tag
+            ┌─ refine ─┐            ┌──── fix ───┐            ┌──── fix ───┐
+            ▼          │            ▼            │            ▼            │
+research → plan → plan-review → implement → code-review → docs-sync → docs-review → ship
    │         │         │            │            │            │            │           │
 Codex     Claude     Codex     Claude(+agents) Codex      Claude       Codex        user
 ```
@@ -82,7 +84,7 @@ Default: branch diff vs `main`. Variants:
 /hyperclaude:hyper-code-review vs <ref>           # vs an arbitrary base
 ```
 
-Writes `.hyperclaude/code-reviews/<timestamp>-<slug>.md`. Read findings; fix what matters before tagging.
+Writes `.hyperclaude/code-reviews/<timestamp>-<slug>.md`. Read findings; fix what matters before shipping.
 
 This is the post-implement gate. The two reviews inside `hyper-implement` catch per-task drift; this one catches cross-task issues.
 
@@ -119,7 +121,7 @@ Default: top-level `.md` files in `docs/`. Variants:
 
 Writes `.hyperclaude/docs-reviews/<timestamp>-<slug>.md`. Scope is strict: accuracy / drift / completeness / broken links / cross-doc inconsistencies. NOT prose or style — the documenter agent owns those.
 
-Fix accuracy issues before merging or tagging.
+Fix accuracy issues before merging or shipping.
 
 ## Resuming a review
 
@@ -160,7 +162,7 @@ Status taxonomy recorded in `codex-resume-status` frontmatter:
 
 `code-review` and `research` do NOT support `--resume` in v0.4 (deferred to v0.5; see decisions.md).
 
-## 8. Tag and push — manual
+## 8. Ship — tag and push (manual)
 
 ```bash
 git tag -a v0.X.Y -m "v0.X.Y: <one-line summary>"

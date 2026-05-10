@@ -187,7 +187,7 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      Verify a file appears under .hyperclaude/docs-reviews/ with
      valid frontmatter.
 
-If any of the above fails, STOP and fix before tagging.
+If any of the above fails, STOP and fix before shipping.
 ====================================================================
 NOTE
 

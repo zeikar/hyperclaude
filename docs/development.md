@@ -69,7 +69,7 @@ node --test tests/*.mjs            # unit tests for the bridge — currently 211
 bash scripts/test/smoke.sh         # 23 core checks + 3 Codex probes when codex is on PATH + optional `claude plugin validate` when claude is on PATH
 ```
 
-Both must pass cleanly before tagging a release. Zero npm dependencies; nothing to install.
+Both must pass cleanly before shipping a release. Zero npm dependencies; nothing to install.
 
 The unit tests cover argument parsing, slug derivation, frontmatter rendering, file-collision handling, and per-mode invocation planning. The smoke script:
 

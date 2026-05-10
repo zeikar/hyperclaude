@@ -13,6 +13,18 @@ A Claude Code plugin built around a deliberate division of labor between two AI 
 
 Thesis: **Claude is the builder, Codex is the critic.** You get better software with a smarter cost split.
 
+## The cycle
+
+```
+            ┌─ refine ─┐            ┌──── fix ───┐            ┌──── fix ───┐
+            ▼          │            ▼            │            ▼            │
+research → plan → plan-review → implement → code-review → docs-sync → docs-review → ship
+   │         │         │            │            │            │            │           │
+ Codex     Claude    Codex    Claude(+agents)  Codex      Claude       Codex        user
+```
+
+Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, and `--resume`.
+
 ## Architecture (v0.4)
 
 ```
@@ -64,7 +76,7 @@ External dependencies: Claude Code plugin runtime, `codex-cli >= 0.130.0`, Node 
 
 - [docs/architecture.md](docs/architecture.md) — layers, bridge details, plugin layout, output contract.
 - [docs/gates-and-agents.md](docs/gates-and-agents.md) — what each skill and agent does, when to invoke.
-- [docs/workflow.md](docs/workflow.md) — the end-to-end research → tag cycle this plugin is built around.
+- [docs/workflow.md](docs/workflow.md) — the end-to-end research → ship cycle this plugin is built around.
 - [docs/development.md](docs/development.md) — local install, tests, release flow.
 - [docs/decisions.md](docs/decisions.md) — non-obvious "why" notes and active deferrals (UserPromptSubmit hook, recursive docs-dir, etc.).
 
