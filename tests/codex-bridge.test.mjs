@@ -75,7 +75,7 @@ test('loadTemplate: leaves unknown placeholders untouched', () => {
 
 import { parseArgs, buildInvocation } from '../scripts/codex-bridge.mjs';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, renameSync } from 'node:fs';
 import os from 'node:os';
 
 // `path` and `fileURLToPath` were imported in Task 2's initial test setup.
@@ -252,4 +252,44 @@ test('cli: --dry-run prints JSON without spawning codex', () => {
   assert.equal(out.dryRun, true);
   assert.equal(out.slug, 'add-oauth-login');
   assert.match(out.outputPath, /^\.hyperclaude\/research\/\d{8}-\d{4}-add-oauth-login\.md$/);
+});
+
+// M7 — --slug validation
+
+test('parseArgs: --slug accepts valid slugs', () => {
+  assert.equal(parseArgs(['research', '--task', 'x', '--slug', 'oauth-login']).slug, 'oauth-login');
+  assert.equal(parseArgs(['research', '--task', 'x', '--slug', 'a']).slug, 'a');
+  assert.equal(parseArgs(['research', '--task', 'x', '--slug', 'a-b-c-d-e']).slug, 'a-b-c-d-e');
+});
+
+test('parseArgs: --slug rejects invalid', () => {
+  assert.throws(() => parseArgs(['research', '--task', 'x', '--slug', 'oauth login']),   /--slug must match/);
+  assert.throws(() => parseArgs(['research', '--task', 'x', '--slug', '../oauth']),      /--slug must match/);
+  assert.throws(() => parseArgs(['research', '--task', 'x', '--slug', 'OAuth-Login']),   /--slug must match/);
+  assert.throws(() => parseArgs(['research', '--task', 'x', '--slug', 'a-b-c-d-e-f']),  /--slug must match/);
+  assert.throws(() => parseArgs(['research', '--task', 'x', '--slug', 'oauth--login']), /--slug must match/);
+  assert.throws(() => parseArgs(['research', '--task', 'x', '--slug', '']),              /--slug must match/);
+});
+
+// M5 — --dry-run fails fast on missing template
+
+test('cli: --dry-run reports missing template', () => {
+  const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const templatePath = path.join(repoRoot, 'templates', 'codex', 'research.md');
+  const bakPath = templatePath + '.bak';
+  renameSync(templatePath, bakPath);
+  let result;
+  try {
+    result = spawnSync(
+      'node',
+      [BRIDGE, 'research', '--task', 'smoke', '--dry-run'],
+      { encoding: 'utf8' }
+    );
+  } finally {
+    renameSync(bakPath, templatePath);
+  }
+  assert.equal(result.status, 1, `expected exit 1, stderr: ${result.stderr}`);
+  const out = JSON.parse(result.stdout);
+  assert.equal(out.ok, false);
+  assert.match(out.error, /failed to read prompt template/);
 });

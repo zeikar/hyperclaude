@@ -84,7 +84,14 @@ export function parseArgs(argv) {
     switch (flag) {
       case '--task':       out.task = next(); break;
       case '--plan-path':  out.planPath = next(); break;
-      case '--slug':       out.slug = next(); break;
+      case '--slug': {
+        const s = next();
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+){0,4}$/.test(s)) {
+          throw new Error(`--slug must match /^[a-z0-9]+(?:-[a-z0-9]+){0,4}$/, got: "${s}"`);
+        }
+        out.slug = s;
+        break;
+      }
       case '--out':        out.out = next(); break;
       case '--timeout':    out.timeout = Number(next()); break;
       case '--dry-run':    out.dryRun = true; break;
@@ -201,9 +208,13 @@ function runCodex(prompt, timeoutSec) {
       clearTimeout(timer);
       resolve(result);
     };
+    const KILL_GRACE_MS = 2000;
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGTERM');
+      setTimeout(() => {
+        if (child.exitCode === null) child.kill('SIGKILL');
+      }, KILL_GRACE_MS).unref();
     }, timeoutSec * 1000);
 
     child.stdout.on('data', (c) => stdoutChunks.push(c));
@@ -238,6 +249,16 @@ async function main(argv) {
   }
   const inv = buildInvocation({ args });
   if (args.dryRun) {
+    // Fail fast if the prompt template is missing — better to find out now.
+    try {
+      await readTemplateFile(args.mode);
+    } catch (err) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: `failed to read prompt template: ${err.message}`,
+      }) + '\n');
+      process.exit(1);
+    }
     process.stdout.write(JSON.stringify({
       ok: true,
       dryRun: true,
