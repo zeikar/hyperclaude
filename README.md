@@ -23,12 +23,12 @@ Thesis: **Claude is the builder, Codex is the critic.** You get better software 
     ┌───────────────────────┼─────────────────────────┐
     │                       │                         │
 ┌───▼─────────────┐ ┌───────▼──────────────┐ ┌────────▼────────┐
-│ /hyperclaude:   │ │ /hyperclaude:        │ │     Claude      │
-│  hyper-research │ │  hyper-plan-review   │ │   impl arm      │
-│      Codex      │ │       Codex          │ │                 │
-└────────┬────────┘ └─────────┬────────────┘ │   agents/       │
-         │                    │              │   skills/       │
-         └──────────┬─────────┘              └─────────────────┘
+│ /hyperclaude:    │ │ /hyperclaude:        │ │     Claude      │
+│   hyper-research │ │   hyper-plan-review  │ │   impl arm      │
+│       Codex      │ │       Codex          │ │                 │
+└────────┬─────────┘ └─────────┬────────────┘ │   agents/       │
+         │                     │              │   skills/       │
+         └──────────┬──────────┘              └─────────────────┘
                     │
         ┌───────────▼─────────────┐
         │   .hyperclaude/         │
@@ -44,7 +44,7 @@ Three layers:
 2. **Skills** — gate behaviors (`hyper-research`, `hyper-plan-review`) + implementation discipline (`hyper-tdd`, `hyper-debug`)
 3. **Agents** — Claude implementation arm (`planner`, `implementer`, `verifier`)
 
-The earlier nudge / `UserPromptSubmit` hook layer is deferred to v0.2 — heuristic intent detection across English/Korean and cooldown state are non-trivial enough to wait for real gate-usage data.
+The earlier nudge / `UserPromptSubmit` hook layer is deferred to v0.2.
 
 Codex is always invoked under `--sandbox read-only`: its role in hyperclaude is *critic*, never *editor*.
 
@@ -58,9 +58,47 @@ External dependencies: Claude Code plugin runtime, `codex-cli >= 0.128.0`, Node 
 
 For the full design rationale, see [docs/specs/2026-05-10-v0.1-design.md](docs/specs/2026-05-10-v0.1-design.md).
 
+## Quick start
+
+1. Install the plugin via Claude Code:
+
+   ```bash
+   /plugin marketplace add https://github.com/zeikar/hyperclaude
+   /plugin install hyperclaude
+   ```
+
+2. Make sure `codex-cli >= 0.128.0` is on your PATH:
+
+   ```bash
+   codex --version
+   ```
+
+3. In a Claude Code session inside any project, try a gate:
+
+   ```text
+   /hyperclaude:hyper-research add OAuth login to the API
+   ```
+
+   The first invocation creates `.hyperclaude/research/<timestamp>-add-oauth-login-to-the.md` with Codex's prior-art / pitfalls / recommendations. Read it; plan accordingly.
+
+4. After Claude writes a plan to `.hyperclaude/plans/<slug>.md`, critique it:
+
+   ```text
+   /hyperclaude:hyper-plan-review
+   ```
+
+## Development
+
+```bash
+node --test tests/*.mjs            # unit tests for the bridge
+bash scripts/test/smoke.sh         # acceptance smoke checks
+```
+
+Zero npm dependencies. Node 18+ stdlib only.
+
 ## Status
 
-Personal customization project, open-sourced. Not yet released. Use at your own risk.
+**v0.1 (alpha).** Personal customization project, open-sourced. Use at your own risk; expect breaking changes between minor versions until v1.0.
 
 ## Acknowledgements
 
