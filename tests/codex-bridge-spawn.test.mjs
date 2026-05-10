@@ -13,6 +13,7 @@ import {
   mkdirSync,
 } from 'node:fs';
 import os from 'node:os';
+import { runCodexResume } from '../scripts/codex-bridge.mjs';
 
 const BRIDGE = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -786,6 +787,118 @@ test('mock codex: docs-review 200KB guard rejects oversized payload', () => {
     assert.ok(
       json.error && /exceeds 200KB/.test(json.error),
       `json.error should match /exceeds 200KB/, got: ${json.error}`
+    );
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Task 3: runCodexResume tests
+// ---------------------------------------------------------------------------
+
+// Mock codex for exec resume success: emits JSONL including thread.started,
+// and writes the last-message body to --output-last-message.
+const MOCK_CODEX_RESUME_SUCCESS = `#!/usr/bin/env bash
+if [ "$1" = "--version" ]; then
+  echo 'codex-cli 0.130.0'
+  exit 0
+fi
+printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+last_path=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output-last-message" ]; then last_path="$arg"; fi
+  prev="$arg"
+done
+cat > "$(dirname "$0")/stdin.log"
+printf '### Updated Critique\\n- no new issues\\n' > "$last_path"
+printf '%s\\n' '{"type":"thread.started","thread_id":"00000000-0000-0000-0000-000000000099"}'
+printf '%s\\n' '{"type":"turn.started"}'
+printf '%s\\n' '{"type":"item.completed","item":{"item_type":"agent_message","text":"### Updated Critique\\n- no new issues\\n"}}'
+printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":5,"output_tokens":3}}'
+exit 0
+`;
+
+// Mock codex for exec resume where thread.started is omitted (simulate real
+// Codex behaviour where it may not re-emit thread.started on resume turns).
+const MOCK_CODEX_RESUME_NO_THREAD_STARTED = `#!/usr/bin/env bash
+if [ "$1" = "--version" ]; then
+  echo 'codex-cli 0.130.0'
+  exit 0
+fi
+printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+last_path=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output-last-message" ]; then last_path="$arg"; fi
+  prev="$arg"
+done
+cat > "$(dirname "$0")/stdin.log"
+printf '### Resumed body\\n' > "$last_path"
+printf '%s\\n' '{"type":"turn.started"}'
+printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":2,"output_tokens":1}}'
+exit 0
+`;
+
+test('runCodexResume: argv shape — exec resume -c sandbox_mode=read-only <threadId> with --json injected after exec resume', async () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-resume-argv-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const origPath = process.env.PATH;
+    process.env.PATH = `${tmpdir}:${origPath}`;
+    try {
+      const result = await runCodexResume('test-thread-id-123', 'continue the review', 30);
+      assert.equal(result.ok, true, `runCodexResume should succeed, reason: ${result.reason}`);
+    } finally {
+      process.env.PATH = origPath;
+    }
+
+    // argv.log is one arg per line.
+    // Semantic argv passed to runCodexExec is:
+    //   ['exec', 'resume', '-c', 'sandbox_mode=read-only', 'test-thread-id-123', '-']
+    // runCodexExec inserts --json --output-last-message <tmp> after 'exec resume' tokens.
+    // Expected final argv: exec resume --json --output-last-message <tmp> -c sandbox_mode=read-only test-thread-id-123 -
+    const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+    const argv = argvLog.split('\n').filter((l) => l.length > 0);
+    assert.equal(argv[0], 'exec', `argv[0] should be exec, got: ${argv[0]}`);
+    assert.equal(argv[1], 'resume', `argv[1] should be resume, got: ${argv[1]}`);
+    assert.equal(argv[2], '--json', `argv[2] should be --json, got: ${argv[2]}`);
+    assert.equal(argv[3], '--output-last-message', `argv[3] should be --output-last-message, got: ${argv[3]}`);
+    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.equal(argv[5], '-c', `argv[5] should be -c, got: ${argv[5]}`);
+    assert.equal(argv[6], 'sandbox_mode=read-only', `argv[6] should be sandbox_mode=read-only, got: ${argv[6]}`);
+    assert.equal(argv[7], 'test-thread-id-123', `argv[7] should be the thread id, got: ${argv[7]}`);
+    assert.equal(argv[8], '-', `argv[8] should be -, got: ${argv[8]}`);
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('runCodexResume: knownThreadId propagates as result.threadId when thread.started absent from JSONL', async () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-resume-tid-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_NO_THREAD_STARTED);
+    chmodSync(mockCodexPath, 0o755);
+
+    const origPath = process.env.PATH;
+    process.env.PATH = `${tmpdir}:${origPath}`;
+    let result;
+    try {
+      result = await runCodexResume('my-known-thread-id', 'resume prompt', 30);
+    } finally {
+      process.env.PATH = origPath;
+    }
+
+    assert.equal(result.ok, true, `should succeed, reason: ${result.reason}`);
+    assert.equal(
+      result.threadId,
+      'my-known-thread-id',
+      `threadId should be the knownThreadId "my-known-thread-id", got: ${result.threadId}`
     );
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });

@@ -640,6 +640,39 @@ async function runCodexExec(argv, stdinPayload, timeoutSec, knownThreadId = null
   };
 }
 
+// ---------- resume helpers ----------
+
+// renderFileListBlock: for a non-empty array of file paths, returns a numbered
+// "Files reviewed:" block (with trailing newline). For empty/null input returns ''.
+export function renderFileListBlock(files) {
+  if (!Array.isArray(files) || files.length === 0) return '';
+  const lines = ['Files reviewed:'];
+  for (let i = 0; i < files.length; i++) {
+    lines.push(`  ${i + 1}. ${files[i]}`);
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+// renderDiffBaseBlock: for a truthy ref returns the "Also re-check `git diff <ref>...HEAD`.\n"
+// line. For falsy input returns ''.
+export function renderDiffBaseBlock(diffBase) {
+  if (!diffBase) return '';
+  return `Also re-check \`git diff ${diffBase}...HEAD\`.\n`;
+}
+
+// runCodexResume: resumes an existing Codex thread by id.
+// Passes knownThreadId as the 4th arg to runCodexExec so the result's threadId
+// is authoritative even when `thread.started` is not re-emitted on resume.
+export function runCodexResume(threadId, prompt, timeoutSec) {
+  return runCodexExec(
+    ['exec', 'resume', '-c', 'sandbox_mode=read-only', threadId, '-'],
+    prompt,
+    timeoutSec,
+    threadId,
+  );
+}
+
 // codex review is a review-only subcommand: it inspects diffs, never authors patches.
 // It does not expose --sandbox (verified via `codex review --help`), and we keep the argv
 // minimal — no -c overrides, no extra flags — so the spawn shape is auditable.

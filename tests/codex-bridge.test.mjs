@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, renderDocsReviewFrontmatter, fmString, renderFailureBody } from '../scripts/codex-bridge.mjs';
+import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, renderDocsReviewFrontmatter, fmString, renderFailureBody, renderFileListBlock, renderDiffBaseBlock, readTemplateFile } from '../scripts/codex-bridge.mjs';
 
 test('slugify: simple ASCII task', () => {
   assert.equal(slugify('Add OAuth login to the API'), 'add-oauth-login-to-the');
@@ -1643,4 +1643,121 @@ test('renderFailureBody: empty lastMessage renders "(empty)"', () => {
   assert.match(body, /- top-level error events: 0\n/);
   assert.match(body, /## Last message \(from --output-last-message\)\n\(empty\)/);
   assert.match(body, /## Exit\nstatus=null, signal=SIGTERM, timed-out=true/);
+});
+
+// ── Task 3: review-resumed.md template ───────────────────────────────────────
+
+test('template review-resumed.md: loads and substitutes {{PLAN_PATH}}', async () => {
+  const text = await readTemplateFile('review-resumed');
+  assert.ok(typeof text === 'string' && text.length > 0, 'template should be non-empty');
+  const rendered = loadTemplate(text, { PLAN_PATH: '/some/path/plan.md' });
+  assert.ok(
+    !rendered.includes('{{PLAN_PATH}}'),
+    'rendered text should not contain literal {{PLAN_PATH}}'
+  );
+  assert.ok(
+    rendered.includes('/some/path/plan.md'),
+    'rendered text should include the substituted path'
+  );
+  // Must reference the review structure expected by the spec
+  assert.ok(rendered.includes('Issues'), 'template should reference Issues section');
+  assert.ok(rendered.includes('Verdict'), 'template should reference Verdict section');
+});
+
+// ── Task 3: docs-review-resumed.md template ──────────────────────────────────
+
+test('template docs-review-resumed.md: loads and substitutes all three placeholders', async () => {
+  const text = await readTemplateFile('docs-review-resumed');
+  assert.ok(typeof text === 'string' && text.length > 0, 'template should be non-empty');
+  const rendered = loadTemplate(text, {
+    DOCS_TARGET: 'docs/',
+    FILE_LIST_BLOCK: 'Files reviewed:\n  1. docs/api.md\n',
+    DIFF_BASE_BLOCK: 'Also re-check `git diff main...HEAD`.\n',
+  });
+  assert.ok(!rendered.includes('{{DOCS_TARGET}}'), 'DOCS_TARGET should be substituted');
+  assert.ok(!rendered.includes('{{FILE_LIST_BLOCK}}'), 'FILE_LIST_BLOCK should be substituted');
+  assert.ok(!rendered.includes('{{DIFF_BASE_BLOCK}}'), 'DIFF_BASE_BLOCK should be substituted');
+  assert.ok(rendered.includes('docs/'), 'rendered text should include the docs target');
+  assert.ok(rendered.includes('docs/api.md'), 'rendered text should include the file list');
+  assert.ok(rendered.includes('git diff main...HEAD'), 'rendered text should include diff ref');
+  // Must reference the docs-review structure
+  assert.ok(rendered.includes('Findings'), 'template should reference Findings section');
+  assert.ok(rendered.includes('Verdict'), 'template should reference Verdict section');
+});
+
+test('template docs-review-resumed.md: empty blocks produce clean prompt (no dangling "Also re-check")', async () => {
+  const text = await readTemplateFile('docs-review-resumed');
+  const rendered = loadTemplate(text, {
+    DOCS_TARGET: 'docs/api.md',
+    FILE_LIST_BLOCK: '',
+    DIFF_BASE_BLOCK: '',
+  });
+  assert.ok(
+    !rendered.includes('Also re-check'),
+    'rendered text should not contain "Also re-check" when DIFF_BASE_BLOCK is empty'
+  );
+  assert.ok(
+    !rendered.includes('Files reviewed:'),
+    'rendered text should not contain "Files reviewed:" when FILE_LIST_BLOCK is empty'
+  );
+});
+
+// ── Task 3: renderFileListBlock ───────────────────────────────────────────────
+
+test('renderFileListBlock: empty array returns empty string', () => {
+  assert.equal(renderFileListBlock([]), '');
+});
+
+test('renderFileListBlock: null returns empty string', () => {
+  assert.equal(renderFileListBlock(null), '');
+});
+
+test('renderFileListBlock: undefined returns empty string', () => {
+  assert.equal(renderFileListBlock(undefined), '');
+});
+
+test('renderFileListBlock: non-empty array returns numbered "Files reviewed:" block', () => {
+  const result = renderFileListBlock(['docs/api.md', 'docs/guide.md']);
+  assert.ok(result.startsWith('Files reviewed:\n'), 'should start with "Files reviewed:\\n"');
+  assert.ok(result.includes('  1. docs/api.md'), 'should include first file');
+  assert.ok(result.includes('  2. docs/guide.md'), 'should include second file');
+  assert.ok(result.endsWith('\n'), 'should end with newline');
+});
+
+test('renderFileListBlock: preserves order of files', () => {
+  const files = ['z.md', 'a.md', 'm.md'];
+  const result = renderFileListBlock(files);
+  const pos1 = result.indexOf('z.md');
+  const pos2 = result.indexOf('a.md');
+  const pos3 = result.indexOf('m.md');
+  assert.ok(pos1 < pos2 && pos2 < pos3, 'files should appear in the original order');
+});
+
+test('renderFileListBlock: single file produces numbered entry', () => {
+  const result = renderFileListBlock(['docs/README.md']);
+  assert.equal(result, 'Files reviewed:\n  1. docs/README.md\n');
+});
+
+// ── Task 3: renderDiffBaseBlock ───────────────────────────────────────────────
+
+test('renderDiffBaseBlock: empty string returns empty string', () => {
+  assert.equal(renderDiffBaseBlock(''), '');
+});
+
+test('renderDiffBaseBlock: null returns empty string', () => {
+  assert.equal(renderDiffBaseBlock(null), '');
+});
+
+test('renderDiffBaseBlock: undefined returns empty string', () => {
+  assert.equal(renderDiffBaseBlock(undefined), '');
+});
+
+test('renderDiffBaseBlock: truthy ref returns formatted line', () => {
+  const result = renderDiffBaseBlock('main');
+  assert.equal(result, 'Also re-check `git diff main...HEAD`.\n');
+});
+
+test('renderDiffBaseBlock: truthy ref with slash preserved', () => {
+  const result = renderDiffBaseBlock('origin/main');
+  assert.equal(result, 'Also re-check `git diff origin/main...HEAD`.\n');
 });
