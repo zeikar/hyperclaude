@@ -275,15 +275,9 @@ export function getCodexVersion() {
   return { ok: true, version: m[0] };
 }
 
-function runCodex(prompt, timeoutSec) {
+function spawnCodex(spawnArgs, { stdinPayload = null } = {}, timeoutSec) {
   return new Promise((resolve) => {
-    // --sandbox read-only forbids workspace writes regardless of user defaults;
-    // hyperclaude treats Codex strictly as a critic, never as an editor.
-    const child = spawn(
-      'codex',
-      ['exec', '--sandbox', 'read-only', '-'],
-      { stdio: ['pipe', 'pipe', 'pipe'] }
-    );
+    const child = spawn('codex', spawnArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
     const stdoutChunks = [];
     const stderrChunks = [];
     let timedOut = false;
@@ -323,8 +317,25 @@ function runCodex(prompt, timeoutSec) {
       }
       settle({ ok: true, stdout, stderr });
     });
-    child.stdin.end(prompt);
+    if (stdinPayload !== null) {
+      child.stdin.end(stdinPayload);
+    } else {
+      child.stdin.end();
+    }
   });
+}
+
+function runCodex(prompt, timeoutSec) {
+  // --sandbox read-only forbids workspace writes regardless of user defaults;
+  // hyperclaude treats Codex strictly as a critic, never as an editor.
+  return spawnCodex(['exec', '--sandbox', 'read-only', '-'], { stdinPayload: prompt }, timeoutSec);
+}
+
+// codex review is a review-only subcommand: it inspects diffs, never authors patches.
+// It does not expose --sandbox (verified via `codex review --help`), and we keep the argv
+// minimal — no -c overrides, no extra flags — so the spawn shape is auditable.
+function runCodexReview(reviewArgv, timeoutSec) {
+  return spawnCodex(['review', ...reviewArgv], {}, timeoutSec);
 }
 
 // ---------- CLI entry ----------
