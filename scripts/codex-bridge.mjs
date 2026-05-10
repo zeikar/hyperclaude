@@ -848,8 +848,17 @@ export async function discoverResumeArtifact(mode, args) {
   const candidates = entries
     .filter((d) => d.isFile() && d.name.endsWith('.md') && /^\d{8}-\d{4}-/.test(d.name))
     .map((d) => d.name)
-    .sort()
-    .reverse(); // DESC by lex order = newest first (timestamp prefix).
+    .sort((a, b) => {
+      // Newest first: same-minute collisions (`-2.md`, `-3.md`) are written LATER
+      // than the unsuffixed name; lex order puts unsuffixed first, so we read the
+      // collision suffix and treat higher suffix = newer within the same prefix.
+      const m = (n) => n.match(/^(\d{8}-\d{4}-.*?)(?:-(\d+))?\.md$/);
+      const ma = m(a), mb = m(b);
+      if (ma && mb && ma[1] === mb[1]) {
+        return Number(mb[2] ?? 1) - Number(ma[2] ?? 1);
+      }
+      return b.localeCompare(a);
+    });
   for (const name of candidates) {
     const candidatePath = path.join(dir, name);
     const ctx = await loadResumeContext(candidatePath, mode, args);
@@ -970,7 +979,9 @@ async function main(argv) {
         parts.push(`## File: ${name}\n\n${text}`);
       }
       docsContent = parts.join('\n\n');
-      aggregatedFiles = mdFiles;
+      // Resume prompt asks Codex to re-read these files from disk, so the list
+      // must be cwd-relative paths (Codex's cwd = project root, not args.docsDir).
+      aggregatedFiles = mdFiles.map((name) => path.join(args.docsDir, name));
     }
 
     // Step 2: 200KB docs guard.
