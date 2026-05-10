@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead } from '../scripts/codex-bridge.mjs';
+import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, renderDocsReviewFrontmatter } from '../scripts/codex-bridge.mjs';
 
 test('slugify: simple ASCII task', () => {
   assert.equal(slugify('Add OAuth login to the API'), 'add-oauth-login-to-the');
@@ -1019,4 +1019,235 @@ test('parseArgs: review rejects --docs-dir', () => {
     () => parseArgs(['review', '--plan-path', '/tmp/p.md', '--docs-dir', 'docs/']),
     /unknown flag for mode review: --docs-dir/
   );
+});
+
+// ── buildInvocation: docs-review mode ─────────────────────────────────────────
+
+test('buildInvocation: docs-review --docs-path docs/api.md → slug api, dir .hyperclaude/docs-reviews', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'docs-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: null,
+      baseRef: null,
+      commit: null,
+      title: null,
+      docsPath: 'docs/api.md',
+      docsDir: null,
+      diffBase: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'api');
+  assert.match(inv.outputPath, /\.hyperclaude\/docs-reviews\/\d{8}-\d{4}-api\.md$/);
+});
+
+test('buildInvocation: docs-review --docs-path README.md → slug readme', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'docs-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: null,
+      baseRef: null,
+      commit: null,
+      title: null,
+      docsPath: 'README.md',
+      docsDir: null,
+      diffBase: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'readme');
+});
+
+test('buildInvocation: docs-review --docs-path "API Reference.md" → slug api-reference', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'docs-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: null,
+      baseRef: null,
+      commit: null,
+      title: null,
+      docsPath: 'API Reference.md',
+      docsDir: null,
+      diffBase: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'api-reference');
+});
+
+test('buildInvocation: docs-review --docs-dir docs/reference/ → slug reference', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'docs-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: null,
+      baseRef: null,
+      commit: null,
+      title: null,
+      docsPath: null,
+      docsDir: 'docs/reference/',
+      diffBase: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'reference');
+});
+
+test('buildInvocation: docs-review --docs-dir docs/ → slug docs', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'docs-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: null,
+      baseRef: null,
+      commit: null,
+      title: null,
+      docsPath: null,
+      docsDir: 'docs/',
+      diffBase: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'docs');
+});
+
+test('buildInvocation: docs-review --docs-path path/to/some-guide.md → slug some-guide', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'docs-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: null,
+      baseRef: null,
+      commit: null,
+      title: null,
+      docsPath: 'path/to/some-guide.md',
+      docsDir: null,
+      diffBase: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'some-guide');
+});
+
+test('buildInvocation: docs-review slug fallback to docs when slugify returns null', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'docs-review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: null,
+      reviewTarget: null,
+      baseRef: null,
+      commit: null,
+      title: null,
+      docsPath: '한글만.md',
+      docsDir: null,
+      diffBase: null,
+    },
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'docs');
+});
+
+// ── renderDocsReviewFrontmatter ───────────────────────────────────────────────
+
+test('renderDocsReviewFrontmatter: starts with --- and ends with ---\\n followed by blank line', () => {
+  const fm = renderDocsReviewFrontmatter({
+    slug: 'api',
+    docsTarget: 'docs/api.md',
+    diffBase: null,
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+  });
+  assert.match(fm, /^---\n/);
+  assert.match(fm, /\n---\n$/);
+});
+
+test('renderDocsReviewFrontmatter: has required fields and no task/git-head/codex-subcommand', () => {
+  const fm = renderDocsReviewFrontmatter({
+    slug: 'api',
+    docsTarget: 'docs/api.md',
+    diffBase: null,
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+  });
+  assert.match(fm, /mode: docs-review/);
+  assert.match(fm, /slug:/);
+  assert.match(fm, /generated:/);
+  assert.match(fm, /codex-version:/);
+  assert.match(fm, /template-version: 1/);
+  assert.match(fm, /docs-target:/);
+  assert.doesNotMatch(fm, /\btask:/);
+  assert.doesNotMatch(fm, /git-head:/);
+  assert.doesNotMatch(fm, /codex-subcommand:/);
+  assert.doesNotMatch(fm, /base-ref:/);
+});
+
+test('renderDocsReviewFrontmatter: diff-base present when provided', () => {
+  const fm = renderDocsReviewFrontmatter({
+    slug: 'api',
+    docsTarget: 'docs/api.md',
+    diffBase: 'main',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+  });
+  assert.match(fm, /diff-base: "main"/);
+});
+
+test('renderDocsReviewFrontmatter: diff-base absent when not provided', () => {
+  const fm = renderDocsReviewFrontmatter({
+    slug: 'api',
+    docsTarget: 'docs/api.md',
+    diffBase: null,
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+  });
+  assert.doesNotMatch(fm, /diff-base:/);
+});
+
+test('renderDocsReviewFrontmatter: docs-target JSON-stringified to handle spaces/slashes', () => {
+  const fm = renderDocsReviewFrontmatter({
+    slug: 'api-reference',
+    docsTarget: 'docs/api reference.md',
+    diffBase: null,
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+  });
+  assert.match(fm, /docs-target: "docs\/api reference\.md"/);
 });
