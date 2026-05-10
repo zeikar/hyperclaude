@@ -5,7 +5,7 @@ description: Run Codex's native code-review on the current branch, working tree,
 
 # hyper-code-review
 
-Code review gate. Calls Codex in code-review mode against a branch diff, uncommitted working-tree changes, or a specific commit; saves the output to `.hyperclaude/reviews/<timestamp>-<slug>.md`; you read the file and surface the findings.
+Code review gate. Calls Codex in code-review mode against a branch diff, uncommitted working-tree changes, or a specific commit; saves the output to `.hyperclaude/code-reviews/<timestamp>-<slug>.md`; you read the file and surface the findings.
 
 ## When to use
 
