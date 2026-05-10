@@ -682,6 +682,17 @@ test('slugifyRef: empty body falls back to vs-ref (input "@@@" has no alphanumer
   assert.equal(slugifyRef('@@@'), 'vs-ref');
 });
 
+test('slugifyRef: caps at 8 hyphen-separated segments (FS-name safety)', () => {
+  // 10-segment ref → first 8 kept; pathological 200-char branch names would otherwise
+  // produce filenames that trip ENAMETOOLONG on writeFile.
+  assert.equal(
+    slugifyRef('a/b/c/d/e/f/g/h/i/j'),
+    'vs-a-b-c-d-e-f-g-h'
+  );
+  // Boundary: exactly 8 segments → preserved as-is
+  assert.equal(slugifyRef('s1/s2/s3/s4/s5/s6/s7/s8'), 'vs-s1-s2-s3-s4-s5-s6-s7-s8');
+});
+
 // ── renderCodeReviewFrontmatter ───────────────────────────────────────────────
 
 test('renderCodeReviewFrontmatter: starts with --- and ends with ---\\n followed by blank line', () => {

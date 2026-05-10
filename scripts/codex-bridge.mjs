@@ -45,8 +45,12 @@ export function renderFrontmatter({
 
 export function slugifyRef(ref) {
   if (ref === 'main') return 'vs-main';
-  const body = ref.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  if (!body) return 'vs-ref';
+  const cleaned = ref.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!cleaned) return 'vs-ref';
+  // Cap at 8 hyphen-separated segments to keep filenames safely under FS limits
+  // (mirrors slugify's word cap; an unbounded ref body can trip ENAMETOOLONG on
+  // pathological branch names like 200+ char auto-generated names).
+  const body = cleaned.split('-').slice(0, 8).join('-');
   return 'vs-' + body;
 }
 
