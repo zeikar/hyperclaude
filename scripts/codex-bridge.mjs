@@ -190,6 +190,17 @@ function runCodex(prompt, timeoutSec) {
     const stdoutChunks = [];
     const stderrChunks = [];
     let timedOut = false;
+    // `settled` ensures the promise resolves at most once. On spawn failure,
+    // Node fires both `error` and then `close` (code=null); without this guard
+    // `resolve` would be called twice (harmless in native Promises, but fragile
+    // if the caller ever wraps this in an observable that detects multi-settlement).
+    let settled = false;
+    const settle = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGTERM');
@@ -198,20 +209,18 @@ function runCodex(prompt, timeoutSec) {
     child.stdout.on('data', (c) => stdoutChunks.push(c));
     child.stderr.on('data', (c) => stderrChunks.push(c));
     child.on('error', (err) => {
-      clearTimeout(timer);
-      resolve({ ok: false, reason: `spawn error: ${err.message}` });
+      settle({ ok: false, reason: `spawn error: ${err.message}` });
     });
     child.on('close', (code) => {
-      clearTimeout(timer);
       const stdout = Buffer.concat(stdoutChunks).toString('utf8');
       const stderr = Buffer.concat(stderrChunks).toString('utf8');
       if (timedOut) {
-        return resolve({ ok: false, reason: `codex timed out after ${timeoutSec}s`, stdout, stderr });
+        return settle({ ok: false, reason: `codex timed out after ${timeoutSec}s`, stdout, stderr });
       }
       if (code !== 0) {
-        return resolve({ ok: false, reason: `codex exited ${code}`, stdout, stderr });
+        return settle({ ok: false, reason: `codex exited ${code}`, stdout, stderr });
       }
-      resolve({ ok: true, stdout, stderr });
+      settle({ ok: true, stdout, stderr });
     });
     child.stdin.end(prompt);
   });
