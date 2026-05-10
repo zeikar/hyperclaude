@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, renderDocsReviewFrontmatter, fmString, renderFailureBody, renderFileListBlock, renderDiffBaseBlock, readTemplateFile } from '../scripts/codex-bridge.mjs';
+import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, renderDocsReviewFrontmatter, fmString, renderFailureBody, renderFileListBlock, renderDiffBaseBlock, readTemplateFile, parseFrontmatter, loadResumeContext, discoverResumeArtifact, defaultModeDir } from '../scripts/codex-bridge.mjs';
+import { mkdirSync } from 'node:fs';
 
 test('slugify: simple ASCII task', () => {
   assert.equal(slugify('Add OAuth login to the API'), 'add-oauth-login-to-the');
@@ -114,6 +115,7 @@ test('parseArgs: research mode', () => {
     docsPath: null,
     docsDir: null,
     diffBase: null,
+    resumeFrom: null,
   });
 });
 
@@ -1760,4 +1762,518 @@ test('renderDiffBaseBlock: truthy ref returns formatted line', () => {
 test('renderDiffBaseBlock: truthy ref with slash preserved', () => {
   const result = renderDiffBaseBlock('origin/main');
   assert.equal(result, 'Also re-check `git diff origin/main...HEAD`.\n');
+});
+
+// ── Task 4: parseArgs --resume ───────────────────────────────────────────────
+
+test('parseArgs: review accepts --resume <path>', () => {
+  const a = parseArgs(['review', '--plan-path', '/tmp/p.md', '--resume', '/tmp/prior.md']);
+  assert.equal(a.resumeFrom, '/tmp/prior.md');
+});
+
+test('parseArgs: review accepts --resume auto', () => {
+  const a = parseArgs(['review', '--plan-path', '/tmp/p.md', '--resume', 'auto']);
+  assert.equal(a.resumeFrom, 'auto');
+});
+
+test('parseArgs: docs-review accepts --resume <path>', () => {
+  const a = parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--resume', '/tmp/prior.md']);
+  assert.equal(a.resumeFrom, '/tmp/prior.md');
+});
+
+test('parseArgs: docs-review accepts --resume auto', () => {
+  const a = parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--resume', 'auto']);
+  assert.equal(a.resumeFrom, 'auto');
+});
+
+test('parseArgs: research rejects --resume', () => {
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--resume', 'auto']),
+    /unknown flag for mode research: --resume/
+  );
+});
+
+test('parseArgs: code-review rejects --resume', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--resume', 'auto']),
+    /unknown flag for mode code-review: --resume/
+  );
+});
+
+test('parseArgs: --resume rejects empty string', () => {
+  assert.throws(
+    () => parseArgs(['review', '--plan-path', '/tmp/p.md', '--resume', '']),
+    /--resume must be a non-empty path or "auto"/
+  );
+});
+
+test('parseArgs: --resume rejects leading dash', () => {
+  assert.throws(
+    () => parseArgs(['review', '--plan-path', '/tmp/p.md', '--resume', '-rf']),
+    /--resume must be a non-empty path or "auto"/
+  );
+});
+
+// ── Task 4: parseFrontmatter ─────────────────────────────────────────────────
+
+test('parseFrontmatter: empty / missing leading --- returns {}', () => {
+  assert.deepEqual(parseFrontmatter(''), {});
+  assert.deepEqual(parseFrontmatter('no frontmatter here\nmore text\n'), {});
+  assert.deepEqual(parseFrontmatter('---no\nstuff'), {});
+});
+
+test('parseFrontmatter: parses simple bare scalars verbatim', () => {
+  const txt = '---\nmode: review\nslug: oauth-login\ncodex-resume-status: fresh\n---\nbody';
+  const fm = parseFrontmatter(txt);
+  assert.equal(fm.mode, 'review');
+  assert.equal(fm.slug, 'oauth-login');
+  assert.equal(fm['codex-resume-status'], 'fresh');
+});
+
+test('parseFrontmatter: parses JSON-quoted values via JSON.parse', () => {
+  const txt = '---\ncwd: "/Users/test/project"\nplan-path: "/tmp/with \\"quotes\\".md"\n---\n';
+  const fm = parseFrontmatter(txt);
+  assert.equal(fm.cwd, '/Users/test/project');
+  assert.equal(fm['plan-path'], '/tmp/with "quotes".md');
+});
+
+test('parseFrontmatter: malformed JSON-quoted falls back to raw', () => {
+  // Truncated JSON string — store raw substring rather than throwing.
+  const txt = '---\nbroken: "no closing\n---\n';
+  const fm = parseFrontmatter(txt);
+  assert.equal(fm.broken, '"no closing');
+});
+
+test('parseFrontmatter: skips block scalars (key: |-) including indented continuation', () => {
+  const txt = [
+    '---',
+    'mode: research',
+    'task: |-',
+    '  multi-line task',
+    '  with quotes "x"',
+    '  and more',
+    'slug: my-slug',
+    '---',
+    'body',
+  ].join('\n');
+  const fm = parseFrontmatter(txt);
+  assert.equal(fm.mode, 'research');
+  assert.equal(fm.slug, 'my-slug', 'slug after block scalar should still be picked up');
+  // task is intentionally skipped (we don't need it for resume identity).
+  assert.ok(!('task' in fm) || fm.task === undefined, 'task should be skipped');
+});
+
+test('parseFrontmatter: closing --- terminates parsing', () => {
+  const txt = [
+    '---',
+    'mode: review',
+    '---',
+    'after: should-not-parse',
+  ].join('\n');
+  const fm = parseFrontmatter(txt);
+  assert.equal(fm.mode, 'review');
+  assert.ok(!('after' in fm), 'fields after closing --- should not be parsed');
+});
+
+test('parseFrontmatter: CRLF tolerant', () => {
+  const txt = '---\r\nmode: review\r\nslug: x\r\n---\r\nbody\r\n';
+  const fm = parseFrontmatter(txt);
+  assert.equal(fm.mode, 'review');
+  assert.equal(fm.slug, 'x');
+});
+
+test('parseFrontmatter: also handles |  (no dash) block scalar', () => {
+  const txt = [
+    '---',
+    'note: |',
+    '  hello',
+    '  world',
+    'mode: review',
+    '---',
+  ].join('\n');
+  const fm = parseFrontmatter(txt);
+  assert.equal(fm.mode, 'review');
+  assert.ok(!('note' in fm) || fm.note === undefined);
+});
+
+// ── Task 4: defaultModeDir ───────────────────────────────────────────────────
+
+test('defaultModeDir: maps known modes to their .hyperclaude dirs', () => {
+  assert.equal(defaultModeDir('research'), '.hyperclaude/research');
+  assert.equal(defaultModeDir('review'), '.hyperclaude/reviews');
+  assert.equal(defaultModeDir('code-review'), '.hyperclaude/code-reviews');
+  assert.equal(defaultModeDir('docs-review'), '.hyperclaude/docs-reviews');
+});
+
+test('defaultModeDir: throws for unknown mode', () => {
+  assert.throws(() => defaultModeDir('banana'), /unknown mode/);
+});
+
+// ── Task 4: loadResumeContext ────────────────────────────────────────────────
+
+// Helpers for writing fixtures.
+function writePriorReview(filePath, fields) {
+  const lines = ['---'];
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined) continue;
+    if (k === 'codex-resume-status') {
+      lines.push(`${k}: ${v}`);
+    } else if (k === 'mode') {
+      lines.push(`${k}: ${v}`);
+    } else {
+      lines.push(`${k}: ${JSON.stringify(v)}`);
+    }
+  }
+  lines.push('---');
+  lines.push('body');
+  writeFileSync(filePath, lines.join('\n'));
+}
+
+test('loadResumeContext: review identity success', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-rev-ok-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    const prior = path.join(tmp, '20260510-1015-x.md');
+    writePriorReview(prior, {
+      mode: 'review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'codex-thread-id': 'thread-abc',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'review', { planPath });
+    assert.equal(ctx.error, undefined);
+    assert.equal(ctx.threadId, 'thread-abc');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: mode mismatch rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-mode-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': '/tmp/api.md',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'review', { planPath: '/tmp/p.md' });
+    assert.match(ctx.error, /mode is "docs-review"; current mode is "review"/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: cwd mismatch via path.resolve (trailing slash equivalent passes)', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cwd-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    const prior = path.join(tmp, 'p.md');
+    // Use process.cwd() with a trailing slash — path.resolve normalizes it.
+    writePriorReview(prior, {
+      mode: 'review',
+      cwd: process.cwd() + '/',
+      'plan-path': planPath,
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'review', { planPath });
+    assert.equal(ctx.error, undefined, `should pass with trailing slash, got: ${ctx.error}`);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: cwd mismatch fails with clean message', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cwd2-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'review',
+      cwd: '/some/other/dir',
+      'plan-path': '/tmp/p.md',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'review', { planPath: '/tmp/p.md' });
+    assert.match(ctx.error, /cwd is "\/some\/other\/dir"/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: review plan-path mismatch rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-plan-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'review',
+      cwd: process.cwd(),
+      'plan-path': '/tmp/old-plan.md',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'review', { planPath: '/tmp/new-plan.md' });
+    assert.match(ctx.error, /plan-path differs from current/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: docs-target mismatch rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-dt-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': '/tmp/api.md',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPath: '/tmp/other.md' });
+    assert.match(ctx.error, /docs-target\/diff-base differs from current/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: diff-base null vs set mismatch rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-db-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': '/tmp/api.md',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+      // no diff-base
+    });
+    // Current has diff-base set.
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPath: '/tmp/api.md', diffBase: 'main' });
+    assert.match(ctx.error, /docs-target\/diff-base differs from current/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: diff-base set vs null mismatch rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-db2-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': '/tmp/api.md',
+      'diff-base': 'main',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPath: '/tmp/api.md' });
+    assert.match(ctx.error, /docs-target\/diff-base differs from current/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: diff-base equal strings pass', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-db3-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': '/tmp/api.md',
+      'diff-base': 'main',
+      'codex-thread-id': 'tid',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPath: '/tmp/api.md', diffBase: 'main' });
+    assert.equal(ctx.error, undefined);
+    assert.equal(ctx.threadId, 'tid');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: missing thread-id rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-tid-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'review',
+      cwd: process.cwd(),
+      'plan-path': '/tmp/p.md',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'review', { planPath: '/tmp/p.md' });
+    assert.match(ctx.error, /no codex-thread-id/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: status fallback rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-st-fb-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'review',
+      cwd: process.cwd(),
+      'plan-path': '/tmp/p.md',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fallback',
+    });
+    const ctx = await loadResumeContext(prior, 'review', { planPath: '/tmp/p.md' });
+    assert.match(ctx.error, /resume-status "fallback"; only fresh\/resumed eligible/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: status resume-failed rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-st-rf-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'review',
+      cwd: process.cwd(),
+      'plan-path': '/tmp/p.md',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'resume-failed',
+    });
+    const ctx = await loadResumeContext(prior, 'review', { planPath: '/tmp/p.md' });
+    assert.match(ctx.error, /resume-status "resume-failed"/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: unreadable path returns error', async () => {
+  const ctx = await loadResumeContext('/nonexistent/path/foo.md', 'review', { planPath: '/tmp/p.md' });
+  assert.match(ctx.error, /cannot read prior artifact/);
+});
+
+// ── Task 4: discoverResumeArtifact ───────────────────────────────────────────
+
+test('discoverResumeArtifact: returns newest-first; honors --out', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-newest-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    // Write three timestamped files; the newest should win.
+    const older = path.join(tmp, '20260101-0000-old.md');
+    const newer = path.join(tmp, '20260510-1015-mid.md');
+    const newest = path.join(tmp, '20260601-0000-new.md');
+    for (const p of [older, newer, newest]) {
+      writePriorReview(p, {
+        mode: 'review',
+        cwd: process.cwd(),
+        'plan-path': planPath,
+        'codex-thread-id': `thread-${path.basename(p)}`,
+        'codex-resume-status': 'fresh',
+      });
+    }
+    const r = await discoverResumeArtifact('review', { out: tmp, planPath });
+    assert.equal(r.error, undefined);
+    assert.equal(r.path, newest);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: no candidates returns error', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-empty-'));
+  try {
+    const r = await discoverResumeArtifact('review', { out: tmp, planPath: '/tmp/p.md' });
+    assert.match(r.error, /no matching artifact in/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: ignores non-.md files', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-nomd-'));
+  try {
+    writeFileSync(path.join(tmp, '20260510-1015-x.txt'), 'not markdown');
+    writeFileSync(path.join(tmp, '20260510-1015-x.json'), '{}');
+    const r = await discoverResumeArtifact('review', { out: tmp, planPath: '/tmp/p.md' });
+    assert.match(r.error, /no matching artifact in/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: ignores files without timestamp prefix', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-noprefix-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    // These lack the 8-4 timestamp prefix and must be skipped.
+    writePriorReview(path.join(tmp, 'README.md'), {
+      mode: 'review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    writePriorReview(path.join(tmp, 'just-some-name.md'), {
+      mode: 'review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const r = await discoverResumeArtifact('review', { out: tmp, planPath });
+    assert.match(r.error, /no matching artifact in/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: ignores subdirectories', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-subdir-'));
+  try {
+    mkdirSync(path.join(tmp, '20260510-1015-subdir'));
+    const r = await discoverResumeArtifact('review', { out: tmp, planPath: '/tmp/p.md' });
+    assert.match(r.error, /no matching artifact in/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: skips ineligible artifacts (mode mismatch) and finds the next valid one', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-skip-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    // Newer but wrong mode → should be skipped.
+    writePriorReview(path.join(tmp, '20260601-0000-newer.md'), {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': '/tmp/x.md',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    // Older but valid → should win.
+    const older = path.join(tmp, '20260510-1015-older.md');
+    writePriorReview(older, {
+      mode: 'review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'codex-thread-id': 'tid-older',
+      'codex-resume-status': 'fresh',
+    });
+    const r = await discoverResumeArtifact('review', { out: tmp, planPath });
+    assert.equal(r.error, undefined);
+    assert.equal(r.path, older);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 });

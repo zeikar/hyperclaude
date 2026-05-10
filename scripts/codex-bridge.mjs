@@ -133,9 +133,9 @@ import { existsSync } from 'node:fs';
 
 const ALLOWED_FLAGS_PER_MODE = {
   research:      new Set(['--task', '--task-file', '--slug', '--out', '--dry-run', '--timeout']),
-  review:        new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout']),
+  review:        new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout', '--resume']),
   'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--out', '--dry-run', '--timeout']),
-  'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--timeout']),
+  'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--timeout', '--resume']),
 };
 
 export function parseArgs(argv) {
@@ -160,6 +160,7 @@ export function parseArgs(argv) {
     docsPath: null,
     docsDir: null,
     diffBase: null,
+    resumeFrom: null,
   };
   for (let i = 0; i < rest.length; i++) {
     const flag = rest[i];
@@ -232,6 +233,14 @@ export function parseArgs(argv) {
           throw new Error(`--diff-base must be a non-empty git ref ([A-Za-z0-9._/-]+, no leading dash), got: "${v}"`);
         }
         out.diffBase = v;
+        break;
+      }
+      case '--resume': {
+        const v = next();
+        if (!v || v.startsWith('-')) {
+          throw new Error(`--resume must be a non-empty path or "auto" (no leading dash), got: "${v}"`);
+        }
+        out.resumeFrom = v;
         break;
       }
     }
@@ -680,6 +689,185 @@ function runCodexReview(reviewArgv, timeoutSec) {
   return spawnCodex(['review', ...reviewArgv], {}, timeoutSec);
 }
 
+// ---------- frontmatter parser ----------
+
+// parseFrontmatter: narrow extractor for the frontmatter we write. Returns
+// a flat object of scalar fields. Block-scalar values (`key: |-`) are skipped
+// (we only need scalar identity fields for resume validation).
+//
+// Behaviour:
+// - CRLF tolerant.
+// - Returns {} when the text has no leading `---` line.
+// - Reads `key: value` lines until the closing `---`.
+// - JSON-quoted values (starting with `"`) are JSON.parsed; on parse failure
+//   the raw substring is stored verbatim.
+// - Bare-token values are stored as the raw substring after `: `.
+// - `key: |-` and `key: |` start a block scalar; subsequent indented lines
+//   (any line starting with at least one space) are skipped without storing.
+export function parseFrontmatter(text) {
+  const out = {};
+  if (typeof text !== 'string' || text.length === 0) return out;
+  const rawLines = text.split('\n');
+  // Strip CRLF.
+  const lines = rawLines.map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
+  if (lines.length === 0 || lines[0] !== '---') return out;
+  let i = 1;
+  let inBlockScalar = false;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line === '---') break;
+    if (inBlockScalar) {
+      // Continuation of a block scalar: any line with leading whitespace (or empty).
+      // Empty line stays inside the block; non-indented non-empty line ends it.
+      if (line.length === 0 || line.startsWith(' ')) {
+        i += 1;
+        continue;
+      }
+      inBlockScalar = false;
+      // Fall through to top-level key handling.
+    }
+    // Top-level key: `key: <rest>` — match minimally.
+    const m = line.match(/^([A-Za-z][A-Za-z0-9_-]*):(?: (.*))?$/);
+    if (!m) {
+      i += 1;
+      continue;
+    }
+    const key = m[1];
+    const rest = m[2] === undefined ? '' : m[2];
+    if (rest === '|-' || rest === '|') {
+      inBlockScalar = true;
+      i += 1;
+      continue;
+    }
+    if (rest.startsWith('"')) {
+      try {
+        out[key] = JSON.parse(rest);
+      } catch {
+        out[key] = rest;
+      }
+    } else {
+      out[key] = rest;
+    }
+    i += 1;
+  }
+  return out;
+}
+
+// ---------- resume context loaders ----------
+
+// defaultModeDir: maps a mode to its conventional output directory under
+// .hyperclaude/. Mirrors the implicit mapping in buildInvocation.
+export function defaultModeDir(mode) {
+  if (mode === 'research') return '.hyperclaude/research';
+  if (mode === 'review') return '.hyperclaude/reviews';
+  if (mode === 'code-review') return '.hyperclaude/code-reviews';
+  if (mode === 'docs-review') return '.hyperclaude/docs-reviews';
+  throw new Error(`unknown mode: ${mode}`);
+}
+
+// loadResumeContext: validates a prior artifact and extracts thread-id.
+// Returns either { threadId, frontmatter } or { error: <reason> }.
+//
+// Validations (in order, first failure wins):
+//  1. file readable + parses
+//  2. mode field equals expectedMode
+//  3. cwd matches process.cwd() under path.resolve()
+//  4. codex-thread-id is truthy
+//  5. codex-resume-status is fresh or resumed (not fallback / resume-failed)
+//  6. mode-specific identity (plan-path for review; docs-target+diff-base for docs-review)
+export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
+  let text;
+  try {
+    text = await readFile(prevPath, 'utf8');
+  } catch {
+    return { error: `cannot read prior artifact: ${prevPath}` };
+  }
+  const fm = parseFrontmatter(text);
+  if (fm.mode !== expectedMode) {
+    return { error: `prior artifact mode is "${fm.mode ?? ''}"; current mode is "${expectedMode}"` };
+  }
+  const prevCwd = fm.cwd;
+  if (typeof prevCwd !== 'string' || prevCwd.length === 0) {
+    return { error: `prior artifact cwd is ""; current cwd is "${process.cwd()}"` };
+  }
+  const here = process.cwd();
+  if (path.resolve(prevCwd) !== path.resolve(here)) {
+    return { error: `prior artifact cwd is "${prevCwd}"; current cwd is "${here}"` };
+  }
+  const threadId = fm['codex-thread-id'];
+  if (!threadId || typeof threadId !== 'string') {
+    return { error: 'prior artifact has no codex-thread-id' };
+  }
+  const status = fm['codex-resume-status'];
+  if (status !== 'fresh' && status !== 'resumed') {
+    return { error: `prior artifact has resume-status "${status ?? ''}"; only fresh/resumed eligible` };
+  }
+  if (expectedMode === 'review') {
+    const prevPlan = fm['plan-path'];
+    if (typeof prevPlan !== 'string' || path.resolve(prevPlan) !== path.resolve(currentArgs.planPath)) {
+      return { error: 'prior artifact plan-path differs from current' };
+    }
+  } else if (expectedMode === 'docs-review') {
+    const prevTarget = fm['docs-target'];
+    const curTarget = currentArgs.docsPath || currentArgs.docsDir;
+    if (typeof prevTarget !== 'string' || path.resolve(prevTarget) !== path.resolve(curTarget)) {
+      return { error: 'prior artifact docs-target/diff-base differs from current' };
+    }
+    const prevDiff = fm['diff-base'] ?? null;
+    const curDiff = currentArgs.diffBase ?? null;
+    if (prevDiff !== curDiff) {
+      return { error: 'prior artifact docs-target/diff-base differs from current' };
+    }
+  }
+  return { threadId, frontmatter: fm };
+}
+
+// resolveResume: for `--resume <path>` or `--resume auto`, returns one of:
+//   { ok: true, prevPath, context }
+//   { ok: false, fatal: true,  error }   // explicit path → caller fails hard
+//   { ok: false, fatal: false, error }   // 'auto' miss → caller falls back to fresh
+async function resolveResume(mode, args) {
+  let prevPath;
+  if (args.resumeFrom === 'auto') {
+    const d = await discoverResumeArtifact(mode, args);
+    if (d.error) return { ok: false, fatal: false, error: d.error };
+    prevPath = d.path;
+  } else {
+    prevPath = args.resumeFrom;
+  }
+  const ctx = await loadResumeContext(prevPath, mode, args);
+  if (ctx.error) {
+    return { ok: false, fatal: args.resumeFrom !== 'auto', error: ctx.error };
+  }
+  return { ok: true, prevPath, context: ctx };
+}
+
+// discoverResumeArtifact: searches the configured output directory for the
+// newest artifact whose frontmatter passes loadResumeContext. Returns either
+// { path } or { error: 'no matching artifact in <dir>' }.
+export async function discoverResumeArtifact(mode, args) {
+  const dir = args.out ?? defaultModeDir(mode);
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return { error: `no matching artifact in ${dir}` };
+  }
+  const candidates = entries
+    .filter((d) => d.isFile() && d.name.endsWith('.md') && /^\d{8}-\d{4}-/.test(d.name))
+    .map((d) => d.name)
+    .sort()
+    .reverse(); // DESC by lex order = newest first (timestamp prefix).
+  for (const name of candidates) {
+    const candidatePath = path.join(dir, name);
+    const ctx = await loadResumeContext(candidatePath, mode, args);
+    if (!ctx.error) {
+      return { path: candidatePath };
+    }
+  }
+  return { error: `no matching artifact in ${dir}` };
+}
+
 // ---------- CLI entry ----------
 
 async function main(argv) {
@@ -736,8 +924,10 @@ async function main(argv) {
 
   // docs-review path: reads docs file/dir, checks size, builds prompt, spawns codex exec.
   if (args.mode === 'docs-review') {
-    // Step 1: read docs content.
+    // Step 1: read docs content. `aggregatedFiles` mirrors the markers we
+    // emit so the resume prompt can re-list what was reviewed.
     let docsContent;
+    let aggregatedFiles = [];
     if (args.docsPath) {
       try {
         // Prefix with file marker so Codex can attribute findings to the path
@@ -745,6 +935,7 @@ async function main(argv) {
         // requires findings to cite "<doc path>:<line-or-section>").
         const raw = await readFile(args.docsPath, 'utf8');
         docsContent = `## File: ${args.docsPath}\n\n${raw}`;
+        aggregatedFiles = [args.docsPath];
       } catch (err) {
         let errMsg;
         if (err.code === 'ENOENT') {
@@ -787,15 +978,18 @@ async function main(argv) {
         parts.push(`## File: ${name}\n\n${text}`);
       }
       docsContent = parts.join('\n\n');
+      aggregatedFiles = mdFiles;
     }
 
     // Step 2: 200KB docs guard.
     const docsBytes = Buffer.byteLength(docsContent, 'utf8');
     if (docsBytes > 204800) {
+      const baseMsg = 'docs payload exceeds 200KB; narrow scope with --docs-path or a smaller directory';
       process.stdout.write(JSON.stringify({
         ok: false,
-        error: 'docs payload exceeds 200KB; narrow scope with --docs-path or a smaller directory',
+        error: args.resumeFrom ? `resume rejected: ${baseMsg}` : baseMsg,
         totalBytes: docsBytes,
+        ...(args.resumeFrom ? { resumeStatus: 'fallback', threadId: null } : {}),
       }) + '\n');
       process.exit(1);
     }
@@ -811,10 +1005,62 @@ async function main(argv) {
       process.exit(1);
     }
 
-    // Step 4: load template.
+    // Step 4 (resume): try to resolve a prior thread when --resume is set.
+    // On 'auto' miss → fall back to fresh + stderr note. On explicit failure → fail hard.
+    let resumeContext = null;       // { threadId, frontmatter } when valid
+    let resumeFromPath = null;      // resolved prior artifact path (for codexResumedFrom)
+    let resumeStatus = 'fresh';
+    if (args.resumeFrom) {
+      const r = await resolveResume('docs-review', args);
+      if (r.ok) {
+        resumeContext = r.context;
+        resumeFromPath = r.prevPath;
+      } else if (r.fatal) {
+        process.stdout.write(JSON.stringify({
+          ok: false,
+          error: `resume rejected: ${r.error}`,
+          path: null,
+          resumeStatus: 'fallback',
+          threadId: null,
+        }) + '\n');
+        process.exit(1);
+      } else {
+        // 'auto' fell back: warn, run fresh.
+        process.stderr.write(`hyperclaude: resume fallback — ${r.error}\n`);
+        resumeStatus = 'fallback';
+      }
+    }
+
+    // Step 5: optional diff context (always re-run for resume too, since the
+    // template references the diff and we need to enforce the 500KB guard).
+    let diffOutput = null;
+    if (args.diffBase) {
+      const r = spawnSync('git', ['diff', `${args.diffBase}...HEAD`], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+      if (r.error || r.status !== 0) {
+        process.stdout.write(JSON.stringify({
+          ok: false,
+          error: `git diff failed: ${r.stderr || r.error?.message}`,
+          ...(args.resumeFrom ? { resumeStatus: 'fallback', threadId: null } : {}),
+        }) + '\n');
+        process.exit(1);
+      }
+      if (Buffer.byteLength(r.stdout, 'utf8') > 512000) {
+        const baseMsg = 'git diff exceeds 500KB; narrow --diff-base scope';
+        process.stdout.write(JSON.stringify({
+          ok: false,
+          error: args.resumeFrom ? `resume rejected: ${baseMsg}` : baseMsg,
+          diffBytes: Buffer.byteLength(r.stdout, 'utf8'),
+          ...(args.resumeFrom ? { resumeStatus: 'fallback', threadId: null } : {}),
+        }) + '\n');
+        process.exit(1);
+      }
+      diffOutput = r.stdout;
+    }
+
+    // Step 6: load template (fresh vs resume).
     let templateText;
     try {
-      templateText = await readTemplateFile('docs-review');
+      templateText = await readTemplateFile(resumeContext ? 'docs-review-resumed' : 'docs-review');
     } catch (err) {
       process.stdout.write(JSON.stringify({
         ok: false,
@@ -823,33 +1069,38 @@ async function main(argv) {
       process.exit(1);
     }
 
-    // Step 5: build prompt with optional diff context.
-    const vars = { DOCS: docsContent };
-    if (args.diffBase) {
-      const r = spawnSync('git', ['diff', `${args.diffBase}...HEAD`], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
-      if (r.error || r.status !== 0) {
-        process.stdout.write(JSON.stringify({ ok: false, error: `git diff failed: ${r.stderr || r.error?.message}` }) + '\n');
-        process.exit(1);
-      }
-      if (Buffer.byteLength(r.stdout, 'utf8') > 512000) {
-        process.stdout.write(JSON.stringify({
-          ok: false,
-          error: 'git diff exceeds 500KB; narrow --diff-base scope',
-          diffBytes: Buffer.byteLength(r.stdout, 'utf8'),
-        }) + '\n');
-        process.exit(1);
-      }
-      vars.DIFF = r.stdout;
+    // Step 7: build prompt.
+    let prompt;
+    if (resumeContext) {
+      prompt = loadTemplate(templateText, {
+        DOCS_TARGET: args.docsPath || args.docsDir,
+        FILE_LIST_BLOCK: renderFileListBlock(aggregatedFiles),
+        DIFF_BASE_BLOCK: renderDiffBaseBlock(args.diffBase),
+      });
+    } else {
+      const vars = { DOCS: docsContent };
+      if (diffOutput !== null) vars.DIFF = diffOutput;
+      prompt = loadTemplate(templateText, vars);
     }
-    const prompt = loadTemplate(templateText, vars);
 
-    // Step 6: spawn codex.
-    const result = await runCodexExec(['exec', '--sandbox', 'read-only', '-'], prompt, args.timeout);
+    // Step 8: spawn codex.
+    let result;
+    if (resumeContext) {
+      result = await runCodexResume(resumeContext.threadId, prompt, args.timeout);
+    } else {
+      result = await runCodexExec(['exec', '--sandbox', 'read-only', '-'], prompt, args.timeout);
+    }
 
-    // Step 7: ensure output dir exists.
+    // Step 9: pick final resume status.
+    if (resumeContext) {
+      resumeStatus = result.ok ? 'resumed' : 'resume-failed';
+    }
+    // Else stays 'fresh' or 'fallback' (set above).
+
+    // Step 10: ensure output dir exists.
     await mkdir(inv.dir, { recursive: true });
 
-    // Step 8-10: build output file content.
+    // Step 11: build output file content.
     const fm = renderDocsReviewFrontmatter({
       slug: inv.slug,
       generated: new Date().toISOString(),
@@ -859,21 +1110,33 @@ async function main(argv) {
       cwd: process.cwd(),
       gitHead: getGitHead(),
       codexThreadId: result.threadId,
-      codexResumeStatus: 'fresh',
-      codexResumedFrom: undefined,
+      codexResumeStatus: resumeStatus,
+      codexResumedFrom: resumeContext && result.ok ? resumeFromPath : undefined,
     });
     const heading = `# Docs review: ${path.basename(args.docsPath ?? args.docsDir)}`;
     const body = result.body;
 
-    // Step 11: write file.
+    // Step 12: write file.
     await writeFile(inv.outputPath, fm + heading + '\n\n' + body, 'utf8');
 
-    // Step 12: emit result JSON.
+    // Step 13: emit result JSON.
     if (!result.ok) {
-      process.stdout.write(JSON.stringify({ ok: false, error: result.reason, path: inv.outputPath }) + '\n');
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: result.reason,
+        path: inv.outputPath,
+        resumeStatus,
+        threadId: result.threadId,
+      }) + '\n');
       process.exit(1);
     }
-    process.stdout.write(JSON.stringify({ ok: true, path: inv.outputPath, slug: inv.slug }) + '\n');
+    process.stdout.write(JSON.stringify({
+      ok: true,
+      path: inv.outputPath,
+      slug: inv.slug,
+      threadId: result.threadId,
+      resumeStatus,
+    }) + '\n');
     return;
   }
 
@@ -965,15 +1228,29 @@ async function main(argv) {
     process.exit(1);
   }
 
-  let templateText;
-  try {
-    templateText = await readTemplateFile(args.mode);
-  } catch (err) {
-    process.stdout.write(JSON.stringify({
-      ok: false,
-      error: `failed to read prompt template: ${err.message}`,
-    }) + '\n');
-    process.exit(1);
+  // Review-only: try to resolve resume context before reading the plan, so
+  // that an explicit-path validation failure short-circuits with a clean error.
+  let resumeContext = null;
+  let resumeFromPath = null;
+  let resumeStatus = 'fresh';
+  if (args.mode === 'review' && args.resumeFrom) {
+    const r = await resolveResume('review', args);
+    if (r.ok) {
+      resumeContext = r.context;
+      resumeFromPath = r.prevPath;
+    } else if (r.fatal) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: `resume rejected: ${r.error}`,
+        path: null,
+        resumeStatus: 'fallback',
+        threadId: null,
+      }) + '\n');
+      process.exit(1);
+    } else {
+      process.stderr.write(`hyperclaude: resume fallback — ${r.error}\n`);
+      resumeStatus = 'fallback';
+    }
   }
 
   let plan = '';
@@ -981,6 +1258,17 @@ async function main(argv) {
     try {
       plan = await readFile(args.planPath, 'utf8');
     } catch (err) {
+      // For resume, this is a precondition failure — fail with fallback shape.
+      if (args.resumeFrom) {
+        process.stdout.write(JSON.stringify({
+          ok: false,
+          error: `resume rejected: cannot read plan file: ${args.planPath} (${err.message})`,
+          path: null,
+          resumeStatus: 'fallback',
+          threadId: null,
+        }) + '\n');
+        process.exit(1);
+      }
       process.stdout.write(JSON.stringify({
         ok: false,
         error: `cannot read plan file: ${args.planPath} (${err.message})`,
@@ -989,13 +1277,39 @@ async function main(argv) {
     }
   }
 
-  const prompt = loadTemplate(templateText, {
-    TASK: args.task ?? '',
-    PLAN: plan,
-  });
+  let templateText;
+  try {
+    const templateName = (args.mode === 'review' && resumeContext) ? 'review-resumed' : args.mode;
+    templateText = await readTemplateFile(templateName);
+  } catch (err) {
+    process.stdout.write(JSON.stringify({
+      ok: false,
+      error: `failed to read prompt template: ${err.message}`,
+    }) + '\n');
+    process.exit(1);
+  }
 
-  const result = await runCodexExec(['exec', '--sandbox', 'read-only', '-'], prompt, args.timeout);
+  let prompt;
+  if (args.mode === 'review' && resumeContext) {
+    prompt = loadTemplate(templateText, { PLAN_PATH: args.planPath });
+  } else {
+    prompt = loadTemplate(templateText, {
+      TASK: args.task ?? '',
+      PLAN: plan,
+    });
+  }
+
+  let result;
+  if (resumeContext) {
+    result = await runCodexResume(resumeContext.threadId, prompt, args.timeout);
+  } else {
+    result = await runCodexExec(['exec', '--sandbox', 'read-only', '-'], prompt, args.timeout);
+  }
   await mkdir(inv.dir, { recursive: true });
+
+  if (resumeContext) {
+    resumeStatus = result.ok ? 'resumed' : 'resume-failed';
+  }
 
   const subject =
     args.mode === 'research' ? args.task :
@@ -1012,8 +1326,8 @@ async function main(argv) {
     cwd: process.cwd(),
     gitHead: getGitHead(),
     codexThreadId: result.threadId,
-    codexResumeStatus: 'fresh',
-    codexResumedFrom: undefined,
+    codexResumeStatus: resumeStatus,
+    codexResumedFrom: resumeContext && result.ok ? resumeFromPath : undefined,
   });
 
   const heading = args.mode === 'research'
@@ -1024,19 +1338,29 @@ async function main(argv) {
   await writeFile(inv.outputPath, fm + heading + body, 'utf8');
 
   if (!result.ok) {
-    process.stdout.write(JSON.stringify({
+    const json = {
       ok: false,
       error: result.reason,
       path: inv.outputPath,
-    }) + '\n');
+    };
+    if (args.mode === 'review') {
+      json.resumeStatus = resumeStatus;
+      json.threadId = result.threadId;
+    }
+    process.stdout.write(JSON.stringify(json) + '\n');
     process.exit(1);
   }
 
-  process.stdout.write(JSON.stringify({
+  const json = {
     ok: true,
     path: inv.outputPath,
     slug: inv.slug,
-  }) + '\n');
+  };
+  if (args.mode === 'review') {
+    json.threadId = result.threadId;
+    json.resumeStatus = resumeStatus;
+  }
+  process.stdout.write(JSON.stringify(json) + '\n');
 }
 
 // Run main only when invoked as a script.

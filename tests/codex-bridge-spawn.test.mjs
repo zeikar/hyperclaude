@@ -904,3 +904,392 @@ test('runCodexResume: knownThreadId propagates as result.threadId when thread.st
     rmSync(tmpdir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Task 4: --resume integration tests (review + docs-review).
+// ---------------------------------------------------------------------------
+
+// Helper: write a prior-artifact fixture with valid-looking frontmatter.
+function writePriorArtifact(filePath, fields) {
+  const lines = ['---'];
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined) continue;
+    if (k === 'mode' || k === 'codex-resume-status') {
+      lines.push(`${k}: ${v}`);
+    } else {
+      lines.push(`${k}: ${JSON.stringify(v)}`);
+    }
+  }
+  lines.push('---');
+  lines.push('# Prior body');
+  writeFileSync(filePath, lines.join('\n'));
+}
+
+test('resume happy path: docs-review --resume <prev> spawns exec resume and writes resumed status', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-dr-ok-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nDoc body.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-dr-out-'));
+    try {
+      // Prior artifact: valid identity, status fresh, our cwd, our docs target.
+      const prior = path.join(outDir, '20260510-1015-api.md');
+      writePriorArtifact(prior, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'codex-thread-id': 'thread-resume-1',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'resumed');
+      assert.ok(typeof json.threadId === 'string' && json.threadId.length > 0, 'threadId should be present');
+
+      // argv inserted after `exec resume`: --json --output-last-message <tmp> -c sandbox_mode=read-only <threadId> -
+      const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+      const argv = argvLog.split('\n').filter((l) => l.length > 0);
+      assert.equal(argv[0], 'exec');
+      assert.equal(argv[1], 'resume');
+      assert.equal(argv[5], '-c');
+      assert.equal(argv[6], 'sandbox_mode=read-only');
+      assert.equal(argv[7], 'thread-resume-1');
+
+      // Output frontmatter should reflect resume.
+      const outputContent = readFileSync(json.path, 'utf8');
+      assert.ok(outputContent.includes('codex-resume-status: resumed'), 'frontmatter should record resumed status');
+      assert.ok(outputContent.includes(`codex-resumed-from: ${JSON.stringify(prior)}`), 'frontmatter should record resumed-from path');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume validation fail (explicit path, mode mismatch) → ok:false, no fresh fallback, no artifact', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-dr-fail-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_DOCS_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-dr-fail-out-'));
+    try {
+      // Prior artifact has mode: review (mismatch with docs-review).
+      const prior = path.join(outDir, '20260510-1015-old.md');
+      writePriorArtifact(prior, {
+        mode: 'review',
+        slug: 'old',
+        cwd: process.cwd(),
+        'plan-path': '/tmp/p.md',
+        'codex-thread-id': 'thread-x',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 1, `expected exit 1, stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, false);
+      assert.match(json.error, /resume rejected:/);
+      assert.equal(json.resumeStatus, 'fallback');
+      assert.equal(json.threadId, null);
+      assert.equal(json.path, null);
+
+      // No new fresh artifact should have been written.
+      const remaining = readFileSync(prior, 'utf8');
+      assert.ok(remaining.length > 0, 'prior artifact still readable');
+      // Codex must NOT have been spawned (no argv.log).
+      assert.ok(!existsSync(path.join(tmpdir, 'argv.log')), 'codex must not be spawned on explicit-path validation failure');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume auto with no candidate → fallback to fresh + stderr note + status fallback', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-auto-none-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_DOCS_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-auto-none-out-'));
+    try {
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', 'auto', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'fallback', 'status should be fallback after auto miss');
+      assert.match(result.stderr, /hyperclaude: resume fallback —/);
+
+      // Fresh artifact written.
+      const outputContent = readFileSync(json.path, 'utf8');
+      assert.ok(outputContent.includes('codex-resume-status: fallback'));
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume size-budget exceeded (200KB docs payload on resume) → ok:false, fallback status, no spawn', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-budget-'));
+  try {
+    // Codex must NOT be spawned; provide stub codex on PATH that would record argv if invoked.
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    // 201KB doc — over the 200KB cap.
+    const oversized = Buffer.alloc(201 * 1024, 'a').toString();
+    const docPath = path.join(tmpdir, 'big.md');
+    writeFileSync(docPath, oversized);
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-budget-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-big.md');
+      writePriorArtifact(prior, {
+        mode: 'docs-review',
+        slug: 'big',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'codex-thread-id': 'thread-budget',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 1);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, false);
+      assert.match(json.error, /^resume rejected:/);
+      assert.match(json.error, /200KB/);
+      assert.match(json.error, /narrow scope/);
+      assert.equal(json.resumeStatus, 'fallback');
+
+      // Codex must not have been spawned.
+      assert.ok(!existsSync(path.join(tmpdir, 'argv.log')), 'codex must not be spawned when guard fires');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume spawn fails (codex exits 7) → status resume-failed, failure body written, ok:false', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-spawnfail-'));
+  try {
+    // Use docs-review failure mock — same JSONL "no turn.completed" shape on resume.
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_DOCS_REVIEW_FAILURE);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-spawnfail-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-api.md');
+      writePriorArtifact(prior, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'codex-thread-id': 'thread-spawnfail',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 1);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, false);
+      assert.equal(json.resumeStatus, 'resume-failed');
+      assert.ok(typeof json.path === 'string' && json.path.length > 0, 'failure should still record path');
+
+      const outputContent = readFileSync(json.path, 'utf8');
+      assert.ok(outputContent.includes('# (codex failed)'), 'failure body should be written');
+      assert.ok(outputContent.includes('codex-resume-status: resume-failed'), 'frontmatter status should be resume-failed');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume auto honors --out: discovers prior under custom dir, not the default', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-auto-out-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const customDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-custom-'));
+    try {
+      // Prior in customDir only (not in .hyperclaude/docs-reviews/).
+      const prior = path.join(customDir, '20260510-1015-api.md');
+      writePriorArtifact(prior, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'codex-thread-id': 'thread-from-custom-dir',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', 'auto', '--out', customDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'resumed');
+      assert.ok(typeof json.threadId === 'string' && json.threadId.length > 0, 'threadId should be present');
+
+      // argv must include the discovered thread id (passed to codex resume).
+      const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+      const argv = argvLog.split('\n').filter((l) => l.length > 0);
+      assert.equal(argv[7], 'thread-from-custom-dir', 'argv[7] should be the thread id discovered from custom --out dir');
+
+      // Frontmatter records resumed-from with the customDir path.
+      const outputContent = readFileSync(json.path, 'utf8');
+      assert.ok(
+        outputContent.includes(`codex-resumed-from: ${JSON.stringify(prior)}`),
+        'frontmatter should reference the prior artifact found in custom --out dir'
+      );
+    } finally {
+      rmSync(customDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume happy path: review --resume <prev> spawns exec resume', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-rev-ok-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const planPath = path.join(tmpdir, '20260510-1015-oauth.md');
+    writeFileSync(planPath, '# Plan v2\n\nUpdated plan body.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-rev-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1130-oauth.md');
+      writePriorArtifact(prior, {
+        mode: 'review',
+        slug: 'oauth',
+        cwd: process.cwd(),
+        'plan-path': planPath,
+        'codex-thread-id': 'thread-rev-resume',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'review', '--plan-path', planPath, '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'resumed');
+      assert.ok(typeof json.threadId === 'string' && json.threadId.length > 0, 'threadId should be present');
+
+      // argv shape: exec resume ... -c sandbox_mode=read-only <threadId> -
+      // The threadId passed to codex must be the prior artifact's id (knownThreadId).
+      const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+      const argv = argvLog.split('\n').filter((l) => l.length > 0);
+      assert.equal(argv[0], 'exec');
+      assert.equal(argv[1], 'resume');
+      assert.equal(argv[7], 'thread-rev-resume');
+
+      // Resumed prompt must mention the plan path.
+      const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
+      assert.ok(stdinLog.includes(planPath), 'resumed prompt should embed the plan path');
+
+      // Frontmatter records resumed status + resumed-from.
+      const outputContent = readFileSync(json.path, 'utf8');
+      assert.ok(outputContent.includes('codex-resume-status: resumed'));
+      assert.ok(outputContent.includes(`codex-resumed-from: ${JSON.stringify(prior)}`));
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
