@@ -68,6 +68,7 @@ export function parseArgs(argv) {
   const out = {
     mode,
     task: null,
+    taskFile: null,
     slug: null,
     planPath: null,
     out: null,
@@ -83,6 +84,7 @@ export function parseArgs(argv) {
     };
     switch (flag) {
       case '--task':       out.task = next(); break;
+      case '--task-file':  out.taskFile = next(); break;
       case '--plan-path':  out.planPath = next(); break;
       case '--slug': {
         const s = next();
@@ -98,7 +100,8 @@ export function parseArgs(argv) {
       default: throw new Error(`unknown flag: ${flag}`);
     }
   }
-  if (mode === 'research' && !out.task) throw new Error('--task is required for research');
+  if (mode === 'research' && out.task && out.taskFile) throw new Error('--task and --task-file are mutually exclusive');
+  if (mode === 'research' && !out.task && !out.taskFile) throw new Error('--task or --task-file is required for research');
   if (mode === 'review' && !out.planPath) throw new Error('--plan-path is required for review');
   if (!Number.isFinite(out.timeout) || out.timeout <= 0) {
     throw new Error(`--timeout must be a positive finite number, got: ${out.timeout}`);
@@ -246,6 +249,24 @@ async function main(argv) {
   } catch (err) {
     process.stdout.write(JSON.stringify({ ok: false, error: err.message }) + '\n');
     process.exit(2);
+  }
+  if (args.taskFile) {
+    try {
+      args.task = (await readFile(args.taskFile, 'utf8')).trim();
+    } catch (err) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: `cannot read task file: ${args.taskFile} (${err.message})`,
+      }) + '\n');
+      process.exit(1);
+    }
+    if (!args.task) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: `task file is empty: ${args.taskFile}`,
+      }) + '\n');
+      process.exit(1);
+    }
   }
   const inv = buildInvocation({ args });
   if (args.dryRun) {

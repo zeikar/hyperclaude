@@ -24,17 +24,25 @@ Skip when:
    - If the argument above is non-empty, that is the task description.
    - If empty, fall back to the user's most recent build/implement intent in this conversation. If none exists, ask the user to describe the task and stop.
 
-2. Run the bridge in research mode using the Bash tool with `timeout: 600000`:
+2. Write the resolved task description to a temp file using the **Write tool** (not the Bash tool — this avoids shell quoting). Pick a path under the system temp dir; for example: `/tmp/hyperclaude-task-<unix-timestamp>.txt`. Save the task as plain text; no escaping needed.
+
+3. Run the bridge in research mode using the Bash tool with `timeout: 600000`:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task "<resolved task description>"
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task-file "<temp file path>"
    ```
 
-3. The bridge prints a single JSON line to stdout. Parse it.
+4. After the bridge returns, clean up the temp file:
+
+   ```bash
+   rm -f "<temp file path>"
+   ```
+
+5. The bridge prints a single JSON line to stdout. Parse it.
    - On `{"ok":true,"path":"..."}` — read the file with the Read tool.
    - On `{"ok":false,"error":"..."}` — surface the error to the user; do not pretend research happened.
 
-4. Integrate the file's findings into your subsequent plan. When you write a plan, save it under `.hyperclaude/plans/<timestamp>-<slug>.md` so `/hyperclaude:hyper-plan-review` can find it later.
+6. Integrate the file's findings into your subsequent plan. When you write a plan, save it under `.hyperclaude/plans/<timestamp>-<slug>.md` so `/hyperclaude:hyper-plan-review` can find it later.
 
 ## Output contract
 

@@ -91,6 +91,7 @@ test('parseArgs: research mode', () => {
   assert.deepEqual(a, {
     mode: 'research',
     task: 'add OAuth',
+    taskFile: null,
     slug: 'oauth',
     planPath: null,
     out: null,
@@ -115,8 +116,8 @@ test('parseArgs: rejects unknown mode', () => {
   assert.throws(() => parseArgs(['banana', '--task', 'x']), /unknown mode/);
 });
 
-test('parseArgs: research requires --task', () => {
-  assert.throws(() => parseArgs(['research']), /--task is required/);
+test('parseArgs: research requires --task or --task-file', () => {
+  assert.throws(() => parseArgs(['research']), /--task or --task-file is required/);
 });
 
 test('parseArgs: review requires --plan-path', () => {
@@ -292,4 +293,41 @@ test('cli: --dry-run reports missing template', () => {
   const out = JSON.parse(result.stdout);
   assert.equal(out.ok, false);
   assert.match(out.error, /failed to read prompt template/);
+});
+
+test('parseArgs: --task-file accepted as alternative to --task', () => {
+  const a = parseArgs(['research', '--task-file', '/tmp/x.txt']);
+  assert.equal(a.task, null);
+  assert.equal(a.taskFile, '/tmp/x.txt');
+});
+
+test('parseArgs: research with neither --task nor --task-file throws', () => {
+  assert.throws(() => parseArgs(['research']), /--task or --task-file is required/);
+});
+
+test('parseArgs: --task and --task-file mutually exclusive', () => {
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--task-file', '/tmp/x.txt']),
+    /mutually exclusive/
+  );
+});
+
+test('cli: --task-file path drives the dry-run slug', () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-taskfile-'));
+  try {
+    const taskPath = path.join(tmp, 'task.txt');
+    writeFileSync(taskPath, 'fixed test task');
+    const result = spawnSync(
+      'node',
+      [BRIDGE, 'research', '--task-file', taskPath, '--dry-run', '--out', tmp],
+      { encoding: 'utf8' }
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const out = JSON.parse(result.stdout);
+    assert.equal(out.ok, true);
+    assert.equal(out.dryRun, true);
+    assert.equal(out.slug, 'fixed-test-task');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 });
