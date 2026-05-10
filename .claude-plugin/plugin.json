@@ -1,0 +1,19 @@
+{
+  "name": "hyperclaude",
+  "version": "0.1.0",
+  "description": "Push Claude Code beyond stock. Skills, agents, Codex collab — opinionated and personal.",
+  "author": {
+    "name": "zeikar",
+    "url": "https://github.com/zeikar"
+  },
+  "repository": "https://github.com/zeikar/hyperclaude",
+  "homepage": "https://github.com/zeikar/hyperclaude",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "codex",
+    "review",
+    "research"
+  ]
+}

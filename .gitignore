@@ -1,0 +1,17 @@
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Test/build artifacts
+*.log
+
+# Local-only state from running hyperclaude in self-test
+.hyperclaude/

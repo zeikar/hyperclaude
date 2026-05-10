@@ -1,0 +1,14 @@
+{
+  "name": "hyperclaude",
+  "owner": {
+    "name": "zeikar",
+    "url": "https://github.com/zeikar"
+  },
+  "plugins": [
+    {
+      "name": "hyperclaude",
+      "description": "Push Claude Code beyond stock. Skills, agents, Codex collab — opinionated and personal.",
+      "source": "./"
+    }
+  ]
+}
