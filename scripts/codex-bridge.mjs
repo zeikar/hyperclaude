@@ -70,6 +70,20 @@ export function renderCodeReviewFrontmatter({ slug, generated, codexVersion, git
   return lines.join('\n');
 }
 
+export function renderDocsReviewFrontmatter({ slug, generated, codexVersion, docsTarget, diffBase }) {
+  const lines = ['---'];
+  lines.push('mode: docs-review');
+  lines.push(`slug: ${slug}`);
+  lines.push(`generated: ${generated}`);
+  lines.push(`codex-version: ${codexVersion}`);
+  lines.push('template-version: 1');
+  lines.push(`docs-target: ${JSON.stringify(docsTarget)}`);
+  if (diffBase) lines.push(`diff-base: ${JSON.stringify(diffBase)}`);
+  lines.push('---');
+  lines.push('');
+  return lines.join('\n');
+}
+
 export function getGitHead() {
   const r = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', cwd: process.cwd() });
   if (r.error || r.status !== 0) return 'unknown';
@@ -99,11 +113,12 @@ const ALLOWED_FLAGS_PER_MODE = {
   research:      new Set(['--task', '--task-file', '--slug', '--out', '--dry-run', '--timeout']),
   review:        new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout']),
   'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--out', '--dry-run', '--timeout']),
+  'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--timeout']),
 };
 
 export function parseArgs(argv) {
   const [mode, ...rest] = argv;
-  if (mode !== 'research' && mode !== 'review' && mode !== 'code-review') {
+  if (mode !== 'research' && mode !== 'review' && mode !== 'code-review' && mode !== 'docs-review') {
     throw new Error(`unknown mode: ${mode}`);
   }
   const allowed = ALLOWED_FLAGS_PER_MODE[mode];
@@ -120,6 +135,9 @@ export function parseArgs(argv) {
     baseRef: null,
     commit: null,
     title: null,
+    docsPath: null,
+    docsDir: null,
+    diffBase: null,
   };
   for (let i = 0; i < rest.length; i++) {
     const flag = rest[i];
@@ -172,6 +190,28 @@ export function parseArgs(argv) {
         break;
       }
       case '--title': out.title = next(); break;
+      case '--docs-path': {
+        if (out.docsDir !== null) throw new Error('--docs-path and --docs-dir are mutually exclusive');
+        const v = next();
+        if (!v || v.startsWith('-')) throw new Error(`--docs-path must be a non-empty path with no leading dash, got: "${v}"`);
+        out.docsPath = v;
+        break;
+      }
+      case '--docs-dir': {
+        if (out.docsPath !== null) throw new Error('--docs-path and --docs-dir are mutually exclusive');
+        const v = next();
+        if (!v || v.startsWith('-')) throw new Error(`--docs-dir must be a non-empty path with no leading dash, got: "${v}"`);
+        out.docsDir = v;
+        break;
+      }
+      case '--diff-base': {
+        const v = next();
+        if (!v || v.startsWith('-') || !/^[A-Za-z0-9._/-]+$/.test(v)) {
+          throw new Error(`--diff-base must be a non-empty git ref ([A-Za-z0-9._/-]+, no leading dash), got: "${v}"`);
+        }
+        out.diffBase = v;
+        break;
+      }
     }
   }
   if (mode === 'code-review' && !out.reviewTarget) {
@@ -181,6 +221,7 @@ export function parseArgs(argv) {
   if (mode === 'research' && out.task && out.taskFile) throw new Error('--task and --task-file are mutually exclusive');
   if (mode === 'research' && !out.task && !out.taskFile) throw new Error('--task or --task-file is required for research');
   if (mode === 'review' && !out.planPath) throw new Error('--plan-path is required for review');
+  if (mode === 'docs-review' && !out.docsPath && !out.docsDir) throw new Error('--docs-path or --docs-dir is required for docs-review');
   if (!Number.isFinite(out.timeout) || out.timeout <= 0) {
     throw new Error(`--timeout must be a positive finite number, got: ${out.timeout}`);
   }
@@ -237,6 +278,14 @@ export function buildInvocation({ args, now = new Date() }) {
       slug = 'commit-' + args.commit.slice(0, 7);
     }
     dir = args.out ?? '.hyperclaude/code-reviews';
+  } else if (args.mode === 'docs-review') {
+    if (args.docsPath) {
+      slug = slugify(path.basename(args.docsPath, path.extname(args.docsPath))) ?? 'docs';
+    } else {
+      const lastSegment = args.docsDir.split('/').filter(Boolean).slice(-1)[0];
+      slug = slugify(lastSegment) ?? 'docs';
+    }
+    dir = args.out ?? '.hyperclaude/docs-reviews';
   } else {
     slug = args.slug ?? (
       args.mode === 'research'
