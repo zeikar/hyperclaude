@@ -51,6 +51,36 @@ else
 fi
 
 echo
+echo "==> Bridge docs-review --docs-path dry-run"
+if out=$(node scripts/codex-bridge.mjs docs-review --docs-path README.md --dry-run 2>&1); then
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    process.exit(j.ok && j.dryRun && j.slug === "readme" ? 0 : 1);
+  '; then
+    ok "codex-bridge docs-review --docs-path --dry-run produces expected JSON"
+  else
+    miss "codex-bridge docs-review --docs-path --dry-run JSON shape unexpected: $out"
+  fi
+else
+  miss "codex-bridge docs-review --docs-path --dry-run failed: $out"
+fi
+
+echo
+echo "==> Bridge docs-review --docs-dir dry-run"
+if out=$(node scripts/codex-bridge.mjs docs-review --docs-dir docs/ --dry-run 2>&1); then
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    process.exit(j.ok && j.dryRun && j.slug === "docs" ? 0 : 1);
+  '; then
+    ok "codex-bridge docs-review --docs-dir --dry-run produces expected JSON"
+  else
+    miss "codex-bridge docs-review --docs-dir --dry-run JSON shape unexpected: $out"
+  fi
+else
+  miss "codex-bridge docs-review --docs-dir --dry-run failed: $out"
+fi
+
+echo
 echo "==> Plugin manifest validation"
 if command -v claude >/dev/null 2>&1; then
   if claude plugin validate . > /tmp/hyperclaude-validate.log 2>&1; then
@@ -76,9 +106,12 @@ for f in \
   skills/hyper-debug/SKILL.md \
   skills/hyper-implement/SKILL.md \
   skills/hyper-code-review/SKILL.md \
+  skills/hyper-docs-sync/SKILL.md \
+  skills/hyper-docs-review/SKILL.md \
   agents/planner.md \
   agents/implementer.md \
-  agents/verifier.md
+  agents/verifier.md \
+  agents/documenter.md
 do
   if [ -f "$f" ]; then ok "$f"; else miss "$f missing"; fi
 done
@@ -122,6 +155,15 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      Verify it reviews the current branch vs main and writes a file
      under .hyperclaude/code-reviews/ with valid frontmatter and a
      Codex-generated body.
+
+  5. Run:
+       /hyperclaude:hyper-docs-sync uncommitted
+     Verify mapping read, doc updates dispatched, summary reported.
+
+  6. Run:
+       /hyperclaude:hyper-docs-review
+     Verify a file appears under .hyperclaude/docs-reviews/ with
+     valid frontmatter.
 
 If any of the above fails, STOP and fix before tagging.
 ====================================================================
