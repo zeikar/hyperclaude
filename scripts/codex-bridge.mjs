@@ -138,10 +138,11 @@ function extractSlugFromPlanFilename(planPath) {
 
 export function buildInvocation({ args, now = new Date() }) {
   const timestamp = formatTimestamp(now);
-  const subject =
-    args.mode === 'research' ? args.task :
-    /* review */ extractSlugFromPlanFilename(args.planPath);
-  const slug = args.slug ?? slugify(subject);
+  const slug = args.slug ?? (
+    args.mode === 'research'
+      ? slugify(args.task)
+      : extractSlugFromPlanFilename(args.planPath)
+  );
   const dir = args.out ?? `.hyperclaude/${args.mode === 'research' ? 'research' : 'reviews'}`;
   const filename = slug ? `${timestamp}-${slug}.md` : `${timestamp}.md`;
   const baseOutputPath = path.join(dir, filename);

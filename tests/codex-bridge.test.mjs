@@ -195,6 +195,22 @@ test('buildInvocation: review falls back to full basename for non-timestamped pl
   assert.equal(inv.slug, 'oauth-login');
 });
 
+test('buildInvocation: review preserves long plan slugs (no re-slugify truncation)', () => {
+  const inv = buildInvocation({
+    args: {
+      mode: 'review',
+      task: null,
+      slug: null,
+      out: null,
+      dryRun: true,
+      timeout: 300,
+      planPath: '.hyperclaude/plans/20260510-1015-a-b-c-d-e-f.md',
+    },
+    now: new Date('2026-05-10T11:30:00.000Z'),
+  });
+  assert.equal(inv.slug, 'a-b-c-d-e-f');
+});
+
 test('buildInvocation: appends -2, -3 suffixes on filesystem collision', () => {
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-collision-'));
   try {
