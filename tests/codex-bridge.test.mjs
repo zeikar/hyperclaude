@@ -34,6 +34,11 @@ test('renderFrontmatter: task uses block scalar', () => {
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
     templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fm, /^---\n/);
   assert.match(fm, /\n---\n$/);
@@ -53,6 +58,11 @@ test('renderFrontmatter: multi-line task indents each line', () => {
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
     templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fm, /task: \|-\n {2}line one\n {2}line two\n {2} {2}indented\n/);
 });
@@ -708,6 +718,10 @@ test('renderCodeReviewFrontmatter: starts with --- and ends with ---\\n followed
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
     title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fm, /^---\n/);
   assert.match(fm, /\n---\n$/);
@@ -723,6 +737,10 @@ test('renderCodeReviewFrontmatter: base-ref variant has required fields and no t
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
     title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fm, /mode: code-review/);
   assert.match(fm, /codex-subcommand: review/);
@@ -745,6 +763,10 @@ test('renderCodeReviewFrontmatter: commit variant uses commit field, not base-re
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
     title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fm, /commit:/);
   assert.doesNotMatch(fm, /base-ref:/);
@@ -760,6 +782,10 @@ test('renderCodeReviewFrontmatter: uncommitted variant has neither base-ref nor 
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
     title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.doesNotMatch(fm, /base-ref:/);
   assert.doesNotMatch(fm, /\bcommit:/);
@@ -775,6 +801,10 @@ test('renderCodeReviewFrontmatter: title field present when provided (JSON-strin
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
     title: 'my review title',
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fm, /title: "my review title"/);
 });
@@ -789,6 +819,10 @@ test('renderCodeReviewFrontmatter: title field absent when not provided', () => 
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
     title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.doesNotMatch(fm, /title:/);
 });
@@ -803,6 +837,10 @@ test('renderCodeReviewFrontmatter: git-head written as JSON-stringified string',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
     title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fmUnknown, /git-head: "unknown"/);
 
@@ -816,6 +854,10 @@ test('renderCodeReviewFrontmatter: git-head written as JSON-stringified string',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
     title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fmSha, new RegExp(`git-head: "${sha}"`));
 });
@@ -830,6 +872,10 @@ test('renderCodeReviewFrontmatter: base-ref JSON-stringified to handle slashes',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
     title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fm, /base-ref: "origin\/main"/);
 });
@@ -1199,13 +1245,18 @@ test('renderDocsReviewFrontmatter: starts with --- and ends with ---\\n followed
   assert.match(fm, /\n---\n$/);
 });
 
-test('renderDocsReviewFrontmatter: has required fields and no task/git-head/codex-subcommand', () => {
+test('renderDocsReviewFrontmatter: has required fields and no task/codex-subcommand', () => {
   const fm = renderDocsReviewFrontmatter({
     slug: 'api',
     docsTarget: 'docs/api.md',
     diffBase: null,
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fm, /mode: docs-review/);
   assert.match(fm, /slug:/);
@@ -1213,8 +1264,9 @@ test('renderDocsReviewFrontmatter: has required fields and no task/git-head/code
   assert.match(fm, /codex-version:/);
   assert.match(fm, /template-version: 1/);
   assert.match(fm, /docs-target:/);
+  assert.match(fm, /cwd:/);
+  assert.match(fm, /git-head:/);
   assert.doesNotMatch(fm, /\btask:/);
-  assert.doesNotMatch(fm, /git-head:/);
   assert.doesNotMatch(fm, /codex-subcommand:/);
   assert.doesNotMatch(fm, /base-ref:/);
 });
@@ -1226,6 +1278,11 @@ test('renderDocsReviewFrontmatter: diff-base present when provided', () => {
     diffBase: 'main',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fm, /diff-base: "main"/);
 });
@@ -1237,6 +1294,11 @@ test('renderDocsReviewFrontmatter: diff-base absent when not provided', () => {
     diffBase: null,
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.doesNotMatch(fm, /diff-base:/);
 });
@@ -1248,8 +1310,271 @@ test('renderDocsReviewFrontmatter: docs-target JSON-stringified to handle spaces
     diffBase: null,
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
   assert.match(fm, /docs-target: "docs\/api reference\.md"/);
+});
+
+// ── Task 2: New frontmatter fields (cwd, git-head, codex-thread-id, codex-resume-status, codex-resumed-from) ────
+
+test('renderFrontmatter: new fields cwd, git-head, codex-resume-status always present', () => {
+  const fm = renderFrontmatter({
+    mode: 'research',
+    task: 'test task',
+    slug: 'test',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    cwd: '/Users/test/project',
+    gitHead: 'abc1234567890abcd1234567890abcd1234567890',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fm, /cwd: "\/Users\/test\/project"/);
+  assert.match(fm, /git-head: "abc1234567890abcd1234567890abcd1234567890"/);
+  assert.match(fm, /^codex-resume-status: fresh$/m);
+});
+
+test('renderFrontmatter: codex-resume-status is bare token, not JSON-stringified', () => {
+  const fm = renderFrontmatter({
+    mode: 'research',
+    task: 'test',
+    slug: 'test',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fm, /^codex-resume-status: fresh$/m);
+  assert.doesNotMatch(fm, /^codex-resume-status: "fresh"$/m);
+});
+
+test('renderFrontmatter: codex-thread-id omitted when null, present when truthy', () => {
+  const fmWithout = renderFrontmatter({
+    mode: 'research',
+    task: 'test',
+    slug: 'test',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.doesNotMatch(fmWithout, /codex-thread-id:/);
+
+  const fmWith = renderFrontmatter({
+    mode: 'research',
+    task: 'test',
+    slug: 'test',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: 'thread-abc123',
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fmWith, /codex-thread-id: "thread-abc123"/);
+});
+
+test('renderFrontmatter: codex-resumed-from omitted when absent, present when truthy', () => {
+  const fmWithout = renderFrontmatter({
+    mode: 'research',
+    task: 'test',
+    slug: 'test',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.doesNotMatch(fmWithout, /codex-resumed-from:/);
+
+  const fmWith = renderFrontmatter({
+    mode: 'research',
+    task: 'test',
+    slug: 'test',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'resumed',
+    codexResumedFrom: 'thread-xyz789',
+  });
+  assert.match(fmWith, /codex-resumed-from: "thread-xyz789"/);
+});
+
+test('renderFrontmatter: plan-path migrated to fmString (quotes/spaces round-trip)', () => {
+  const fm = renderFrontmatter({
+    mode: 'review',
+    task: 'review task',
+    slug: 'test',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    planPath: '/path/with spaces/plan "2026".md',
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fm, /plan-path: "\/path\/with spaces\/plan \\"2026\\"\.md"/);
+});
+
+test('renderCodeReviewFrontmatter: new fields cwd, git-head, codex-resume-status always present', () => {
+  const fm = renderCodeReviewFrontmatter({
+    slug: 'vs-main',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    gitHead: 'abc1234567890abcd1234567890abcd1234567890',
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    title: null,
+    cwd: '/Users/test/project',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fm, /cwd: "\/Users\/test\/project"/);
+  assert.match(fm, /git-head: "abc1234567890abcd1234567890abcd1234567890"/);
+  assert.match(fm, /^codex-resume-status: fresh$/m);
+});
+
+test('renderCodeReviewFrontmatter: codex-thread-id omitted when null, present when truthy', () => {
+  const fmWithout = renderCodeReviewFrontmatter({
+    slug: 'vs-main',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    gitHead: 'unknown',
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.doesNotMatch(fmWithout, /codex-thread-id:/);
+
+  const fmWith = renderCodeReviewFrontmatter({
+    slug: 'vs-main',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    gitHead: 'unknown',
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    title: null,
+    cwd: '/tmp',
+    codexThreadId: 'thread-def456',
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fmWith, /codex-thread-id: "thread-def456"/);
+});
+
+test('renderCodeReviewFrontmatter: base-ref and commit migrated to fmString', () => {
+  const fm = renderCodeReviewFrontmatter({
+    slug: 'vs-main',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    gitHead: 'unknown',
+    reviewTarget: 'base',
+    baseRef: 'origin/feature: new feature',
+    commit: null,
+    title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fm, /base-ref: "origin\/feature: new feature"/);
+});
+
+test('renderDocsReviewFrontmatter: new fields cwd, git-head, codex-resume-status always present', () => {
+  const fm = renderDocsReviewFrontmatter({
+    slug: 'api',
+    docsTarget: 'docs/api.md',
+    diffBase: null,
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    cwd: '/Users/test/project',
+    gitHead: 'abc1234567890abcd1234567890abcd1234567890',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fm, /cwd: "\/Users\/test\/project"/);
+  assert.match(fm, /git-head: "abc1234567890abcd1234567890abcd1234567890"/);
+  assert.match(fm, /^codex-resume-status: fresh$/m);
+});
+
+test('renderDocsReviewFrontmatter: codex-thread-id omitted when null, present when truthy', () => {
+  const fmWithout = renderDocsReviewFrontmatter({
+    slug: 'api',
+    docsTarget: 'docs/api.md',
+    diffBase: null,
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.doesNotMatch(fmWithout, /codex-thread-id:/);
+
+  const fmWith = renderDocsReviewFrontmatter({
+    slug: 'api',
+    docsTarget: 'docs/api.md',
+    diffBase: null,
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: 'thread-ghi789',
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fmWith, /codex-thread-id: "thread-ghi789"/);
+});
+
+test('renderDocsReviewFrontmatter: docs-target and diff-base migrated to fmString', () => {
+  const fm = renderDocsReviewFrontmatter({
+    slug: 'api',
+    docsTarget: 'docs/api: reference.md',
+    diffBase: 'origin/develop',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fm, /docs-target: "docs\/api: reference\.md"/);
+  assert.match(fm, /diff-base: "origin\/develop"/);
 });
 
 // ── fmString ──────────────────────────────────────────────────────────────────

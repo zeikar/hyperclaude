@@ -24,7 +24,7 @@ export function slugify(input) {
 
 export function renderFrontmatter({
   mode, task, slug, generated, codexVersion, templateVersion,
-  planPath,
+  planPath, cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
 }) {
   const lines = ['---'];
   lines.push(`mode: ${mode}`);
@@ -37,7 +37,12 @@ export function renderFrontmatter({
   lines.push(`generated: ${generated}`);
   lines.push(`codex-version: ${codexVersion}`);
   lines.push(`template-version: ${templateVersion}`);
-  if (planPath) lines.push(`plan-path: ${JSON.stringify(planPath)}`);
+  if (planPath) lines.push(fmString('plan-path', planPath));
+  lines.push(fmString('cwd', cwd));
+  lines.push(fmString('git-head', gitHead));
+  if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
+  lines.push(`codex-resume-status: ${codexResumeStatus}`);
+  if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
   lines.push('---');
   lines.push('');
   return lines.join('\n');
@@ -56,31 +61,46 @@ export function slugifyRef(ref) {
   return 'vs-' + body;
 }
 
-export function renderCodeReviewFrontmatter({ slug, generated, codexVersion, gitHead, reviewTarget, baseRef, commit, title }) {
+export function renderCodeReviewFrontmatter({
+  slug, generated, codexVersion, gitHead, reviewTarget, baseRef, commit, title,
+  cwd, codexThreadId, codexResumeStatus, codexResumedFrom,
+}) {
   const lines = ['---'];
   lines.push('mode: code-review');
   lines.push(`slug: ${slug}`);
   lines.push(`generated: ${generated}`);
   lines.push(`codex-version: ${codexVersion}`);
   lines.push('codex-subcommand: review');
-  lines.push(`git-head: ${JSON.stringify(gitHead)}`);
-  if (reviewTarget === 'base') lines.push(`base-ref: ${JSON.stringify(baseRef)}`);
-  if (reviewTarget === 'commit') lines.push(`commit: ${JSON.stringify(commit)}`);
-  if (title) lines.push(`title: ${JSON.stringify(title)}`);
+  lines.push(fmString('git-head', gitHead));
+  if (reviewTarget === 'base') lines.push(fmString('base-ref', baseRef));
+  if (reviewTarget === 'commit') lines.push(fmString('commit', commit));
+  if (title) lines.push(fmString('title', title));
+  lines.push(fmString('cwd', cwd));
+  if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
+  lines.push(`codex-resume-status: ${codexResumeStatus}`);
+  if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
   lines.push('---');
   lines.push('');
   return lines.join('\n');
 }
 
-export function renderDocsReviewFrontmatter({ slug, generated, codexVersion, docsTarget, diffBase }) {
+export function renderDocsReviewFrontmatter({
+  slug, generated, codexVersion, docsTarget, diffBase,
+  cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
+}) {
   const lines = ['---'];
   lines.push('mode: docs-review');
   lines.push(`slug: ${slug}`);
   lines.push(`generated: ${generated}`);
   lines.push(`codex-version: ${codexVersion}`);
   lines.push('template-version: 1');
-  lines.push(`docs-target: ${JSON.stringify(docsTarget)}`);
-  if (diffBase) lines.push(`diff-base: ${JSON.stringify(diffBase)}`);
+  lines.push(fmString('docs-target', docsTarget));
+  if (diffBase) lines.push(fmString('diff-base', diffBase));
+  lines.push(fmString('cwd', cwd));
+  lines.push(fmString('git-head', gitHead));
+  if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
+  lines.push(`codex-resume-status: ${codexResumeStatus}`);
+  if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
   lines.push('---');
   lines.push('');
   return lines.join('\n');
@@ -803,6 +823,11 @@ async function main(argv) {
       codexVersion: v.version,
       docsTarget: args.docsPath ?? args.docsDir,
       diffBase: args.diffBase,
+      cwd: process.cwd(),
+      gitHead: getGitHead(),
+      codexThreadId: result.threadId,
+      codexResumeStatus: 'fresh',
+      codexResumedFrom: undefined,
     });
     const heading = `# Docs review: ${path.basename(args.docsPath ?? args.docsDir)}`;
     const body = result.body;
@@ -856,6 +881,10 @@ async function main(argv) {
       baseRef: args.baseRef,
       commit: args.commit,
       title: args.title,
+      cwd: process.cwd(),
+      codexThreadId: null,
+      codexResumeStatus: 'fresh',
+      codexResumedFrom: undefined,
     });
 
     let heading;
@@ -947,6 +976,11 @@ async function main(argv) {
     codexVersion: v.version,
     templateVersion: 1,
     planPath: args.mode === 'review' ? args.planPath : undefined,
+    cwd: process.cwd(),
+    gitHead: getGitHead(),
+    codexThreadId: result.threadId,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
   });
 
   const heading = args.mode === 'research'
