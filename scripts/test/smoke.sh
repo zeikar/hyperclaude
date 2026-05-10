@@ -93,6 +93,28 @@ else
 fi
 
 echo
+echo "==> Codex 0.130 capability probes"
+if command -v codex >/dev/null 2>&1; then
+  if codex exec review --help > /dev/null 2>&1; then
+    ok "codex exec review available"
+  else
+    miss "codex exec review missing — upgrade codex-cli >= 0.130"
+  fi
+  if codex exec resume --help > /dev/null 2>&1; then
+    ok "codex exec resume available"
+  else
+    miss "codex exec resume missing — upgrade codex-cli >= 0.130"
+  fi
+  if codex exec review --base HEAD -c sandbox_mode=read-only --help > /dev/null 2>&1; then
+    ok "codex exec review --base HEAD -c sandbox_mode=read-only accepted"
+  else
+    miss "codex -c sandbox_mode=read-only rejected; codex too old?"
+  fi
+else
+  printf '  \033[33m-\033[0m codex not on PATH; skipping Codex 0.130 capability probes.\n'
+fi
+
+echo
 echo "==> Required files exist"
 for f in \
   .claude-plugin/plugin.json \

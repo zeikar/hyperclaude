@@ -21,26 +21,52 @@ Documentation accuracy gate. Sends docs (single file or directory) to Codex for 
 
 **Invocation argument:** $ARGUMENTS
 
-Narrow contract — parse the optional `--diff-base <ref>` suffix FIRST, then validate the remaining target path:
+`--resume` is supported in v0.4. Paths with spaces are unsupported.
 
-| Pattern (after stripping optional `--diff-base <ref>` suffix) | Bridge argv |
+### Argv grammar
+
+Apply this regex to the trimmed `$ARGUMENTS`:
+
+```
+^(?:((?!--)\S+))?(?:\s*--diff-base\s+(\S+))?(?:\s*(--resume)(?:\s+(\S+))?)?\s*$
+```
+
+- Group 1 = optional path (single file or dir; defaults to `docs/`); negative lookahead prevents matching `--diff-base` or `--resume` as a path
+- Group 2 = optional `--diff-base <ref>` value
+- Group 3 = literal `"--resume"` token (truthy when present, undefined when not)
+- Group 4 = optional resume artifact path
+
+When Group 3 is `'--resume'` (truthy) and Group 4 is undefined, treat as `--resume auto`.
+
+**Valid invocations:**
+- `/hyperclaude:hyper-docs-review` — reviews `docs/`, fresh run
+- `/hyperclaude:hyper-docs-review docs/api.md` — reviews single file, fresh run
+- `/hyperclaude:hyper-docs-review --resume` — reviews `docs/`, resumes from latest artifact
+- `/hyperclaude:hyper-docs-review --resume <prev-artifact-path>` — resumes from explicit artifact
+- `/hyperclaude:hyper-docs-review docs/api.md --diff-base main` — single file with diff context
+- `/hyperclaude:hyper-docs-review docs/api.md --resume` — single file, resume from `auto`
+- `/hyperclaude:hyper-docs-review docs/api.md --diff-base main --resume <prev-artifact-path>` — all options
+
+If the argument doesn't match the regex, ask the user to clarify and stop.
+
+### Resume semantics
+
+- `--resume <path>` (explicit): if validation fails, bridge returns `ok:false`, no fresh run, stderr note. Surface the error verbatim.
+- `--resume` / `--resume auto`: if validation fails, bridge falls back to fresh run, writes artifact with `codex-resume-status: fallback`, stderr note.
+- Budget exceeded (docs > 200KB after revision): bridge returns `ok:false` — NOT fallback. Tell user to narrow scope.
+
+### Step 1 — Resolve target
+
+From Group 1 (or default `docs/`). Verify the path exists first via Bash (`[ -e "<path>" ]`).
+
+| Group 1 value | Bridge argv |
 |---|---|
-| Empty | `['docs-review', '--docs-dir', 'docs/']` (the hyperclaude/commentarium convention) |
+| Empty | `['docs-review', '--docs-dir', 'docs/']` |
 | Path ending in `.md` that exists | `['docs-review', '--docs-path', '<path>']` |
 | Existing directory path | `['docs-review', '--docs-dir', '<path>']` |
 | Anything else | Tell user the contract, ask to clarify, STOP. |
 
-Default is `docs/`. Projects that don't follow the flat-`docs/` convention should pass an explicit path (e.g., `/hyperclaude:hyper-docs-review README.md`). If `docs/` is missing or has no flat `.md` files, the bridge returns a structured error guiding the user.
-
-### Step 1 — Parse `--diff-base` suffix
-
-If `$ARGUMENTS` matches `^(\S.*) --diff-base ([A-Za-z0-9._/-]+)$` (note: requires non-empty target before the ` --diff-base ` separator — empty target is NOT supported, user must say e.g. `README.md --diff-base main`, not just `--diff-base main`), capture the path part and the ref. Otherwise treat the whole `$ARGUMENTS` as the path part (no diff-base).
-
-### Step 2 — Resolve target
-
-From the path part. Verify the path exists first via Bash (`[ -e "<path>" ]`).
-
-### Step 3 — Run the bridge
+### Step 2 — Run the bridge
 
 Use the Bash tool with `timeout: 600000`. Pass each argument as a separate token (no shell interpolation of user-supplied substrings):
 
@@ -55,7 +81,9 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" docs-review --docs-dir doc
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" docs-review --docs-path docs/api.md --diff-base main
 ```
 
-### Step 4 — Surface the review
+If `--diff-base <ref>` was matched (Group 2), append `--diff-base <ref>` to the argv. If `--resume` was matched (Group 3 truthy), append `--resume <value>` to the argv, where `<value>` is Group 4 if present, otherwise `auto`.
+
+### Step 3 — Surface the review
 
 Parse JSON. On `ok:true`, read the output file with the Read tool. On `ok:false`, surface the error verbatim:
 

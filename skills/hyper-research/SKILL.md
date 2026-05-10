@@ -18,6 +18,8 @@ Skip when:
 
 ## How to invoke
 
+`--resume` is not supported in v0.4 (deferred — research is not iterative).
+
 **Invocation argument:** $ARGUMENTS
 
 1. Resolve the task description:
