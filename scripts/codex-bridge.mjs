@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Codex bridge — see docs/specs/2026-05-10-v0.1-design.md §6.
 
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -442,6 +442,142 @@ async function main(argv) {
       outputPath: inv.outputPath,
       timestamp: inv.timestamp,
     }) + '\n');
+    return;
+  }
+
+  // docs-review path: reads docs file/dir, checks size, builds prompt, spawns codex exec.
+  if (args.mode === 'docs-review') {
+    // Step 1: read docs content.
+    let docsContent;
+    if (args.docsPath) {
+      try {
+        docsContent = await readFile(args.docsPath, 'utf8');
+      } catch (err) {
+        let errMsg;
+        if (err.code === 'ENOENT') {
+          errMsg = `docs file not found: ${args.docsPath}`;
+        } else if (err.code === 'EISDIR') {
+          errMsg = `--docs-path is a directory, use --docs-dir: ${args.docsPath}`;
+        } else {
+          errMsg = `cannot read docs file: ${args.docsPath} (${err.code})`;
+        }
+        process.stdout.write(JSON.stringify({ ok: false, error: errMsg }) + '\n');
+        process.exit(1);
+      }
+    } else {
+      // args.docsDir
+      let entries;
+      try {
+        entries = await readdir(args.docsDir, { withFileTypes: true });
+      } catch (err) {
+        let errMsg;
+        if (err.code === 'ENOENT') {
+          errMsg = `docs dir not found: ${args.docsDir}`;
+        } else {
+          errMsg = `cannot read docs dir: ${args.docsDir} (${err.code})`;
+        }
+        process.stdout.write(JSON.stringify({ ok: false, error: errMsg }) + '\n');
+        process.exit(1);
+      }
+      const mdFiles = entries
+        .filter(dirent => dirent.isFile() && dirent.name.endsWith('.md'))
+        .map(dirent => dirent.name)
+        .sort();
+      if (mdFiles.length === 0) {
+        process.stdout.write(JSON.stringify({ ok: false, error: `no .md files in ${args.docsDir}` }) + '\n');
+        process.exit(1);
+      }
+      const parts = [];
+      for (const name of mdFiles) {
+        const filePath = path.join(args.docsDir, name);
+        const text = await readFile(filePath, 'utf8');
+        parts.push(`## File: ${name}\n\n${text}`);
+      }
+      docsContent = parts.join('\n\n');
+    }
+
+    // Step 2: 200KB docs guard.
+    const docsBytes = Buffer.byteLength(docsContent, 'utf8');
+    if (docsBytes > 204800) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: 'docs payload exceeds 200KB; narrow scope with --docs-path or a smaller directory',
+        totalBytes: docsBytes,
+      }) + '\n');
+      process.exit(1);
+    }
+
+    // Step 3: codex version check.
+    const v = getCodexVersion();
+    if (!v.ok) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: v.reason,
+        hint: 'Install or upgrade codex-cli (>= 0.128.0). See: https://github.com/openai/codex',
+      }) + '\n');
+      process.exit(1);
+    }
+
+    // Step 4: load template.
+    let templateText;
+    try {
+      templateText = await readTemplateFile('docs-review');
+    } catch (err) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: `failed to read prompt template: ${err.message}`,
+      }) + '\n');
+      process.exit(1);
+    }
+
+    // Step 5: build prompt with optional diff context.
+    const vars = { DOCS: docsContent };
+    if (args.diffBase) {
+      const r = spawnSync('git', ['diff', `${args.diffBase}...HEAD`], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+      if (r.error || r.status !== 0) {
+        process.stdout.write(JSON.stringify({ ok: false, error: `git diff failed: ${r.stderr || r.error?.message}` }) + '\n');
+        process.exit(1);
+      }
+      if (Buffer.byteLength(r.stdout, 'utf8') > 512000) {
+        process.stdout.write(JSON.stringify({
+          ok: false,
+          error: 'git diff exceeds 500KB; narrow --diff-base scope',
+          diffBytes: Buffer.byteLength(r.stdout, 'utf8'),
+        }) + '\n');
+        process.exit(1);
+      }
+      vars.DIFF = r.stdout;
+    }
+    const prompt = loadTemplate(templateText, vars);
+
+    // Step 6: spawn codex.
+    const result = await runCodex(prompt, args.timeout);
+
+    // Step 7: ensure output dir exists.
+    await mkdir(inv.dir, { recursive: true });
+
+    // Step 8-10: build output file content.
+    const fm = renderDocsReviewFrontmatter({
+      slug: inv.slug,
+      generated: new Date().toISOString(),
+      codexVersion: v.version,
+      docsTarget: args.docsPath ?? args.docsDir,
+      diffBase: args.diffBase,
+    });
+    const heading = `# Docs review: ${path.basename(args.docsPath ?? args.docsDir)}`;
+    const body = result.ok
+      ? result.stdout
+      : `# (codex failed)\n\n${result.stdout}\n\n## stderr\n\n${result.stderr}\n`;
+
+    // Step 11: write file.
+    await writeFile(inv.outputPath, fm + heading + '\n\n' + body, 'utf8');
+
+    // Step 12: emit result JSON.
+    if (!result.ok) {
+      process.stdout.write(JSON.stringify({ ok: false, error: result.reason, path: inv.outputPath }) + '\n');
+      process.exit(1);
+    }
+    process.stdout.write(JSON.stringify({ ok: true, path: inv.outputPath, slug: inv.slug }) + '\n');
     return;
   }
 
