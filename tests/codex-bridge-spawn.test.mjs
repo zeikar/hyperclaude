@@ -412,11 +412,16 @@ test('mock codex: docs-review --docs-path spawns codex exec --sandbox read-only 
       const argv = argvLog.split('\n').slice(0, -1); // trim trailing empty from final \n
       assert.deepEqual(argv, ['exec', '--sandbox', 'read-only', '-']);
 
-      // stdin.log must contain the doc content
+      // stdin.log must contain the doc content AND a file marker so Codex
+      // can attribute findings to the path.
       const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
       assert.ok(
         stdinLog.includes('Hello from test-doc.'),
         `stdin.log should contain doc content, got: ${stdinLog.slice(0, 200)}`
+      );
+      assert.ok(
+        stdinLog.includes(`## File: ${docPath}`),
+        `stdin.log should contain "## File: <path>" marker, got: ${stdinLog.slice(0, 300)}`
       );
 
       // Output file checks

@@ -451,7 +451,11 @@ async function main(argv) {
     let docsContent;
     if (args.docsPath) {
       try {
-        docsContent = await readFile(args.docsPath, 'utf8');
+        // Prefix with file marker so Codex can attribute findings to the path
+        // (mirrors the per-file marker in --docs-dir mode; the docs-review template
+        // requires findings to cite "<doc path>:<line-or-section>").
+        const raw = await readFile(args.docsPath, 'utf8');
+        docsContent = `## File: ${args.docsPath}\n\n${raw}`;
       } catch (err) {
         let errMsg;
         if (err.code === 'ENOENT') {
