@@ -36,6 +36,21 @@ else
 fi
 
 echo
+echo "==> Bridge code-review dry-run"
+if out=$(node scripts/codex-bridge.mjs code-review --dry-run 2>&1); then
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    process.exit(j.ok && j.dryRun && j.slug === "vs-main" ? 0 : 1);
+  '; then
+    ok "codex-bridge code-review --dry-run produces expected JSON"
+  else
+    miss "codex-bridge code-review --dry-run JSON shape unexpected: $out"
+  fi
+else
+  miss "codex-bridge code-review --dry-run failed: $out"
+fi
+
+echo
 echo "==> Plugin manifest validation"
 if command -v claude >/dev/null 2>&1; then
   if claude plugin validate . > /tmp/hyperclaude-validate.log 2>&1; then
@@ -60,6 +75,7 @@ for f in \
   skills/hyper-tdd/SKILL.md \
   skills/hyper-debug/SKILL.md \
   skills/hyper-implement/SKILL.md \
+  skills/hyper-code-review/SKILL.md \
   agents/planner.md \
   agents/implementer.md \
   agents/verifier.md
@@ -100,6 +116,12 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
        /hyperclaude:hyper-plan-review
      Verify it auto-discovers the plan or prints the "no plan found"
      guidance.
+
+  4. Run:
+       /hyperclaude:hyper-code-review
+     Verify it reviews the current branch vs main and writes a file
+     under .hyperclaude/code-reviews/ with valid frontmatter and a
+     Codex-generated body.
 
 If any of the above fails, STOP and fix before tagging.
 ====================================================================

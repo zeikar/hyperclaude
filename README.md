@@ -9,44 +9,45 @@
 A Claude Code plugin built around a deliberate division of labor between two AI coding agents:
 
 - **Claude** implements — planning, coding, subagents, agent teams
-- **Codex** reviews — pre-implementation research, plan critique (and later, code review)
+- **Codex** reviews — pre-implementation research, plan critique, code review
 
 Thesis: **Claude is the builder, Codex is the critic.** You get better software with a smarter cost split.
 
 ## Architecture (v0.1)
 
 ```
-    ┌───────────────────────────────────────────────────────┐
-    │                User in Claude Code                    │
-    └───────────────────────┬───────────────────────────────┘
-                            │
-    ┌───────────────────────┼─────────────────────────┐
-    │                       │                         │
-┌───▼─────────────┐ ┌───────▼──────────────┐ ┌────────▼────────┐
-│ /hyperclaude:    │ │ /hyperclaude:        │ │     Claude      │
-│   hyper-research │ │   hyper-plan-review  │ │   impl arm      │
-│       Codex      │ │       Codex          │ │                 │
-└────────┬─────────┘ └─────────┬────────────┘ │   agents/       │
-         │                     │              │   skills/       │
-         └──────────┬──────────┘              └─────────────────┘
-                    │
-        ┌───────────▼─────────────┐
-        │   .hyperclaude/         │
-        │     research/*.md       │
-        │     plans/*.md          │
-        │     reviews/*.md        │
-        └─────────────────────────┘
+    ┌────────────────────────────────────────────────────────────────────┐
+    │                      User in Claude Code                           │
+    └──────────────────────────────┬─────────────────────────────────────┘
+                                   │
+    ┌──────────────────────────────┼──────────────────────────────────┐
+    │                              │                                  │
+┌───▼─────────────┐ ┌──────────────▼──────────┐ ┌────────────────────▼──────┐ ┌────────▼────────┐
+│ /hyperclaude:    │ │ /hyperclaude:            │ │ /hyperclaude:             │ │     Claude      │
+│   hyper-research │ │   hyper-plan-review      │ │   hyper-code-review       │ │   impl arm      │
+│       Codex      │ │       Codex              │ │       Codex               │ │                 │
+└────────┬─────────┘ └──────────────┬──────────┘ └────────────────────┬──────┘ │   agents/       │
+         │                          │                                  │        │   skills/       │
+         └───────────────┬──────────┴──────────────────────────────────┘        └─────────────────┘
+                         │
+         ┌───────────────▼─────────────┐
+         │   .hyperclaude/             │
+         │     research/*.md           │
+         │     plans/*.md              │
+         │     reviews/*.md            │
+         │     code-reviews/*.md       │
+         └─────────────────────────────┘
 ```
 
 Three layers:
 
-1. **Slash commands** — `/hyperclaude:hyper-research`, `/hyperclaude:hyper-plan-review` (plugin-namespaced per Claude Code's contract)
-2. **Skills** — gate behaviors (`hyper-research`, `hyper-plan-review`) + implementation discipline (`hyper-tdd`, `hyper-debug`) + plan execution (`hyper-implement`)
+1. **Slash commands** — `/hyperclaude:hyper-research`, `/hyperclaude:hyper-plan-review`, `/hyperclaude:hyper-code-review` (plugin-namespaced per Claude Code's contract)
+2. **Skills** — gate behaviors (`hyper-research`, `hyper-plan-review`, `hyper-code-review`) + implementation discipline (`hyper-tdd`, `hyper-debug`) + plan execution (`hyper-implement`)
 3. **Agents** — Claude implementation arm (`planner`, `implementer`, `verifier`)
 
 The earlier nudge / `UserPromptSubmit` hook layer is deferred to v0.2.
 
-Codex is always invoked under `--sandbox read-only`: its role in hyperclaude is *critic*, never *editor*.
+When hyperclaude invokes `codex exec` (research, plan-review), it always passes `--sandbox read-only`. When it invokes `codex review` (code review), it relies on the subcommand's review-only design — `codex review` analyzes diffs and does not author patches; the bridge keeps the argv minimal and auditable (no `-c` overrides). In both cases, Codex's role in hyperclaude is *critic*, never *editor*.
 
 External dependencies: Claude Code plugin runtime, `codex-cli >= 0.128.0`, Node 18+. Nothing else (no npm bin, no tmux, no MCP servers).
 
@@ -86,6 +87,16 @@ For the full design rationale, see [docs/specs/2026-05-10-v0.1-design.md](docs/s
    ```text
    /hyperclaude:hyper-plan-review
    ```
+
+5. After implementing, review the code changes:
+
+   ```text
+   /hyperclaude:hyper-code-review
+   ```
+
+   - Default: reviews the current branch vs `main`.
+   - For working-tree changes (staged + unstaged + untracked): `/hyperclaude:hyper-code-review uncommitted`
+   - For a specific commit: `/hyperclaude:hyper-code-review <commit-sha>`
 
 ## Development
 
