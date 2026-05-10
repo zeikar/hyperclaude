@@ -10,7 +10,7 @@ hyperclaude wires three things together:
 - **Agents** — sub-Claude personas with restricted tool sets. Each is one `<name>.md` under [agents/](../agents/).
 - **Bridge** — [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs), a Node 18+ stdlib script that shells out to `codex` and writes structured output under `.hyperclaude/`.
 
-There is no daemon, no MCP server, no shared state. The bridge runs on demand; skills and agents are static markdown.
+There is no daemon, no MCP server, no shared process state. The bridge runs on demand; skills and agents are static markdown. The only persisted state is `.hyperclaude/` artifacts (one markdown file per gate run); they are read back by `--resume` for thread-id discovery.
 
 ## Directory layout
 
@@ -35,7 +35,9 @@ hyperclaude/
 ├── templates/codex/             prompt templates rendered into Codex stdin
 │   ├── research.md
 │   ├── review.md
-│   └── docs-review.md
+│   ├── review-resumed.md
+│   ├── docs-review.md
+│   └── docs-review-resumed.md
 ├── tests/                       node --test unit tests for the bridge
 ├── docs/                        this directory
 ├── README.md, LICENSE, .gitignore
@@ -62,11 +64,11 @@ Functional runtime surface stops at the directory above. Zero npm dependencies; 
               ▼
    ┌──────────────────────────────────┐
    │ Bridge — scripts/codex-bridge.mjs│  ← Node 18+ stdlib script,
-   └──────────┬───────────────────────┘    spawns `codex exec` / `codex review`
+   └──────────┬───────────────────────┘    spawns `codex exec` / `codex exec review`
               │
               ▼
    ┌──────────────────────────────────┐
-   │ Codex CLI (>= 0.128.0)           │  ← read-only sandbox or review subcommand
+   │ Codex CLI (>= 0.130.0)           │  ← read-only sandbox; exec review subcommand
    └──────────────────────────────────┘
               │
               ▼
@@ -86,12 +88,16 @@ One file: [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs). Four modes, e
 |---------------|---------------------------------------------------|------------------------------------|----------------------------------|
 | `research`    | `codex exec --sandbox read-only -` (stdin prompt) | [templates/codex/research.md](../templates/codex/research.md)       | `.hyperclaude/research/`         |
 | `review`      | `codex exec --sandbox read-only -` (stdin prompt) | [templates/codex/review.md](../templates/codex/review.md)         | `.hyperclaude/reviews/`          |
-| `code-review` | `codex review [--base \| --uncommitted \| --commit]` | none — `codex review` owns its prompt | `.hyperclaude/code-reviews/`     |
+| `code-review` | `codex exec review -c sandbox_mode=read-only [--base \| --uncommitted \| --commit]` | none — `codex exec review` owns its prompt | `.hyperclaude/code-reviews/`     |
 | `docs-review` | `codex exec --sandbox read-only -` (stdin prompt) | [templates/codex/docs-review.md](../templates/codex/docs-review.md)    | `.hyperclaude/docs-reviews/`     |
 
 ### Sandbox policy
 
-Every `codex exec` call passes `--sandbox read-only` — Codex cannot write to the workspace, so research / plan-review / docs-review are guaranteed non-mutating regardless of the user's `~/.codex/config.toml` defaults. `codex review` does not expose `--sandbox`; it is a review-only subcommand by design (does not author patches), and the bridge keeps its argv minimal (no `-c` overrides) to keep the contract auditable.
+Three cases, all read-only:
+
+- **Fresh `codex exec`** (`research`, `review`, `docs-review`): passes `--sandbox read-only` flag. Codex cannot write to the workspace regardless of the user's `~/.codex/config.toml` defaults.
+- **`codex exec resume`** (`review`, `docs-review` with `--resume`): no `--sandbox` flag; instead passes `-c sandbox_mode=read-only` as a config override (resume does not inherit the original session's sandbox).
+- **`codex exec review`** (`code-review`): no `--sandbox` flag; passes `-c sandbox_mode=read-only` as a config override. `codex exec review` is a review-only subcommand and does not author patches.
 
 Net result: Codex is a *critic*, never an *editor*, in every mode.
 
@@ -104,9 +110,9 @@ node scripts/codex-bridge.mjs <mode> [flags]
 | Mode          | Required flags                                             | Optional flags                                                                       |
 |---------------|------------------------------------------------------------|--------------------------------------------------------------------------------------|
 | `research`    | `--task <text>` OR `--task-file <path>`                    | `--slug`, `--out`, `--timeout`, `--dry-run`                                          |
-| `review`      | `--plan-path <path>`                                       | `--slug`, `--out`, `--timeout`, `--dry-run`                                          |
+| `review`      | `--plan-path <path>`                                       | `--resume <path\|auto>`, `--slug`, `--out`, `--timeout`, `--dry-run`                 |
 | `code-review` | none — defaults to `--base main`                           | one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--title`, `--out`, `--timeout`, `--dry-run` |
-| `docs-review` | `--docs-path <file>` OR `--docs-dir <dir>`                 | `--diff-base <ref>`, `--out`, `--timeout`, `--dry-run`                               |
+| `docs-review` | `--docs-path <file>` OR `--docs-dir <dir>`                 | `--resume <path\|auto>`, `--diff-base <ref>`, `--out`, `--timeout`, `--dry-run`      |
 
 Defaults:
 
@@ -130,8 +136,11 @@ codex-version: <semver from `codex --version`>
 template-version: 1                    # research / review / docs-review
 task: |-                               # research / review only — block scalar
   <task text or plan path>
-codex-subcommand: review               # code-review only
-git-head: "<sha>"                      # code-review only
+cwd: "<absolute path>"                 # always
+git-head: "<sha or \"unknown\">"       # always
+codex-thread-id: "<uuid>"             # when Codex reports a thread id
+codex-resume-status: fresh | resumed | fallback | resume-failed  # always (research is always "fresh")
+codex-resumed-from: "<path>"           # when --resume was used and resume succeeded
 base-ref / commit / title              # code-review (mode-dependent; uncommitted has none)
 plan-path: "<path>"                    # review only
 docs-target: "<path>"                  # docs-review
@@ -147,7 +156,35 @@ Filename: `<YYYYMMDD-HHMM>-<slug>.md` (UTC). Per-mode slug fallbacks:
 
 On collision, the bridge appends `-2`, `-3`, … until free.
 
-The script exits 0 and prints `{"ok":true,"path":"…","slug":"…"}` on success, or exits non-zero with `{"ok":false,"error":"…"}` on the explicitly handled failure modes: argv errors (exit 2), missing/unreadable input (task file, plan file, docs file/dir — exit 1), failed `git diff` for `--diff-base` (exit 1), template load failures (exit 1), Codex spawn / non-zero / timeout (exit 1), or oversized payloads (exit 1, with the relevant byte count). Filesystem failures during output (`mkdir`, `writeFile`) propagate as unhandled rejections and surface as a Node stack trace rather than the JSON shape — these paths are intentionally minimal because they only fire when the caller's `.hyperclaude/` directory is unwritable. Even on Codex failure the file is still written, with stderr captured under a `## stderr` heading — so the caller can read what went wrong without running the bridge again.
+On success (non-dry-run, `review` / `docs-review`) the script exits 0 and prints `{"ok":true,"path":"…","slug":"…","threadId":"<uuid>","resumeStatus":"<state>"}`. On failure those modes print `{"ok":false,"error":"…","path":"<path|null>","resumeStatus":"<state>","threadId":"<uuid|null>"}`. `code-review` success / failure prints `threadId` (when known) but no `resumeStatus` field — its frontmatter still records `codex-resume-status: fresh`. Research success / failure uses the same v0.3 shape (no `threadId` / `resumeStatus` exposed). `--dry-run` skips the write and prints `{"ok":true,"dryRun":true,"mode":"…","slug":"…","outputPath":"…","timestamp":"…"}` (unchanged for all modes).
+
+Exits are: argv errors (exit 2), missing/unreadable input (exit 1), failed `git diff` for `--diff-base` (exit 1), template load failures (exit 1), Codex spawn / non-zero / timeout (exit 1), oversized payloads (exit 1, with byte count), resume budget exceeded (exit 1; no fallback). Filesystem failures during output (`mkdir`, `writeFile`) propagate as unhandled rejections — they only fire when the caller's `.hyperclaude/` directory is unwritable. Even on Codex failure the file is still written with a structured failure body (see below).
+
+### Failure artifact body shape
+
+When Codex exits non-zero or times out (review / docs-review / code-review), the bridge still writes the artifact. The body follows a fixed structure produced by `renderFailureBody`:
+
+```
+# (codex failed)
+
+## JSONL parser report
+- thread.started: <yes|no, thread_id if yes>
+- turn.completed: <yes|no>
+- turn.failed: <yes|no, message if yes>
+- top-level error events: <count> (last 3 messages: ...)
+- malformed lines: <count>
+
+## Last message (from --output-last-message)
+<contents if non-empty, else "(empty)">
+
+## stderr
+<verbatim stderr from the Codex process>
+
+## Exit
+status=<code|null>, signal=<name|null>, timed-out=<bool>
+```
+
+Output is always to the file-per-run (tmpfile body + stderr), never just to stdout. `codex-resume-status` in frontmatter is set to `resume-failed` when the failure occurs on a resume spawn; otherwise follows the normal status.
 
 ### Size guards
 
@@ -176,8 +213,8 @@ For the per-artifact frontmatter shapes, see "Output contract" above.
 ## External dependencies
 
 - **Claude Code plugin runtime** — distribution channel, slash command resolution, agent dispatch.
-- **`codex-cli >= 0.128.0`** — version-checked via `codex --version` before spawning Codex on non-dry-run calls. Argv parsing always runs first; subsequent ordering is mode-specific. `docs-review` reads the docs payload and runs the 200KB guard before the version check; `--diff-base` diff capture and its 500KB guard happen after the version check. `review` reads the plan file after the version check, so a missing plan path surfaces *after* the version-check error if both are wrong simultaneously. Older Codex versions fail fast with an upgrade hint.
-- **Node 18+** — bridge uses `node:fs/promises`, `node:fs` (`existsSync`), `node:child_process`, `node:path`, `node:url`. No npm packages.
+- **`codex-cli >= 0.130.0`** — version-checked via `codex --version` before spawning Codex on non-dry-run calls. Argv parsing always runs first; subsequent ordering is mode-specific. `docs-review` reads the docs payload and runs the 200KB guard before the version check; `--diff-base` diff capture and its 500KB guard happen after the version check. `review` reads the plan file after the version check, so a missing plan path surfaces *after* the version-check error if both are wrong simultaneously. Older Codex versions fail fast with an upgrade hint.
+- **Node 18+** — bridge uses `node:fs/promises`, `node:fs` (`existsSync`), `node:child_process`, `node:path`, `node:url`, `node:os`, `node:crypto`. No npm packages.
 - **`git`** — required for diff-backed gates: `code-review` (always), `docs-review` (when `--diff-base` is passed), and `hyper-docs-sync` (always — the skill uses git diff to determine what changed).
 
 No other runtime dependencies. No MCP server, no tmux, no daemons, no npm bin.

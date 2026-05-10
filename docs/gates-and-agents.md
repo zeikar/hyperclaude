@@ -18,15 +18,18 @@ A gate skill mediates a step in the cycle that involves Codex and produces an ar
 - **Writes:** `.hyperclaude/research/<timestamp>-<slug>.md` — frontmatter + Codex's Prior Art / Pitfalls / Recommendations.
 - **Use when:** about to design a non-trivial change and you want prior art / failure modes before committing to an approach.
 - **Skip when:** the task is one-line / mechanical / well-trodden.
+- **`--resume`:** not supported in v0.4 (research is not iterative).
 - **Source:** [skills/hyper-research/SKILL.md](../skills/hyper-research/SKILL.md), template [templates/codex/research.md](../templates/codex/research.md).
 
 ### `hyper-plan-review` — Codex plan critique
 
 - **Slash:** `/hyperclaude:hyper-plan-review [path/to/plan.md]`
+  - `--resume` — resume the most recent matching prior review (auto-discovers newest artifact in `.hyperclaude/reviews/` with same mode + cwd + plan-path; falls back to fresh run if none found, records `codex-resume-status: fallback`).
+  - `--resume <prev-artifact-path>` — resume from an explicit prior review; validation fail → `ok:false`, no fresh run.
 - **Mode:** `review` (Codex `exec`, read-only sandbox).
 - **Auto-discovers:** the most recent file under `.hyperclaude/plans/` if no path is passed.
 - **Reads:** the plan markdown.
-- **Writes:** `.hyperclaude/reviews/<timestamp>-<slug>.md` — Issues (Blocker / Major / Minor), Improvements, and Verdict.
+- **Writes:** `.hyperclaude/reviews/<timestamp>-<slug>.md` — Issues (Blocker / Major / Minor), Improvements, and Verdict. Frontmatter records `codex-resume-status`: one of `fresh | resumed | fallback | resume-failed`.
 - **Slug:** reused from the plan filename, so the research → plan → review trio shares one slug for traceability.
 - **Use when:** Claude has written a plan and you want Codex to find blockers before execution.
 - **Source:** [skills/hyper-plan-review/SKILL.md](../skills/hyper-plan-review/SKILL.md), template [templates/codex/review.md](../templates/codex/review.md).
@@ -38,10 +41,11 @@ A gate skill mediates a step in the cycle that involves Codex and produces an ar
   - `uncommitted` → staged + unstaged + untracked.
   - 7–40 hex chars → that specific commit.
   - `vs <ref>` → branch diff vs that ref.
-- **Mode:** `code-review` (Codex `review` subcommand — separate from `exec`; `--sandbox` not exposed because the subcommand is review-only by design).
-- **Writes:** `.hyperclaude/code-reviews/<timestamp>-<slug>.md` — Codex's findings, with frontmatter recording `git-head` and (depending on target) `base-ref`, `commit`, or the optional `title`. The `uncommitted` target has no dedicated frontmatter field; it's identifiable from `slug: uncommitted` and the heading.
+- **Mode:** `code-review` (Codex `exec review` subcommand — separate from `exec`; `--sandbox` not exposed because the subcommand is review-only by design).
+- **Writes:** `.hyperclaude/code-reviews/<timestamp>-<slug>.md` — Codex's findings, with frontmatter recording `codex-thread-id`, `cwd`, `git-head`, and (depending on target) `base-ref`, `commit`, or the optional `title`. Frontmatter records `codex-resume-status: fresh`. The `uncommitted` target has no dedicated frontmatter field; it's identifiable from `slug: uncommitted` and the heading.
+- **`--resume`:** not supported in v0.4 (`codex exec review` and `codex exec resume` semantics differ); deferred to v0.5.
 - **Use when:** post-implementation, before tagging a release, before opening a PR.
-- **Source:** [skills/hyper-code-review/SKILL.md](../skills/hyper-code-review/SKILL.md). No template — `codex review` owns its own prompt.
+- **Source:** [skills/hyper-code-review/SKILL.md](../skills/hyper-code-review/SKILL.md). No template — `codex exec review` owns its own prompt.
 
 ### `hyper-docs-sync` — Claude doc-sync orchestrator
 
@@ -54,12 +58,14 @@ A gate skill mediates a step in the cycle that involves Codex and produces an ar
 
 ### `hyper-docs-review` — Codex doc accuracy gate
 
-- **Slash:** `/hyperclaude:hyper-docs-review [path [--diff-base <ref>]]` — `--diff-base` requires an explicit `path` (file or dir) before it; the bare form `/hyperclaude:hyper-docs-review --diff-base main` is rejected.
+- **Slash:** `/hyperclaude:hyper-docs-review [path] [--diff-base <ref>] [--resume [<artifact>]]` — argument order is `path → --diff-base → --resume`. `path` defaults to `docs/` when omitted, so `/hyperclaude:hyper-docs-review --diff-base main` is valid (reviews `docs/` against the diff).
   - Empty → top-level `.md` files in `docs/` (commentarium convention).
   - Single file → reviews that file.
   - Directory → reviews top-level `.md` files in that dir (recursion deferred — see [decisions.md](decisions.md)).
+  - `--resume` — resume the most recent matching prior review (auto-discovers newest artifact in `.hyperclaude/docs-reviews/` with same docs-target + diff-base; falls back to fresh run if none found, records `codex-resume-status: fallback`).
+  - `--resume <prev-artifact-path>` — resume from an explicit prior review; validation fail → `ok:false`, no fresh run. If docs payload exceeds 200KB on a resume run, bridge returns `ok:false` (no fallback — user must narrow scope).
 - **Mode:** `docs-review` (Codex `exec`, read-only sandbox).
-- **Writes:** `.hyperclaude/docs-reviews/<timestamp>-<slug>.md` — Findings, Gaps, Broken Or Suspect Links, Cross-Doc Inconsistencies, and Verdict. Scope is strict: *accuracy / drift / completeness / broken links / contradictions* (NOT prose / style — that is the documenter agent's job).
+- **Writes:** `.hyperclaude/docs-reviews/<timestamp>-<slug>.md` — Findings, Gaps, Broken Or Suspect Links, Cross-Doc Inconsistencies, and Verdict. Scope is strict: *accuracy / drift / completeness / broken links / contradictions* (NOT prose / style — that is the documenter agent's job). Frontmatter records `codex-resume-status`: one of `fresh | resumed | fallback | resume-failed`.
 - **Size guards:** docs payload ≤ 200KB; with `--diff-base`, diff ≤ 500KB.
 - **Use when:** after `hyper-docs-sync`, or any time a documentation accuracy gate is wanted.
 - **Source:** [skills/hyper-docs-review/SKILL.md](../skills/hyper-docs-review/SKILL.md), template [templates/codex/docs-review.md](../templates/codex/docs-review.md).

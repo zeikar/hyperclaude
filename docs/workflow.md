@@ -121,6 +121,45 @@ Writes `.hyperclaude/docs-reviews/<timestamp>-<slug>.md`. Scope is strict: accur
 
 Fix accuracy issues before merging or tagging.
 
+## Resuming a review
+
+When you fix issues raised by `plan-review` or `docs-review` and want a re-critique without re-uploading the full payload, use `--resume`:
+
+```text
+# After fixing the plan
+/hyperclaude:hyper-plan-review --resume
+
+# After fixing the docs
+/hyperclaude:hyper-docs-review --resume
+```
+
+Without an artifact path, `--resume` auto-discovers the most recent matching prior review under `.hyperclaude/<mode-dir>/`. With an explicit path:
+
+```text
+/hyperclaude:hyper-docs-review --resume .hyperclaude/docs-reviews/20260510-1300-architecture.md
+```
+
+Resume reuses the prior Codex thread. The bridge sends a small follow-up ("the file has been revised; re-read it") and Codex re-reads from disk via read-only sandbox. The original docs payload + critique stay in conversation cache, so token cost drops dramatically.
+
+Validation: bridge re-checks same mode, same cwd, same plan-path / docs-target / diff-base, prior thread-id present, prior `codex-resume-status` ∈ {fresh, resumed}. Mismatch behavior:
+
+| Scenario | Result |
+|---|---|
+| `--resume <path>` validation fail | `ok:false`, no fresh run |
+| `--resume auto` miss | falls back to fresh; artifact records `codex-resume-status: fallback` |
+| docs payload >200KB on resume | `ok:false`; user must narrow scope |
+
+Status taxonomy recorded in `codex-resume-status` frontmatter:
+
+| Status | Meaning |
+|---|---|
+| `fresh` | no `--resume` passed |
+| `resumed` | resume succeeded |
+| `fallback` | `--resume auto` miss; ran fresh |
+| `resume-failed` | resume spawn died after validation passed |
+
+`code-review` and `research` do NOT support `--resume` in v0.4 (deferred to v0.5; see decisions.md).
+
 ## 8. Tag and push — manual
 
 ```bash
@@ -162,6 +201,6 @@ The only step that should never be skipped on a behavioral change is `code-revie
 
 ## What it costs
 
-Each Codex gate is one `codex` invocation. The bridge passes `--sandbox read-only` for `exec` modes and uses the review-only `codex review` subcommand for code review — Codex never writes to your workspace.
+Each Codex gate is one `codex` invocation. The bridge passes `--sandbox read-only` for `exec` modes and uses `codex exec review` for code review — Codex never writes to your workspace.
 
 Default per-call timeout is 300s. Default per-mode size guards: docs-review docs payload ≤ 200KB, docs-review diff ≤ 500KB. See [architecture.md](architecture.md) for the rest.

@@ -50,6 +50,18 @@ Why deferred: the timestamp in the filename plus `git-head` is enough for typica
 
 When to revisit: any time someone needs to re-run a historical review and finds the base has drifted.
 
+### Code-review resume
+
+**Status:** deferred. **Trigger:** a clear use case where re-reviewing the same code diff in a fixed-up state is common enough to design proper resumed semantics.
+
+`codex exec review` and `codex exec resume` are not symmetric. `codex exec review` internally captures the diff and uses a native review prompt; `codex exec resume <id>` is generic exec continuation. A naively resumed prompt loses the native review prompt, so the review-specific context is gone. Until there is a concrete design for threading the native review prompt through a resume, code-review keeps `--resume` rejected at `parseArgs`.
+
+### Research resume
+
+**Status:** deferred. **Trigger:** explicit user request, or the dogfood cycle generating iterative research follow-ups frequently enough to make resumption practical.
+
+Research today is a single-pass gate, not a "fix → re-review" workflow. There is no natural resumed prompt to construct without re-uploading context that the resume is supposed to avoid.
+
 ### Additional error-path coverage (EACCES, etc.)
 
 **Status:** deferred. **Trigger:** real user runs into a rough error message in the wild.
@@ -71,16 +83,38 @@ When to revisit: a specific error code shows up in a bug report.
 
 ### Codex is `--sandbox read-only`, always
 
-**Decision:** every `codex exec` call from the bridge passes `--sandbox read-only`. `codex review` is left at its default because the subcommand is review-only by design.
+**Decision:** every Codex spawn enforces read-only, but the mechanism varies by subcommand:
+
+- **Fresh `codex exec`** (research / review / docs-review): passes the `--sandbox read-only` flag.
+- **`codex exec resume`** (review / docs-review with `--resume`): no `--sandbox` flag is exposed; passes `-c sandbox_mode=read-only` as a config override.
+- **`codex exec review`** (code-review): no `--sandbox` flag; passes `-c sandbox_mode=read-only` as a config override.
+
+`code-review` was migrated from the bare `codex review` subcommand to `codex exec review` in v0.4. Same review-only behavior, but gains JSONL stream, thread-id capture, structured failure body, and shared spawn helper. Native review prompt is preserved (no positional prompt, no stdin pipe).
 
 **Rejected alternative:** allow Codex to write patches in some modes. Lets Codex propose concrete edits.
 
 **Why rejected:**
 - The thesis is "Claude builds, Codex critiques." Allowing Codex to author patches collapses the role split.
-- User trust depends on knowing Codex never mutates the workspace. `--sandbox read-only` is a hard contract; user-side `~/.codex/config.toml` defaults can't override it.
-- `codex review` has the same property structurally — the subcommand is built for review, not authoring.
+- User trust depends on knowing Codex never mutates the workspace.
+- The two argv shapes (`--sandbox read-only` for fresh exec; `-c sandbox_mode=read-only` for resume / exec review) are both explicit in argv and auditable; user-side `~/.codex/config.toml` defaults can't override either.
 
-The bridge keeps `codex review`'s argv minimal (no `-c` overrides) so the contract stays auditable.
+### Resume requires `-c sandbox_mode=read-only`
+
+**Decision:** `runCodexResume` in `scripts/codex-bridge.mjs` explicitly passes `-c sandbox_mode=read-only` on every `codex exec resume` call.
+
+**Why:** `codex exec resume` does NOT inherit the original session's `--sandbox` flag. Verified empirically: a session originally spawned with `--sandbox read-only` then resumed without sandbox config wrote files freely (both `/tmp` and the workspace). Adding `-c sandbox_mode=read-only` to the resume argv enforces read-only correctly and preserves the bridge's hard contract — Codex never writes the workspace — across resume.
+
+### Resumed prompts are minimal follow-ups; bridge owns file list and size budgets, not Codex
+
+**Decision:** the resumed prompt does NOT re-upload the docs or plan payload. It names the changed file, asks Codex to re-read via the read-only sandbox, and (for `docs-review --docs-dir`) embeds the exact aggregated file list. Codex's prompt cache covers the original payload across the conversation.
+
+**Why:** re-uploading defeats the token-savings purpose of resume. The trade-off is that the bridge re-runs the 200KB / 500KB size budgets on resume to ensure Codex isn't asked to re-read a payload that's now too large. If the budget is exceeded on resume, the bridge fails (not a silent fallback) because the user changed the situation.
+
+### MIN_CODEX bumped to 0.130 (was 0.128)
+
+**Decision:** the bridge's minimum required codex-cli version is 0.130.0.
+
+**Why:** v0.4 depends on `codex exec review`, `codex exec resume`, and `-c sandbox_mode=read-only` config overrides. These were verified on codex-cli 0.130.0; older versions may lack the subcommands. The bridge fails fast at `getCodexVersion` startup with an upgrade hint. Smoke probes (`codex exec review --help`, `codex exec resume --help`, `codex exec review --base HEAD -c sandbox_mode=read-only --help`) catch surface drift earlier.
 
 ### Fresh subagent per task in `hyper-implement`
 
@@ -113,7 +147,7 @@ The bridge keeps `codex review`'s argv minimal (no `-c` overrides) so the contra
 
 **Why:**
 - Plugins should be cheap to install and audit. A Claude Code user who runs `/plugin install hyperclaude` should not also need `npm install` for a plugin to work.
-- The bridge is small (~750 lines). A YAML parser, a fancy CLI lib, a templating engine — none earn their weight here.
+- The bridge is one file (~1.4k lines as of v0.4). A YAML parser, a fancy CLI lib, a templating engine — none earn their weight here.
 - Stdlib forces simpler design: regex slugs, tagged template strings instead of Handlebars, hand-rolled argv parsing instead of yargs.
 
 **Cost accepted:** a custom argv parser that has to be tested per-mode (`ALLOWED_FLAGS_PER_MODE`); manual frontmatter rendering. Both are covered by unit tests.

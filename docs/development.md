@@ -5,7 +5,7 @@ Local dev setup, test suite, and release flow for hyperclaude itself. Consumer-s
 ## Prerequisites
 
 - **Node 18+** — bridge is stdlib-only; no `npm install` step.
-- **`codex-cli >= 0.128.0`** — version-checked at runtime by the bridge.
+- **`codex-cli >= 0.130.0`** — version-checked at runtime by the bridge.
 - **`git`** — for diff-backed gates.
 - **Claude Code** — to dogfood the slash commands.
 
@@ -37,6 +37,15 @@ node scripts/codex-bridge.mjs research --task-file /tmp/task.txt
 # Review
 node scripts/codex-bridge.mjs review --plan-path .hyperclaude/plans/<file>.md
 
+# Review (resume — auto-discover the most recent matching prior review)
+node scripts/codex-bridge.mjs review --plan-path .hyperclaude/plans/<file>.md --resume auto
+
+# Review (resume — from an explicit prior review)
+node scripts/codex-bridge.mjs review --plan-path .hyperclaude/plans/<file>.md --resume .hyperclaude/reviews/<prev>.md
+
+# Docs review (resume after fixing the file)
+node scripts/codex-bridge.mjs docs-review --docs-path docs/architecture.md --resume auto
+
 # Code review (default: vs main)
 node scripts/codex-bridge.mjs code-review --base main
 
@@ -51,13 +60,13 @@ node scripts/codex-bridge.mjs docs-review --docs-path README.md
 node scripts/codex-bridge.mjs research --task "test" --dry-run
 ```
 
-Output goes to mode-specific subdirectories of `.hyperclaude/` by default — `.hyperclaude/research/`, `.hyperclaude/reviews/`, `.hyperclaude/code-reviews/`, `.hyperclaude/docs-reviews/`. Override with `--out`. Set `--timeout <seconds>` for slow networks (default 300s). See [architecture.md](architecture.md#cli-surface) for the full flag reference.
+Output goes to mode-specific subdirectories of `.hyperclaude/` by default — `.hyperclaude/research/`, `.hyperclaude/reviews/`, `.hyperclaude/code-reviews/`, `.hyperclaude/docs-reviews/`. Override with `--out`. Set `--timeout <seconds>` for slow networks (default 300s). `--resume` is supported for `review` and `docs-review` only (not `research` or `code-review`). See [architecture.md](architecture.md#cli-surface) for the full flag reference.
 
 ## Tests
 
 ```bash
-node --test tests/*.mjs            # unit tests for the bridge — currently 123 cases
-bash scripts/test/smoke.sh         # 23 automated checks + optional `claude plugin validate` if Claude Code CLI is on PATH
+node --test tests/*.mjs            # unit tests for the bridge — currently 211 cases
+bash scripts/test/smoke.sh         # 23 core checks + 3 Codex probes when codex is on PATH + optional `claude plugin validate` when claude is on PATH
 ```
 
 Both must pass cleanly before tagging a release. Zero npm dependencies; nothing to install.
@@ -65,8 +74,9 @@ Both must pass cleanly before tagging a release. Zero npm dependencies; nothing 
 The unit tests cover argument parsing, slug derivation, frontmatter rendering, file-collision handling, and per-mode invocation planning. The smoke script:
 
 - Runs the unit test suite (`node --test tests/*.mjs`).
-- Verifies that required plugin files exist (manifests, marketplace listing, every `SKILL.md` and agent file, the bridge, the templates).
+- Verifies that required plugin files exist (manifests, marketplace listing, every `SKILL.md` and agent file, the bridge, and the `research.md` / `review.md` templates). The resumed templates and `docs-review.md` are exercised by unit tests rather than smoke file checks.
 - Dry-runs the bridge for `research`, `code-review`, and `docs-review` and asserts each emits a JSON success line. (`review` is not dry-run by the smoke script.)
+- When `codex` is on PATH, runs three Codex 0.130 surface probes: `codex exec review --help`, `codex exec resume --help`, and `codex exec review --base HEAD -c sandbox_mode=read-only --help` (verifies the `-c sandbox_mode=read-only` config key is accepted). Each probe failure prints an upgrade hint.
 - When `claude` is on PATH, runs `claude plugin validate .` to catch manifest drift.
 
 After the automated checks it prints a manual acceptance checklist for running each slash command end-to-end inside Claude Code — those steps are not automated.
@@ -103,20 +113,23 @@ When you change a skill / agent that ships an output contract (e.g. frontmatter 
 
 ## Editing the bridge
 
-Single file: [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs). It exports its building blocks (`slugify`, `parseArgs`, `buildInvocation`, `renderFrontmatter`, etc.) so the unit tests can exercise them in isolation.
+Single file: [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs). It exports its building blocks (`slugify`, `parseArgs`, `buildInvocation`, `renderFrontmatter`, `runCodexResume`, `parseCodexJsonl`, `parseFrontmatter`, `loadResumeContext`, `discoverResumeArtifact`, `fmString`, `renderFailureBody`, `renderFileListBlock`, `renderDiffBaseBlock`, etc.) so the unit tests can exercise them in isolation. `runCodexExec` is the internal spawn helper used by every mode; it's exercised through the public surfaces and not exported. (`runCodex` and `runCodexReview` were removed in v0.4 in favor of `runCodexExec`.)
 
 Conventions:
 
 - Stdlib only. No `npm install`. If a feature needs a dep, redesign or shell out.
-- Every codex invocation goes through `runCodex` (`exec --sandbox read-only -`) or `runCodexReview` (`review`). Don't add new spawn paths without re-checking the sandbox argument.
+- Every codex invocation goes through `runCodexExec` or `runCodexResume`. Don't add new spawn paths without re-checking the sandbox argument.
 - New flags must be added to `ALLOWED_FLAGS_PER_MODE` and validated in `parseArgs`. The argv parser rejects unknown flags per mode — covered by tests.
 - When a codex call fails, the bridge still writes a markdown file with the failure captured under `## stderr` so the caller can read what went wrong without re-running.
 
 ## Templates
 
-Codex prompts live in [templates/codex/](../templates/codex/) — `research.md`, `review.md`, `docs-review.md`. Variables are `{{UPPERCASE_KEY}}` (e.g. `{{TASK}}`, `{{PLAN}}`, `{{DOCS}}`, `{{DIFF}}`). Unknown placeholders are left literal.
+Codex prompts live in [templates/codex/](../templates/codex/) — `research.md`, `review.md`, `review-resumed.md`, `docs-review.md`, `docs-review-resumed.md`. Variables are `{{UPPERCASE_KEY}}` (e.g. `{{TASK}}`, `{{PLAN}}`, `{{DOCS}}`, `{{DIFF}}`). Unknown placeholders are left literal.
 
-The `code-review` mode does not have a template; `codex review` owns its own prompt.
+- `review-resumed.md` — continuation prompt used when `--resume` is passed to `review`; substitutes `{{PLAN_PATH}}`.
+- `docs-review-resumed.md` — continuation prompt used when `--resume` is passed to `docs-review`; substitutes `{{DOCS_TARGET}}`, `{{FILE_LIST_BLOCK}}` (rendered via `renderFileListBlock`), and `{{DIFF_BASE_BLOCK}}` (rendered via `renderDiffBaseBlock`).
+
+The `code-review` mode does not have a template; `codex exec review` owns its own prompt.
 
 When changing a template, bump `template-version` in [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs). There are currently two locations to update in lock-step:
 
