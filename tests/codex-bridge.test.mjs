@@ -745,7 +745,7 @@ test('renderCodeReviewFrontmatter: base-ref variant has required fields and no t
     codexResumedFrom: undefined,
   });
   assert.match(fm, /mode: code-review/);
-  assert.match(fm, /codex-subcommand: review/);
+  assert.doesNotMatch(fm, /codex-subcommand:/, 'codex-subcommand must be absent (v0.4+)');
   assert.match(fm, /base-ref: "main"/);
   assert.match(fm, /git-head:/);
   assert.match(fm, /generated:/);
@@ -753,6 +753,28 @@ test('renderCodeReviewFrontmatter: base-ref variant has required fields and no t
   assert.match(fm, /slug:/);
   assert.doesNotMatch(fm, /template-version:/);
   assert.doesNotMatch(fm, /\btask:/);
+});
+
+test('renderCodeReviewFrontmatter: does not emit codex-subcommand field', () => {
+  const fm = renderCodeReviewFrontmatter({
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    slug: 'vs-main',
+    gitHead: 'unknown',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.130.0',
+    title: null,
+    cwd: '/tmp',
+    codexThreadId: 'thread-abc123',
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.doesNotMatch(fm, /codex-subcommand:/);
+  // Shared fields from Task 2 must be present.
+  assert.match(fm, /cwd:/);
+  assert.match(fm, /codex-thread-id:/);
+  assert.match(fm, /codex-resume-status: fresh/);
 });
 
 test('renderCodeReviewFrontmatter: commit variant uses commit field, not base-ref', () => {

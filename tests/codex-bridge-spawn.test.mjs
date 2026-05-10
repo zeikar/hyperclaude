@@ -86,27 +86,45 @@ printf 'mock codex failure' >&2
 exit 7
 `;
 
-// Mock codex script for `codex review` (NOT exec review) success: v0.3 shape.
+// Mock codex script for `codex exec review` success: JSONL shape (v0.4+).
 const MOCK_CODEX_REVIEW_SUCCESS = `#!/usr/bin/env bash
 if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'
   exit 0
 fi
 printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+last_path=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output-last-message" ]; then last_path="$arg"; fi
+  prev="$arg"
+done
 cat > "$(dirname "$0")/stdin.log"
-printf '## Findings\\n- none\\n'
+printf '## Findings\\n- none\\n' > "$last_path"
+printf '%s\\n' '{"type":"thread.started","thread_id":"00000000-0000-0000-0000-0000000000cr"}'
+printf '%s\\n' '{"type":"turn.started"}'
+printf '%s\\n' '{"type":"item.completed","item":{"item_type":"agent_message","text":"## Findings\\n- none\\n"}}'
+printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":8,"output_tokens":4}}'
 exit 0
 `;
 
-// Mock codex script for `codex review` failure: v0.3 shape.
+// Mock codex script for `codex exec review` failure: JSONL shape, no turn.completed.
 const MOCK_CODEX_REVIEW_FAILURE = `#!/usr/bin/env bash
 if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'
   exit 0
 fi
 printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+last_path=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output-last-message" ]; then last_path="$arg"; fi
+  prev="$arg"
+done
 cat > "$(dirname "$0")/stdin.log"
-printf 'partial review output'
+printf 'partial review output' > "$last_path"
+printf '%s\\n' '{"type":"thread.started","thread_id":"00000000-0000-0000-0000-0000000000ce"}'
+printf '%s\\n' '{"type":"turn.started"}'
 printf 'mock review failure' >&2
 exit 7
 `;
@@ -265,7 +283,7 @@ test('mock codex: bridge handles failed codex (exit 7) — writes file and repor
   }
 });
 
-test('mock codex: code-review --base main spawns argv [review, --base, main] with no stdin', () => {
+test('mock codex: code-review --base main spawns exec review with --json injected after exec review, no stdin', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-base-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -285,14 +303,29 @@ test('mock codex: code-review --base main spawns argv [review, --base, main] wit
     const json = JSON.parse(result.stdout);
     assert.equal(json.ok, true);
 
-    // argv.log is one arg per line; split and trim trailing empty entry.
+    // argv.log is one arg per line.
+    // Semantic argv: ['exec', 'review', '-c', 'sandbox_mode=read-only', '--base', 'main']
+    // runCodexExec inserts --json --output-last-message <tmp> after 'exec review'.
+    // Expected: exec review --json --output-last-message <tmp> -c sandbox_mode=read-only --base main
     const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
-    assert.deepEqual(argv, ['review', '--base', 'main']);
+    assert.equal(argv[0], 'exec', `argv[0] should be exec, got: ${argv[0]}`);
+    assert.equal(argv[1], 'review', `argv[1] should be review, got: ${argv[1]}`);
+    assert.equal(argv[2], '--json', `argv[2] should be --json, got: ${argv[2]}`);
+    assert.equal(argv[3], '--output-last-message', `argv[3] should be --output-last-message, got: ${argv[3]}`);
+    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.deepEqual(
+      argv.slice(5),
+      ['-c', 'sandbox_mode=read-only', '--base', 'main'],
+      `tail should be [-c, sandbox_mode=read-only, --base, main], got: ${JSON.stringify(argv.slice(5))}`,
+    );
 
-    // stdin.log must be empty — codex review takes no stdin.
+    // stdin.log must be empty — exec review takes no stdin (stdio[0] = 'ignore').
     const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
-    assert.equal(stdinLog.length, 0, 'stdin.log should be empty (bridge must not pipe stdin to codex review)');
+    assert.equal(stdinLog.length, 0, 'stdin.log should be empty (bridge must not pipe stdin to exec review)');
+
+    // No positional '-' token.
+    assert.ok(!argv.includes('-'), 'argv must not contain a positional - token');
 
     // Output file checks.
     const outputPath = json.path;
@@ -300,15 +333,17 @@ test('mock codex: code-review --base main spawns argv [review, --base, main] wit
     const outputContent = readFileSync(outputPath, 'utf8');
     assert.ok(outputContent.startsWith('---\n'), 'output should start with YAML frontmatter');
     assert.ok(outputContent.includes('mode: code-review'), 'frontmatter should contain mode: code-review');
-    assert.ok(outputContent.includes('codex-subcommand: review'), 'frontmatter should contain codex-subcommand: review');
+    assert.doesNotMatch(outputContent, /codex-subcommand:/, 'frontmatter must NOT contain codex-subcommand:');
     assert.ok(outputContent.includes('base-ref: "main"'), 'frontmatter should contain base-ref: "main"');
+    assert.ok(outputContent.includes('codex-thread-id:'), 'frontmatter should contain codex-thread-id');
+    assert.ok(outputContent.includes('codex-resume-status: fresh'), 'frontmatter should contain codex-resume-status: fresh');
     assert.ok(outputContent.includes('## Findings'), 'body should include fake review output');
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }
 });
 
-test('mock codex: code-review --uncommitted spawns argv [review, --uncommitted]', () => {
+test('mock codex: code-review --uncommitted spawns exec review -c sandbox_mode=read-only --uncommitted', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-uncommitted-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -330,7 +365,13 @@ test('mock codex: code-review --uncommitted spawns argv [review, --uncommitted]'
 
     const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
-    assert.deepEqual(argv, ['review', '--uncommitted']);
+    assert.equal(argv[0], 'exec');
+    assert.equal(argv[1], 'review');
+    assert.equal(argv[2], '--json');
+    assert.equal(argv[3], '--output-last-message');
+    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.deepEqual(argv.slice(5), ['-c', 'sandbox_mode=read-only', '--uncommitted']);
+    assert.ok(!argv.includes('-'), 'argv must not contain a positional - token');
 
     assert.equal(json.slug, 'uncommitted', 'slug should be "uncommitted"');
   } finally {
@@ -338,7 +379,7 @@ test('mock codex: code-review --uncommitted spawns argv [review, --uncommitted]'
   }
 });
 
-test('mock codex: code-review --commit abc1234f spawns argv [review, --commit, abc1234f]', () => {
+test('mock codex: code-review --commit abc1234f spawns exec review -c sandbox_mode=read-only --commit abc1234f', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-commit-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -360,7 +401,13 @@ test('mock codex: code-review --commit abc1234f spawns argv [review, --commit, a
 
     const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
-    assert.deepEqual(argv, ['review', '--commit', 'abc1234f']);
+    assert.equal(argv[0], 'exec');
+    assert.equal(argv[1], 'review');
+    assert.equal(argv[2], '--json');
+    assert.equal(argv[3], '--output-last-message');
+    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.deepEqual(argv.slice(5), ['-c', 'sandbox_mode=read-only', '--commit', 'abc1234f']);
+    assert.ok(!argv.includes('-'), 'argv must not contain a positional - token');
 
     const outputPath = json.path;
     const outputContent = readFileSync(outputPath, 'utf8');
@@ -371,7 +418,7 @@ test('mock codex: code-review --commit abc1234f spawns argv [review, --commit, a
   }
 });
 
-test('mock codex: code-review --title appended last', () => {
+test('mock codex: code-review --title appended last (after target flags)', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-title-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -393,7 +440,16 @@ test('mock codex: code-review --title appended last', () => {
 
     const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
-    assert.deepEqual(argv, ['review', '--base', 'main', '--title', 'My Review']);
+    assert.equal(argv[0], 'exec');
+    assert.equal(argv[1], 'review');
+    assert.equal(argv[2], '--json');
+    assert.equal(argv[3], '--output-last-message');
+    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.deepEqual(
+      argv.slice(5),
+      ['-c', 'sandbox_mode=read-only', '--base', 'main', '--title', 'My Review'],
+    );
+    assert.ok(!argv.includes('-'), 'argv must not contain a positional - token');
 
     const outputPath = json.path;
     const outputContent = readFileSync(outputPath, 'utf8');
@@ -404,7 +460,7 @@ test('mock codex: code-review --title appended last', () => {
   }
 });
 
-test('mock codex: code-review failure (exit 7) writes file and reports error', () => {
+test('mock codex: code-review failure (exit 7) writes structured failure body and reports error', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-fail-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -437,8 +493,15 @@ test('mock codex: code-review failure (exit 7) writes file and reports error', (
     const outputContent = readFileSync(outputPath, 'utf8');
     assert.ok(outputContent.startsWith('---\n'), 'output file should have YAML frontmatter');
     assert.ok(outputContent.includes('# (codex failed)'), 'output file should include failure marker');
-    assert.ok(outputContent.includes('partial review output'), 'output file should include partial stdout');
-    assert.ok(outputContent.includes('mock review failure'), 'output file should include stderr');
+    // Structured failure body sections.
+    assert.ok(outputContent.includes('## JSONL parser report'), 'JSONL parser report section present');
+    assert.ok(outputContent.includes('thread.started: yes'), 'parser saw thread.started');
+    assert.ok(outputContent.includes('turn.completed: no'), 'parser saw NO turn.completed');
+    assert.ok(outputContent.includes('## Last message (from --output-last-message)'), 'last-message section present');
+    assert.ok(outputContent.includes('partial review output'), 'last-message body embedded');
+    assert.ok(outputContent.includes('## stderr'), 'stderr section present');
+    assert.ok(outputContent.includes('mock review failure'), 'stderr verbatim');
+    assert.ok(/status=7,\s*signal=(?:null|SIG[A-Z]+),\s*timed-out=false/.test(outputContent), 'exit line with status=7');
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }

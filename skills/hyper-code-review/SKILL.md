@@ -5,7 +5,7 @@ description: Run Codex's native code-review on the current branch, working tree,
 
 # hyper-code-review
 
-Code review gate. Calls Codex in code-review mode against a branch diff, uncommitted working-tree changes, or a specific commit; saves the output to `.hyperclaude/code-reviews/<timestamp>-<slug>.md`; you read the file and surface the findings.
+Code review gate. Calls Codex via `codex exec review` against a branch diff, uncommitted working-tree changes, or a specific commit; saves the output to `.hyperclaude/code-reviews/<timestamp>-<slug>.md`; you read the file and surface the findings.
 
 ## When to use
 
@@ -68,7 +68,7 @@ The bridge prints a single JSON line to stdout. Parse it.
 
 ## Output contract
 
-Code-review files have YAML frontmatter (`mode: code-review`, `codex-subcommand: review`, `slug`, `generated`, `codex-version`, `git-head`, plus either `base-ref` or `commit`, and an optional `title`) followed by a Codex review body. Do not modify the file.
+Code-review files have YAML frontmatter (`mode: code-review`, `slug`, `generated`, `codex-version`, `git-head`, `cwd`, `codex-thread-id` (when available), `codex-resume-status: fresh`, plus either `base-ref` or `commit`, and an optional `title`) followed by a Codex review body. Do not modify the file.
 
 ## Distinction note
 

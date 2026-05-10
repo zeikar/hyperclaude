@@ -70,7 +70,6 @@ export function renderCodeReviewFrontmatter({
   lines.push(`slug: ${slug}`);
   lines.push(`generated: ${generated}`);
   lines.push(`codex-version: ${codexVersion}`);
-  lines.push('codex-subcommand: review');
   lines.push(fmString('git-head', gitHead));
   if (reviewTarget === 'base') lines.push(fmString('base-ref', baseRef));
   if (reviewTarget === 'commit') lines.push(fmString('commit', commit));
@@ -682,13 +681,6 @@ export function runCodexResume(threadId, prompt, timeoutSec) {
   );
 }
 
-// codex review is a review-only subcommand: it inspects diffs, never authors patches.
-// It does not expose --sandbox (verified via `codex review --help`), and we keep the argv
-// minimal — no -c overrides, no extra flags — so the spawn shape is auditable.
-function runCodexReview(reviewArgv, timeoutSec) {
-  return spawnCodex(['review', ...reviewArgv], {}, timeoutSec);
-}
-
 // ---------- frontmatter parser ----------
 
 // parseFrontmatter: narrow extractor for the frontmatter we write. Returns
@@ -1140,7 +1132,7 @@ async function main(argv) {
     return;
   }
 
-  // code-review path: uses `codex review` subcommand, no prompt template.
+  // code-review path: uses `codex exec review` subcommand, no prompt template.
   if (args.mode === 'code-review') {
     const v = getCodexVersion();
     if (!v.ok) {
@@ -1152,20 +1144,19 @@ async function main(argv) {
       process.exit(1);
     }
 
-    const reviewArgv = [];
+    const targetFlags = [];
     if (args.reviewTarget === 'base') {
-      reviewArgv.push('--base', args.baseRef);
+      targetFlags.push('--base', args.baseRef);
     } else if (args.reviewTarget === 'uncommitted') {
-      reviewArgv.push('--uncommitted');
+      targetFlags.push('--uncommitted');
     } else {
-      reviewArgv.push('--commit', args.commit);
+      targetFlags.push('--commit', args.commit);
     }
-    if (args.title) {
-      reviewArgv.push('--title', args.title);
-    }
+    const titleFlag = args.title ? ['--title', args.title] : [];
 
     const gitHead = getGitHead();
-    const result = await runCodexReview(reviewArgv, args.timeout);
+    const argv = ['exec', 'review', '-c', 'sandbox_mode=read-only', ...targetFlags, ...titleFlag];
+    const result = await runCodexExec(argv, null, args.timeout);
     await mkdir(inv.dir, { recursive: true });
 
     const fm = renderCodeReviewFrontmatter({
@@ -1178,7 +1169,7 @@ async function main(argv) {
       commit: args.commit,
       title: args.title,
       cwd: process.cwd(),
-      codexThreadId: null,
+      codexThreadId: result.threadId,
       codexResumeStatus: 'fresh',
       codexResumedFrom: undefined,
     });
@@ -1195,8 +1186,13 @@ async function main(argv) {
     }
 
     const body = result.ok
-      ? result.stdout
-      : `# (codex failed)\n\n${result.stdout}\n\n## stderr\n\n${result.stderr}\n`;
+      ? result.body
+      : renderFailureBody({
+          parseDiagnostics: result.parseDiagnostics,
+          lastMessageText: result.lastMessageText,
+          stderr: result.stderr,
+          exit: result.exit,
+        });
 
     await writeFile(inv.outputPath, fm + heading + '\n\n' + body, 'utf8');
 
@@ -1205,6 +1201,7 @@ async function main(argv) {
         ok: false,
         error: result.reason,
         path: inv.outputPath,
+        threadId: result.threadId,
       }) + '\n');
       process.exit(1);
     }
@@ -1213,6 +1210,7 @@ async function main(argv) {
       ok: true,
       path: inv.outputPath,
       slug: inv.slug,
+      threadId: result.threadId,
     }) + '\n');
     return;
   }
