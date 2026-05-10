@@ -1,0 +1,167 @@
+# Workflow
+
+The end-to-end cycle hyperclaude is built around. This is the dogfooding loop the author actually runs to ship its own releases.
+
+For per-skill mechanics, see [gates-and-agents.md](gates-and-agents.md). For the bridge details, see [architecture.md](architecture.md).
+
+## The cycle
+
+```
+research → plan → plan-review → implement → code-review → docs-sync → docs-review → tag
+   │         │         │            │            │            │            │           │
+Codex     Claude     Codex     Claude(+agents) Codex      Claude       Codex        user
+```
+
+Each step has a single concrete trigger and a single concrete output. Slugs propagate so a release's research, plan, and review can be paired by name.
+
+---
+
+## 1. Research — Codex surfaces context
+
+```
+/hyperclaude:hyper-research add OAuth login to the API
+```
+
+Writes `.hyperclaude/research/<timestamp>-add-oauth-login-to-the.md`. Read it. Don't skip the Pitfalls section — that's where Codex earns its keep.
+
+When to skip: the task is mechanical (rename, dep bump, one-file fix).
+
+## 2. Plan — Claude writes an ordered plan
+
+Dispatch the `planner` agent, or write the plan inline. Save to:
+
+```
+.hyperclaude/plans/<YYYYMMDD-HHMM>-<slug>.md
+```
+
+The slug should match the research slug if there was research, so the trio links. Plans are markdown with `## Task N: <title>` headings, files-to-create/modify, step checkboxes, verification commands, and (optionally) commit messages.
+
+`.hyperclaude/` is gitignored by convention — plans are working artifacts, lifted into the spec / README only when load-bearing.
+
+## 3. Plan review — Codex critiques the plan
+
+```
+/hyperclaude:hyper-plan-review
+```
+
+Auto-discovers the most recent plan in `.hyperclaude/plans/`. Writes `.hyperclaude/reviews/<timestamp>-<slug>.md` with Issues (Blocker / Major / Minor), Improvements, and Verdict.
+
+Iterate: refine the plan, re-run `hyper-plan-review`. One or two refinement passes is normal; more than three usually means the plan was scoped too large — split it.
+
+Do NOT proceed to implement while Blocker-severity issues are unresolved.
+
+## 4. Implement — execute the plan task by task
+
+```
+/hyperclaude:hyper-implement
+```
+
+For each `## Task N:` in the plan, this skill:
+
+1. Dispatches a fresh `implementer` subagent for the task.
+2. Dispatches a general-purpose subagent for **spec compliance review** (does the diff actually match what the plan said?).
+3. Dispatches another general-purpose subagent for **code quality review** (clarity, YAGNI, test quality, severity-tagged issues).
+4. Dispatches the `verifier` agent if tests / build steps are involved.
+5. Marks the task complete and moves on.
+
+Fix loops happen inline — reviewer ❌ → implementer fixes → re-review. The skill does not pause for user input between tasks; it executes the whole plan.
+
+When to skip the skill: one-step plans (just dispatch `implementer` directly), tightly-coupled tasks that benefit from shared context, or fast prototyping.
+
+## 5. Code review — Codex critiques the diff
+
+```
+/hyperclaude:hyper-code-review
+```
+
+Default: branch diff vs `main`. Variants:
+
+```
+/hyperclaude:hyper-code-review uncommitted        # working-tree changes
+/hyperclaude:hyper-code-review <commit-sha>       # specific commit
+/hyperclaude:hyper-code-review vs <ref>           # vs an arbitrary base
+```
+
+Writes `.hyperclaude/code-reviews/<timestamp>-<slug>.md`. Read findings; fix what matters before tagging.
+
+This is the post-implement gate. The two reviews inside `hyper-implement` catch per-task drift; this one catches cross-task issues.
+
+## 6. Docs sync — Claude updates docs to match code
+
+```
+/hyperclaude:hyper-docs-sync uncommitted
+```
+
+Same target contract as `hyper-code-review`. The skill:
+
+1. Resolves the changed files via git.
+2. Reads the `Code | Docs` mapping table from `CLAUDE.md` / `AGENTS.md` (or falls back to filename-stem heuristics).
+3. Aggregates diffs per affected doc.
+4. Dispatches the `documenter` agent once per doc — UPDATE mode if the file exists, CREATE mode if not.
+
+The doc edits are the artifact. No `.hyperclaude/` file is written.
+
+If the project has no mapping table, the skill ends its report with a starter table inferred from this run's matches — paste it into `CLAUDE.md` so future runs are precise.
+
+## 7. Docs review — Codex gates docs accuracy
+
+```
+/hyperclaude:hyper-docs-review
+```
+
+Default: top-level `.md` files in `docs/`. Variants:
+
+```
+/hyperclaude:hyper-docs-review README.md                       # single file
+/hyperclaude:hyper-docs-review docs/api/                       # specific subdir
+/hyperclaude:hyper-docs-review README.md --diff-base main      # with code-diff context
+```
+
+Writes `.hyperclaude/docs-reviews/<timestamp>-<slug>.md`. Scope is strict: accuracy / drift / completeness / broken links / cross-doc inconsistencies. NOT prose or style — the documenter agent owns those.
+
+Fix accuracy issues before merging or tagging.
+
+## 8. Tag and push — manual
+
+```bash
+git tag -a v0.X.Y -m "v0.X.Y: <one-line summary>"
+git push origin main v0.X.Y
+```
+
+Always manual. Skills never push, never tag-then-push. The `hyper-implement` skill creates a local tag only if the plan's final task says to, and even then leaves the push to the user.
+
+---
+
+## Slug propagation
+
+The same slug should follow a feature through the cycle:
+
+- `research` derives the slug from the task text (first 5 words, kebab-case, ASCII).
+- The plan filename uses the same slug: `<YYYYMMDD-HHMM>-<slug>.md`.
+- `plan-review` extracts the slug from the plan filename.
+- `code-review` uses its own slug derived from the diff target (`vs-main`, `uncommitted`, or `commit-<sha7>`) — release-level, not feature-level.
+- `docs-review` uses the docs target's basename.
+
+This is deliberate: research → plan → plan-review form a per-feature trio (linked slug), while code-review / docs-review are release-level gates (linked to the diff or doc target).
+
+## Skip conditions
+
+Not every change needs the full cycle. Honest skip rules:
+
+| Step | Skip when |
+|---|---|
+| `research` | Task is mechanical / well-trodden / one-file |
+| `plan` | Single concrete step — dispatch `implementer` directly |
+| `plan-review` | One-step plans; prototyping where review overhead exceeds value |
+| `hyper-implement` | One-step or prototype work |
+| `code-review` | Doc-only or config-only changes (still run for behavioral changes) |
+| `docs-sync` | No documented behavior changed |
+| `docs-review` | No docs changed AND no code changes that would affect doc claims |
+
+The only step that should never be skipped on a behavioral change is `code-review`. Everything else is optional discipline.
+
+## What it costs
+
+Each Codex gate is one `codex` invocation. The bridge passes `--sandbox read-only` for `exec` modes and uses the review-only `codex review` subcommand for code review — Codex never writes to your workspace.
+
+Default per-call timeout is 300s. Default per-mode size guards: docs-review docs payload ≤ 200KB, docs-review diff ≤ 500KB. See [architecture.md](architecture.md) for the rest.

@@ -60,7 +60,15 @@ External dependencies: Claude Code plugin runtime, `codex-cli >= 0.128.0`, Node 
 - **Artifacts** — `.hyperclaude/{research,plans,reviews,code-reviews,docs-reviews}/` is created in the consumer project. Add `.hyperclaude/` to your `.gitignore` if you don't want artifacts committed.
 - **Slug** — lowercase kebab-case, ≤5 words, ASCII only. Same slug links a research → plan → review trio.
 
-For the original v0.1 design rationale (predates code-review and docs-sync — those are v0.2/v0.3 additions), see [docs/specs/2026-05-10-v0.1-design.md](docs/specs/2026-05-10-v0.1-design.md). Per-feature plans for later versions are in `.hyperclaude/plans/` (gitignored — they're working artifacts, lifted into this README and the spec when load-bearing).
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) — layers, bridge details, plugin layout, output contract.
+- [docs/gates-and-agents.md](docs/gates-and-agents.md) — what each skill and agent does, when to invoke.
+- [docs/workflow.md](docs/workflow.md) — the end-to-end research → tag cycle this plugin is built around.
+- [docs/development.md](docs/development.md) — local install, tests, release flow.
+- [docs/decisions.md](docs/decisions.md) — non-obvious "why" notes and active deferrals (UserPromptSubmit hook, recursive docs-dir, etc.).
+
+Per-feature plans for later versions live in `.hyperclaude/plans/` (gitignored — working artifacts, lifted into the docs above when load-bearing).
 
 ## Quick start
 

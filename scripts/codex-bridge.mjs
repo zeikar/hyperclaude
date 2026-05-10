@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Codex bridge — see docs/specs/2026-05-10-v0.1-design.md §6.
+// Codex bridge — see docs/architecture.md "The bridge" section.
 
 import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
