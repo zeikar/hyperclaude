@@ -24,19 +24,19 @@ Skip when:
 
 ### Step 1 — Resolve task + slug
 
-Find the most recent research file:
-
-```bash
-ls -1t .hyperclaude/research/*.md 2>/dev/null | head -1
-```
-
 In priority order:
 
-1. `$ARGUMENTS` non-empty → that is the task. If the latest research file's `task:` frontmatter covers the same topic, reuse its `slug:` (preserves the trio link).
-2. `$ARGUMENTS` empty → read the latest research file's `task:` + `slug:` from frontmatter and use them.
-3. Neither applies → fall back to the user's most recent build/implement intent in this conversation; if none, ask the user and stop.
+1. `$ARGUMENTS` non-empty → that is the task. Derive its canonical slug deterministically (rule below). Then scan **all** research files under `.hyperclaude/research/*.md` (not just the newest) and look for one whose frontmatter `slug:` equals the derived slug — if found, treat it as the linked research artifact and read it in Step 3 for context. This deterministic slug-equality check is what preserves `research → plan → plan-review` traceability even when an unrelated newer research file exists.
 
-If no slug is reused, derive one: lowercase, ASCII only, alphanumerics + hyphen, first 5 words of the task joined by `-`. Example: "Add OAuth login to the API" → `add-oauth-login-to-the`.
+2. `$ARGUMENTS` empty → list research files newest-first:
+
+   ```bash
+   ls -1t .hyperclaude/research/*.md 2>/dev/null | head -1
+   ```
+
+   Read the latest file's frontmatter `task:` + `slug:` and use both. If no research file exists, fall back to the user's most recent build/implement intent in this conversation; if none, ask the user and stop.
+
+**Slug derivation rule** (used in branch 1, and matches what `hyper-research` writes into the artifact frontmatter): lowercase, ASCII only, alphanumerics + hyphen, first 5 words of the task joined by `-`. Example: "Add OAuth login to the API" → `add-oauth-login-to-the`.
 
 ### Step 2 — Resolve plan path
 
