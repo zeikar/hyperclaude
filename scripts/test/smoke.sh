@@ -80,17 +80,28 @@ echo "  passed: $pass"
 echo "  failed: $fail"
 echo
 cat <<'NOTE'
-Manual acceptance (cannot be automated from a shell script):
-  1. From the repo root, launch a Claude Code session that loads this plugin:
-       claude --plugin-dir .
-  2. Inside the session, type:
-       /hyperclaude:hyper-research test
-     Verify Claude offers to run hyper-research (or runs it directly), the
-     bridge spawns, and a file appears under .hyperclaude/research/.
-  3. Then type:
+====================================================================
+REQUIRED MANUAL ACCEPTANCE BEFORE TAGGING A RELEASE
+--------------------------------------------------------------------
+This script's automated checks alone are NOT sufficient to tag a
+release. Before `git tag -a vX.Y.Z`, you MUST also:
+
+  1. Install the plugin from a fresh Claude Code session:
+       /plugin marketplace add <this repo URL or local path>
+       /plugin install hyperclaude
+
+  2. Inside the session, run:
+       /hyperclaude:hyper-research add OAuth login to the API
+     Verify a file appears under .hyperclaude/research/ with valid
+     frontmatter and a Codex-generated body.
+
+  3. Run:
        /hyperclaude:hyper-plan-review
-     Verify it either auto-discovers a plan or prints the "no plan found"
+     Verify it auto-discovers the plan or prints the "no plan found"
      guidance.
+
+If any of the above fails, STOP and fix before tagging.
+====================================================================
 NOTE
 
 [ "$fail" -eq 0 ]
