@@ -67,7 +67,7 @@ For the original v0.1 design rationale (predates code-review and docs-sync — t
 1. Install the plugin via Claude Code:
 
    ```bash
-   /plugin marketplace add https://github.com/zeikar/hyperclaude
+   /plugin marketplace add zeikar/hyperclaude
    /plugin install hyperclaude
    ```
 
