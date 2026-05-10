@@ -123,6 +123,7 @@ for f in \
   templates/codex/research.md \
   templates/codex/review.md \
   skills/hyper-research/SKILL.md \
+  skills/hyper-plan/SKILL.md \
   skills/hyper-plan-review/SKILL.md \
   skills/hyper-tdd/SKILL.md \
   skills/hyper-debug/SKILL.md \
@@ -153,9 +154,9 @@ echo "  failed: $fail"
 echo
 cat <<'NOTE'
 ====================================================================
-REQUIRED MANUAL ACCEPTANCE BEFORE TAGGING A RELEASE
+REQUIRED MANUAL ACCEPTANCE BEFORE SHIPPING A RELEASE
 --------------------------------------------------------------------
-This script's automated checks alone are NOT sufficient to tag a
+This script's automated checks alone are NOT sufficient to ship a
 release. Before `git tag -a vX.Y.Z`, you MUST also:
 
   1. Install the plugin from a fresh Claude Code session:
@@ -168,21 +169,27 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      frontmatter and a Codex-generated body.
 
   3. Run:
+       /hyperclaude:hyper-plan
+     Verify the planner agent is dispatched and a plan file appears
+     under .hyperclaude/plans/ with `## Task N:` sections and a slug
+     matching the research artifact's.
+
+  4. Run:
        /hyperclaude:hyper-plan-review
      Verify it auto-discovers the plan or prints the "no plan found"
      guidance.
 
-  4. Run:
+  5. Run:
        /hyperclaude:hyper-code-review
      Verify it reviews the current branch vs main and writes a file
      under .hyperclaude/code-reviews/ with valid frontmatter and a
      Codex-generated body.
 
-  5. Run:
+  6. Run:
        /hyperclaude:hyper-docs-sync uncommitted
      Verify mapping read, doc updates dispatched, summary reported.
 
-  6. Run:
+  7. Run:
        /hyperclaude:hyper-docs-review
      Verify a file appears under .hyperclaude/docs-reviews/ with
      valid frontmatter.

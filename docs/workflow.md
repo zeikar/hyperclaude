@@ -30,13 +30,13 @@ When to skip: the task is mechanical (rename, dep bump, one-file fix).
 
 ## 2. Plan — Claude writes an ordered plan
 
-Dispatch the `planner` agent, or write the plan inline. Save to:
-
 ```
-.hyperclaude/plans/<YYYYMMDD-HHMM>-<slug>.md
+/hyperclaude:hyper-plan [task]
 ```
 
-The slug should match the research slug if there was research, so the trio links. Plans are markdown with `## Task N: <title>` headings, files-to-create/modify, step checkboxes, verification commands, and (optionally) commit messages.
+Dispatches the `planner` agent and writes the result to `.hyperclaude/plans/<YYYYMMDD-HHMM>-<slug>.md`. With no argument, the skill pulls task + slug from the most recent `hyper-research` artifact; with an explicit task, it reuses the matching research slug if one exists so the `research → plan → plan-review` trio links by name.
+
+You can still dispatch the `planner` agent directly, or write the plan inline, when the skill's defaults don't fit. Plans are markdown with `## Task N: <title>` headings, files-to-create/modify, step checkboxes, verification commands, and a commit message line.
 
 `.hyperclaude/` is gitignored by convention — plans are working artifacts, lifted into the spec / README only when load-bearing.
 

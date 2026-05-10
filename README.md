@@ -56,8 +56,8 @@ Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step 
 
 Three layers:
 
-1. **Slash commands** — `/hyperclaude:hyper-research`, `/hyperclaude:hyper-plan-review`, `/hyperclaude:hyper-code-review`, `/hyperclaude:hyper-docs-sync`, `/hyperclaude:hyper-docs-review`, `/hyperclaude:hyper-implement` (plugin-namespaced per Claude Code's contract)
-2. **Skills** — gate behaviors (`hyper-research`, `hyper-plan-review`, `hyper-code-review`, `hyper-docs-review` Codex accuracy gate) + implementation discipline (`hyper-tdd`, `hyper-debug`) + plan execution (`hyper-implement`) + doc orchestration (`hyper-docs-sync`)
+1. **Slash commands** — `/hyperclaude:hyper-research`, `/hyperclaude:hyper-plan`, `/hyperclaude:hyper-plan-review`, `/hyperclaude:hyper-code-review`, `/hyperclaude:hyper-docs-sync`, `/hyperclaude:hyper-docs-review`, `/hyperclaude:hyper-implement` (plugin-namespaced per Claude Code's contract)
+2. **Skills** — Codex gates (`hyper-research`, `hyper-plan-review`, `hyper-code-review`, `hyper-docs-review`) + Claude orchestrators (`hyper-plan`, `hyper-docs-sync`) + plan execution (`hyper-implement`) + implementation discipline (`hyper-tdd`, `hyper-debug`)
 3. **Agents** — Claude implementation arm (`planner`, `implementer`, `verifier`, `documenter`)
 
 The earlier nudge / `UserPromptSubmit` hook layer is deferred to a future release.

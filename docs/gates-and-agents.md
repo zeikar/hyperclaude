@@ -6,9 +6,9 @@ For the underlying mechanics (sandbox, output paths, frontmatter), see [architec
 
 ---
 
-## Gate skills (5)
+## Gate skills (6)
 
-A gate skill mediates a step in the cycle that involves Codex and produces an artifact. Four of the five shell out to the bridge directly; `hyper-docs-sync` orchestrates Claude-side doc edits and pairs with `hyper-docs-review` for the Codex critic step.
+A gate skill mediates a step in the cycle that produces a canonical `.hyperclaude/` artifact (or, in the doc-sync case, the doc edits themselves). Four shell out to the Codex bridge directly; `hyper-plan` and `hyper-docs-sync` orchestrate Claude-side work — `hyper-plan` dispatches the `planner` agent, and `hyper-docs-sync` pairs with `hyper-docs-review` for the Codex critic step.
 
 ### `hyper-research` — Codex pre-implementation research
 
@@ -20,6 +20,17 @@ A gate skill mediates a step in the cycle that involves Codex and produces an ar
 - **Skip when:** the task is one-line / mechanical / well-trodden.
 - **`--resume`:** not supported in v0.4 (research is not iterative).
 - **Source:** [skills/hyper-research/SKILL.md](../skills/hyper-research/SKILL.md), template [templates/codex/research.md](../templates/codex/research.md).
+
+### `hyper-plan` — Claude plan generator
+
+- **Slash:** `/hyperclaude:hyper-plan [task]`
+- **Mechanics:** *not* a Codex gate. The skill resolves the task (from `$ARGUMENTS`, or the latest research file's `task:` frontmatter), derives or reuses a slug, and dispatches the [`planner`](#planner) agent. The planner returns a multi-task markdown plan; the skill writes it verbatim to `.hyperclaude/plans/<timestamp>-<slug>.md`.
+- **Writes:** `.hyperclaude/plans/<timestamp>-<slug>.md` — plain markdown (no frontmatter), with `## Task N: <title>` sections that `/hyperclaude:hyper-implement` consumes directly.
+- **Slug:** reused from the matching `hyper-research` artifact's `slug:` when one exists, so the `research → plan → plan-review` trio shares one slug. Otherwise derived from task text (lowercase, ASCII, ≤5 words, kebab-case).
+- **`--resume`:** not supported — re-plan by re-running with a refined task.
+- **Use when:** about to start multi-task work and you want a plan `/hyperclaude:hyper-plan-review` can critique and `/hyperclaude:hyper-implement` can execute.
+- **Skip when:** the task is one step (dispatch `implementer` directly); a recent plan already covers it.
+- **Source:** [skills/hyper-plan/SKILL.md](../skills/hyper-plan/SKILL.md). No template — the skill prompts the agent inline.
 
 ### `hyper-plan-review` — Codex plan critique
 
@@ -75,6 +86,7 @@ A gate skill mediates a step in the cycle that involves Codex and produces an ar
 | Skill | Who acts | What is reviewed |
 |---|---|---|
 | `hyper-research` | Codex | (a future) task description |
+| `hyper-plan` | Claude (via `planner` agent) | task → plan generation, no review |
 | `hyper-plan-review` | Codex | Claude's plan |
 | `hyper-code-review` | Codex | a code diff |
 | `hyper-docs-sync` | Claude (via `documenter` agent) | edits docs to match code |
@@ -147,7 +159,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 | Situation | Use |
 |---|---|
 | Starting a non-trivial task; want prior art | `/hyperclaude:hyper-research` |
-| Need an ordered plan with verification per step | `planner` agent (saves to `.hyperclaude/plans/`) |
+| Need an ordered plan with verification per step | `/hyperclaude:hyper-plan` (wraps the `planner` agent) |
 | Plan written; want Codex to critique it | `/hyperclaude:hyper-plan-review` |
 | Multi-task plan ready; want disciplined execution | `/hyperclaude:hyper-implement` |
 | One concrete coded step, no plan needed | `implementer` agent directly |
