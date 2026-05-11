@@ -133,7 +133,7 @@ import { existsSync } from 'node:fs';
 const ALLOWED_FLAGS_PER_MODE = {
   research:      new Set(['--task', '--task-file', '--slug', '--out', '--dry-run', '--timeout']),
   review:        new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout', '--resume']),
-  'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--out', '--dry-run', '--timeout']),
+  'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--out', '--dry-run', '--timeout', '--resume']),
   'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--timeout', '--resume']),
 };
 

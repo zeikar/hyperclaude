@@ -1815,11 +1815,41 @@ test('parseArgs: research rejects --resume', () => {
   );
 });
 
-test('parseArgs: code-review rejects --resume', () => {
-  assert.throws(
-    () => parseArgs(['code-review', '--resume', 'auto']),
-    /unknown flag for mode code-review: --resume/
-  );
+test('parseArgs: code-review accepts --resume <path>', () => {
+  const a = parseArgs(['code-review', '--base', 'main', '--resume', '/tmp/prior.md']);
+  assert.equal(a.resumeFrom, '/tmp/prior.md');
+});
+
+test('parseArgs: code-review accepts --resume auto', () => {
+  const a = parseArgs(['code-review', '--base', 'main', '--resume', 'auto']);
+  assert.equal(a.resumeFrom, 'auto');
+});
+
+test('parseArgs: code-review defaults to base main with --resume auto', () => {
+  const a = parseArgs(['code-review', '--resume', 'auto']);
+  assert.equal(a.reviewTarget, 'base');
+  assert.equal(a.baseRef, 'main');
+  assert.equal(a.resumeFrom, 'auto');
+});
+
+test('parseArgs: code-review accepts --base main --resume', () => {
+  const a = parseArgs(['code-review', '--base', 'main', '--resume', '/tmp/prior.md']);
+  assert.equal(a.reviewTarget, 'base');
+  assert.equal(a.baseRef, 'main');
+  assert.equal(a.resumeFrom, '/tmp/prior.md');
+});
+
+test('parseArgs: code-review accepts --uncommitted --resume', () => {
+  const a = parseArgs(['code-review', '--uncommitted', '--resume', 'auto']);
+  assert.equal(a.reviewTarget, 'uncommitted');
+  assert.equal(a.resumeFrom, 'auto');
+});
+
+test('parseArgs: code-review accepts --commit <sha> --resume', () => {
+  const a = parseArgs(['code-review', '--commit', 'abc1234', '--resume', '/tmp/prior.md']);
+  assert.equal(a.reviewTarget, 'commit');
+  assert.equal(a.commit, 'abc1234');
+  assert.equal(a.resumeFrom, '/tmp/prior.md');
 });
 
 test('parseArgs: --resume rejects empty string', () => {
