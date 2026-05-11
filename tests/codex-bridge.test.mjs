@@ -1749,6 +1749,14 @@ test('template code-review-resumed.md: loads and substitutes {{TARGET_INSTRUCTIO
   assert.ok(rendered.includes('Issues'), 'template should reference Issues section');
   assert.ok(rendered.includes('Improvements'), 'template should reference Improvements section');
   assert.ok(rendered.includes('Verdict'), 'template should reference Verdict section');
+
+  // Regression: target-instruction block must be separated from "Then provide..." by a blank line
+  // (previously the placeholder ran into the next sentence, e.g. `# per changed pathThen provide...`).
+  assert.match(
+    rendered,
+    /<file>\n\nThen provide/,
+    'rendered text should have a blank-line boundary between the substituted block and the "Then provide" sentence'
+  );
 });
 
 // ── Task 3: renderFileListBlock ───────────────────────────────────────────────
