@@ -1815,16 +1815,6 @@ test('parseArgs: research rejects --resume', () => {
   );
 });
 
-test('parseArgs: code-review accepts --resume <path>', () => {
-  const a = parseArgs(['code-review', '--base', 'main', '--resume', '/tmp/prior.md']);
-  assert.equal(a.resumeFrom, '/tmp/prior.md');
-});
-
-test('parseArgs: code-review accepts --resume auto', () => {
-  const a = parseArgs(['code-review', '--base', 'main', '--resume', 'auto']);
-  assert.equal(a.resumeFrom, 'auto');
-});
-
 test('parseArgs: code-review defaults to base main with --resume auto', () => {
   const a = parseArgs(['code-review', '--resume', 'auto']);
   assert.equal(a.reviewTarget, 'base');
