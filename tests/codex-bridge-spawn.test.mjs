@@ -13,7 +13,8 @@ import {
   mkdirSync,
 } from 'node:fs';
 import os from 'node:os';
-import { runCodexResume } from '../scripts/codex-bridge.mjs';
+import { readdirSync } from 'node:fs';
+import { runCodexResume, parseFrontmatter } from '../scripts/codex-bridge.mjs';
 
 const BRIDGE = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -1349,6 +1350,286 @@ test('resume happy path: review --resume <prev> spawns exec resume', () => {
       const outputContent = readFileSync(json.path, 'utf8');
       assert.ok(outputContent.includes('codex-resume-status: resumed'));
       assert.ok(outputContent.includes(`codex-resumed-from: ${JSON.stringify(prior)}`));
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Task 5: code-review --resume integration tests
+// ---------------------------------------------------------------------------
+
+test('resume happy path: code-review --resume <prev> spawns exec resume and writes resumed status', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-ok-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-ok-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-vs-main.md');
+      writePriorArtifact(prior, {
+        mode: 'code-review',
+        cwd: process.cwd(),
+        'base-ref': 'main',
+        'codex-thread-id': 'thread-cr-1',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'code-review', '--base', 'main', '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'resumed');
+
+      // argv shape: exec resume --json --output-last-message <tmp> -c sandbox_mode=read-only <threadId> -
+      const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+      const argv = argvLog.split('\n').filter((l) => l.length > 0);
+      assert.equal(argv[1], 'resume', `argv[1] should be resume, got: ${argv[1]}`);
+      assert.equal(argv[7], 'thread-cr-1', `argv[7] (thread-id) should be thread-cr-1, got: ${argv[7]}`);
+
+      // Parse new artifact frontmatter via parseFrontmatter helper.
+      const outputContent = readFileSync(json.path, 'utf8');
+      const fm = parseFrontmatter(outputContent);
+      assert.equal(fm['codex-resume-status'], 'resumed', 'frontmatter codex-resume-status should be resumed');
+      assert.equal(fm['codex-resumed-from'], prior, 'frontmatter codex-resumed-from should equal priorPath');
+
+      // stdin.log assertions: substituted git command present, no placeholder, no codex exec review.
+      const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
+      assert.ok(
+        stdinLog.includes('git diff main...HEAD'),
+        `stdin.log should contain "git diff main...HEAD", got: ${stdinLog.slice(0, 300)}`
+      );
+      assert.doesNotMatch(stdinLog, /\{\{[A-Z_]+\}\}/, 'stdin.log must have no leftover {{...}} placeholder');
+      assert.ok(
+        !stdinLog.includes('codex exec review'),
+        `stdin.log must not contain "codex exec review", got: ${stdinLog.slice(0, 300)}`
+      );
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume explicit-path mismatch (base-ref differs) → ok:false, no new artifact written', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-mismatch-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-mismatch-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-vs-feature-x.md');
+      writePriorArtifact(prior, {
+        mode: 'code-review',
+        cwd: process.cwd(),
+        'base-ref': 'feature-x',
+        'codex-thread-id': 'thread-cr-x',
+        'codex-resume-status': 'fresh',
+      });
+
+      // Snapshot outDir contents before the bridge call.
+      const beforeFiles = readdirSync(outDir).sort();
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'code-review', '--base', 'main', '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 1, `expected exit 1, got ${result.status}; stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, false);
+      assert.match(json.error, /^resume rejected:/, `json.error should start with "resume rejected:", got: ${json.error}`);
+      assert.equal(json.resumeStatus, 'fallback');
+
+      // outDir must be unchanged — no new timestamped artifact written.
+      const afterFiles = readdirSync(outDir).sort();
+      assert.deepEqual(afterFiles, beforeFiles, 'outDir contents must be unchanged after mismatch rejection');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume auto with no candidate → fallback to fresh + stderr note + code-review status fallback', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-auto-none-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-auto-none-out-'));
+    try {
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'code-review', '--base', 'main', '--resume', 'auto', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'fallback', 'status should be fallback after auto miss');
+      assert.match(result.stderr, /hyperclaude: resume fallback —/, 'stderr should contain resume fallback warning');
+
+      // New artifact frontmatter should record fallback status.
+      const outputContent = readFileSync(json.path, 'utf8');
+      const fm = parseFrontmatter(outputContent);
+      assert.equal(fm['codex-resume-status'], 'fallback', 'frontmatter codex-resume-status should be fallback');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume spawn fails (codex exits 7) → code-review status resume-failed, failure body written, ok:false', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-spawnfail-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_FAILURE);
+    chmodSync(mockCodexPath, 0o755);
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-spawnfail-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-vs-main.md');
+      writePriorArtifact(prior, {
+        mode: 'code-review',
+        cwd: process.cwd(),
+        'base-ref': 'main',
+        'codex-thread-id': 'thread-cr-fail',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'code-review', '--base', 'main', '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 1, `expected exit 1, got ${result.status}; stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, false);
+      assert.equal(json.resumeStatus, 'resume-failed');
+      assert.ok(typeof json.path === 'string' && json.path.length > 0, 'failure should still record path');
+
+      // Artifact body must contain the structured failure render.
+      const outputContent = readFileSync(json.path, 'utf8');
+      assert.ok(outputContent.includes('# (codex failed)'), 'failure body should be written');
+
+      // Frontmatter should record resume-failed status (parsed, not raw text check).
+      const fm = parseFrontmatter(outputContent);
+      assert.equal(fm['codex-resume-status'], 'resume-failed', 'frontmatter codex-resume-status should be resume-failed');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('fresh code-review still works without --resume: resumeStatus fresh in JSON and frontmatter', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-fresh-reg-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-fresh-reg-out-'));
+    try {
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'code-review', '--base', 'main', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true, 'json.ok should be true');
+      assert.ok(typeof json.path === 'string' && json.path.length > 0, 'json.path should be non-empty');
+      assert.ok(typeof json.slug === 'string' && json.slug.length > 0, 'json.slug should be non-empty');
+      assert.equal(json.resumeStatus, 'fresh', 'json.resumeStatus should be fresh');
+
+      // Frontmatter via parseFrontmatter.
+      const outputContent = readFileSync(json.path, 'utf8');
+      const fm = parseFrontmatter(outputContent);
+      assert.equal(fm['codex-resume-status'], 'fresh', 'frontmatter codex-resume-status should be fresh');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume preserves thread id when thread.started is omitted from codex output', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-no-ts-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_NO_THREAD_STARTED);
+    chmodSync(mockCodexPath, 0o755);
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-no-ts-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-vs-main.md');
+      writePriorArtifact(prior, {
+        mode: 'code-review',
+        cwd: process.cwd(),
+        'base-ref': 'main',
+        'codex-thread-id': 'thread-cr-1',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'code-review', '--base', 'main', '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      // The thread id from the prior artifact must be propagated even when thread.started is absent.
+      assert.equal(json.threadId, 'thread-cr-1', `json.threadId should be thread-cr-1, got: ${json.threadId}`);
+
+      // Frontmatter via parseFrontmatter.
+      const outputContent = readFileSync(json.path, 'utf8');
+      const fm = parseFrontmatter(outputContent);
+      assert.equal(fm['codex-thread-id'], 'thread-cr-1', `frontmatter codex-thread-id should be thread-cr-1, got: ${fm['codex-thread-id']}`);
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
