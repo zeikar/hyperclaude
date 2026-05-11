@@ -141,15 +141,26 @@ Without an artifact path, `--resume` auto-discovers the most recent matching pri
 /hyperclaude:hyper-docs-review --resume .hyperclaude/docs-reviews/20260510-1300-architecture.md
 ```
 
+Code review also supports resume:
+
+```text
+# After fixing code issues
+/hyperclaude:hyper-code-review --resume
+
+# With an explicit prior review
+/hyperclaude:hyper-code-review --resume .hyperclaude/code-reviews/20260510-1430-vs-main.md
+```
+
 Resume reuses the prior Codex thread. The bridge sends a small follow-up ("the file has been revised; re-read it") and Codex re-reads from disk via read-only sandbox. The original docs payload + critique stay in conversation cache, so token cost drops dramatically.
 
-Validation: bridge re-checks same mode, same cwd, same plan-path / docs-target / diff-base, prior thread-id present, prior `codex-resume-status` ∈ {fresh, resumed}. Mismatch behavior:
+Validation: bridge re-checks same mode, same cwd, same plan-path / docs-target / diff-base (for code-review: same base ref, commit, or uncommitted state), prior thread-id present, prior `codex-resume-status` ∈ {fresh, resumed}. Mismatch behavior:
 
 | Scenario | Result |
 |---|---|
 | `--resume <path>` validation fail | `ok:false`, no fresh run |
 | `--resume auto` miss | falls back to fresh; artifact records `codex-resume-status: fallback` |
 | docs payload >200KB on resume | `ok:false`; user must narrow scope |
+| code-review target mismatch (base ref / commit / uncommitted) | `ok:false`, no fresh run |
 
 Status taxonomy recorded in `codex-resume-status` frontmatter:
 
@@ -160,7 +171,7 @@ Status taxonomy recorded in `codex-resume-status` frontmatter:
 | `fallback` | `--resume auto` miss; ran fresh |
 | `resume-failed` | resume spawn died after validation passed |
 
-`code-review` and `research` do NOT support `--resume` (deferred; see decisions.md).
+`research` does NOT support `--resume` (deferred; see decisions.md).
 
 ## 8. Ship — tag and push (manual)
 

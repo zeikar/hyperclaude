@@ -54,7 +54,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
   - `vs <ref>` → branch diff vs that ref.
 - **Mode:** `code-review` (Codex `exec review` subcommand — separate from `exec`; `--sandbox` not exposed because the subcommand is review-only by design).
 - **Writes:** `.hyperclaude/code-reviews/<timestamp>-<slug>.md` — Codex's findings, with frontmatter recording `codex-thread-id`, `cwd`, `git-head`, and (depending on target) `base-ref`, `commit`, or the optional `title`. Frontmatter records `codex-resume-status: fresh`. The `uncommitted` target has no dedicated frontmatter field; it's identifiable from `slug: uncommitted` and the heading.
-- **`--resume`:** not supported (`codex exec review` and `codex exec resume` semantics differ); deferred.
+- **`--resume`:** auto-discovers the most recent matching prior review under `.hyperclaude/code-reviews/` (same base ref NAME / commit SHA / uncommitted state); explicit path validation enforces target identity match. Mismatch → `ok:false`, no fresh fallback. Status taxonomy: `fresh | resumed | fallback | resume-failed`. Note: `--base <ref>` matches by ref NAME (not resolved SHA; pinning SHA would force resume to review a stale diff). `--commit <sha>` matches by exact SHA. `--uncommitted` by symmetric absence of both `base-ref` and `commit` keys.
 - **Use when:** post-implementation, before shipping a release, before opening a PR.
 - **Source:** [skills/hyper-code-review/SKILL.md](../skills/hyper-code-review/SKILL.md). No template — `codex exec review` owns its own prompt.
 

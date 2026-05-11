@@ -50,12 +50,6 @@ Why deferred: the timestamp in the filename plus `git-head` is enough for typica
 
 When to revisit: any time someone needs to re-run a historical review and finds the base has drifted.
 
-### Code-review resume
-
-**Status:** deferred. **Trigger:** a clear use case where re-reviewing the same code diff in a fixed-up state is common enough to design proper resumed semantics.
-
-`codex exec review` and `codex exec resume` are not symmetric. `codex exec review` internally captures the diff and uses a native review prompt; `codex exec resume <id>` is generic exec continuation. A naively resumed prompt loses the native review prompt, so the review-specific context is gone. Until there is a concrete design for threading the native review prompt through a resume, code-review keeps `--resume` rejected at `parseArgs`.
-
 ### Research resume
 
 **Status:** deferred. **Trigger:** explicit user request, or the dogfood cycle generating iterative research follow-ups frequently enough to make resumption practical.
@@ -103,6 +97,17 @@ When to revisit: a specific error code shows up in a bug report.
 **Decision:** `runCodexResume` in `scripts/codex-bridge.mjs` explicitly passes `-c sandbox_mode=read-only` on every `codex exec resume` call.
 
 **Why:** `codex exec resume` does NOT inherit the original session's `--sandbox` flag. Verified empirically: a session originally spawned with `--sandbox read-only` then resumed without sandbox config wrote files freely (both `/tmp` and the workspace). Adding `-c sandbox_mode=read-only` to the resume argv enforces read-only correctly and preserves the bridge's hard contract — Codex never writes the workspace — across resume.
+
+### Code-review resume: native framing preserved + ref-name validation
+
+**Decision:** `code-review --resume` is supported with the same validation and fallback semantics as `plan-review --resume` and `docs-review --resume`.
+
+**Implementation:**
+- Native `exec review` framing is preserved across resume because the original thread carries review base instructions. The resumed `UserTurn` is generic, but the thread context maintains the review subagent persona.
+- The resumed prompt is target-explicit: it includes the exact git command to re-fetch the diff (the `{{TARGET_INSTRUCTION}}` block from the template). This is mandatory because `codex exec resume` does not re-trigger native diff capture.
+- Identity matching by target type: `--base <ref>` by ref NAME (not resolved SHA; pinning SHA would force resume to review a stale diff), `--commit <sha>` by exact SHA, `--uncommitted` by symmetric absence of both `base-ref` and `commit` keys in the prior artifact's frontmatter.
+
+**Why:** `codex exec review` (fresh) internally captures the diff and uses a native review prompt. `codex exec resume` is generic exec continuation, so the bridge must provide the target command explicitly in the resumed prompt. Using ref NAME rather than SHA allows the review to track the logical target (e.g., the latest `main`) across the resume, not lock to the SHA at the original review's time.
 
 ### Resumed prompts are minimal follow-ups; bridge owns file list and size budgets, not Codex
 
