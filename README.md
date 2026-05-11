@@ -2,7 +2,7 @@
 
 > Push Claude Code beyond stock. Skills, agents, Codex collab — opinionated and personal.
 
-> 🚧 **Early alpha.** v0.5 is implemented and dogfooded daily. Layout, naming, and APIs may change between minor versions until v1.0.
+> 🚧 **Early alpha.** v0.6 is implemented and dogfooded daily. Layout, naming, and APIs may change between minor versions until v1.0.
 
 ## Why
 
@@ -25,7 +25,7 @@ research → plan → plan-review → implement → code-review → docs-sync �
 
 Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, and `--resume`.
 
-## Architecture (v0.5)
+## Architecture (v0.6)
 
 ```
     ┌──────────────────────────────────────────────────────────────────────────────────────┐
@@ -157,7 +157,7 @@ Zero npm dependencies. Node 18+ stdlib only.
 
 ## Status
 
-**v0.5 (alpha).** Personal customization project, open-sourced. Use at your own risk; expect breaking changes between minor versions until v1.0.
+**v0.6 (alpha).** Personal customization project, open-sourced. Use at your own risk; expect breaking changes between minor versions until v1.0.
 
 ## Acknowledgements
 
