@@ -81,6 +81,21 @@ else
 fi
 
 echo
+echo "==> Bridge code-review --resume auto dry-run"
+if out=$(node scripts/codex-bridge.mjs code-review --resume auto --dry-run 2>&1); then
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    process.exit(j.ok && j.dryRun ? 0 : 1);
+  '; then
+    ok "codex-bridge code-review --resume auto --dry-run produces expected JSON"
+  else
+    miss "codex-bridge code-review --resume auto --dry-run JSON shape unexpected: $out"
+  fi
+else
+  miss "codex-bridge code-review --resume auto --dry-run failed: $out"
+fi
+
+echo
 echo "==> Plugin manifest validation"
 if command -v claude >/dev/null 2>&1; then
   if claude plugin validate . > /tmp/hyperclaude-validate.log 2>&1; then
@@ -122,6 +137,9 @@ for f in \
   scripts/codex-bridge.mjs \
   templates/codex/research.md \
   templates/codex/review.md \
+  templates/codex/review-resumed.md \
+  templates/codex/docs-review-resumed.md \
+  templates/codex/code-review-resumed.md \
   skills/hyper-research/SKILL.md \
   skills/hyper-plan/SKILL.md \
   skills/hyper-plan-review/SKILL.md \
@@ -184,6 +202,10 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      Verify it reviews the current branch vs main and writes a file
      under .hyperclaude/code-reviews/ with valid frontmatter and a
      Codex-generated body.
+     Then run:
+       /hyperclaude:hyper-code-review --resume
+     Verify a second artifact appears with codex-resume-status: resumed
+     and codex-resumed-from populated.
 
   6. Run:
        /hyperclaude:hyper-docs-sync uncommitted
