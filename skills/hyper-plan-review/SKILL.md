@@ -81,7 +81,7 @@ Parse the JSON. On success, read the review file with the Read tool. Integrate t
 - **Minors / Improvements** — optionally fold in.
 - **Verdict** — communicate to the user.
 
-When you revise the plan, write the revision to the same file (overwrite) or to a sibling versioned file (`<slug>-v2.md`). Either is fine; pick one and tell the user.
+When you revise the plan, **always overwrite the same plan file in place**. Do not create `-v2.md` or sibling files: the review thread's `--resume` identity is keyed on the plan path, so a new path breaks resume continuity (the next critique loses its prior context). Tell the user the plan was updated in place.
 
 ## Output contract
 
