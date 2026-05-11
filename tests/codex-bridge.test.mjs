@@ -1726,6 +1726,31 @@ test('template docs-review-resumed.md: empty blocks produce clean prompt (no dan
   );
 });
 
+// ── Task 3: code-review-resumed.md template ─────────────────────────────────
+
+test('template code-review-resumed.md: loads and substitutes {{TARGET_INSTRUCTION}}', async () => {
+  const text = await readTemplateFile('code-review-resumed');
+  assert.ok(typeof text === 'string' && text.length > 0, 'template should be non-empty');
+  assert.ok(text.includes('{{TARGET_INSTRUCTION}}'), 'template should contain {{TARGET_INSTRUCTION}} placeholder');
+
+  const targetInstruction = 'Re-read the diff via:\n  git diff main...HEAD --name-status\n  git diff main...HEAD -- <file>';
+  const rendered = loadTemplate(text, { TARGET_INSTRUCTION: targetInstruction });
+
+  assert.ok(
+    !rendered.includes('{{TARGET_INSTRUCTION}}'),
+    'rendered text should not contain literal {{TARGET_INSTRUCTION}}'
+  );
+  assert.ok(
+    rendered.includes(targetInstruction),
+    'rendered text should include the substituted TARGET_INSTRUCTION block'
+  );
+
+  // Must reference the code-review structure expected by the spec
+  assert.ok(rendered.includes('Issues'), 'template should reference Issues section');
+  assert.ok(rendered.includes('Improvements'), 'template should reference Improvements section');
+  assert.ok(rendered.includes('Verdict'), 'template should reference Verdict section');
+});
+
 // ── Task 3: renderFileListBlock ───────────────────────────────────────────────
 
 test('renderFileListBlock: empty array returns empty string', () => {
