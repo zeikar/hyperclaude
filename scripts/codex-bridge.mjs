@@ -193,7 +193,6 @@ export function parseArgs(argv) {
           throw new Error(`--base must be a non-empty git ref ([A-Za-z0-9._/-]+, no leading dash), got: "${v}"`);
         }
         out.reviewTarget = 'base';
-        out.base = v;
         out.baseRef = v;
         break;
       }
@@ -247,7 +246,6 @@ export function parseArgs(argv) {
   }
   if (mode === 'code-review' && !out.reviewTarget) {
     out.reviewTarget = 'base';
-    out.base = 'main';
     out.baseRef = 'main';
   }
   if (mode === 'research' && out.task && out.taskFile) throw new Error('--task and --task-file are mutually exclusive');
@@ -826,7 +824,7 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
     const curTarget = currentArgs.reviewTarget;
     if (curTarget === 'base') {
       // Match on ref name string only (no SHA resolve).
-      if (!hasPriorBaseRef || fm['base-ref'] !== currentArgs.base) {
+      if (!hasPriorBaseRef || fm['base-ref'] !== currentArgs.baseRef) {
         return { error: 'prior artifact code-review target differs from current' };
       }
     } else if (curTarget === 'commit') {

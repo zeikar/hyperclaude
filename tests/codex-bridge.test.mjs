@@ -2358,7 +2358,7 @@ test('loadResumeContext: code-review --base main identity success', async () => 
       'codex-thread-id': 'thread-cr-base',
       'codex-resume-status': 'fresh',
     });
-    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', base: 'main' });
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', baseRef: 'main' });
     assert.equal(ctx.error, undefined);
     assert.equal(ctx.threadId, 'thread-cr-base');
   } finally {
@@ -2377,7 +2377,7 @@ test('loadResumeContext: code-review base-ref mismatch rejected', async () => {
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
-    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', base: 'develop' });
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', baseRef: 'develop' });
     assert.match(ctx.error, /code-review target differs from current/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -2454,7 +2454,7 @@ test('loadResumeContext: code-review title differs but base-ref matches → iden
       'codex-resume-status': 'fresh',
     });
     // title is purely cosmetic — a different --title arg must not block resumption
-    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', base: 'main', title: 'New title' });
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', baseRef: 'main', title: 'New title' });
     assert.equal(ctx.error, undefined);
     assert.equal(ctx.threadId, 'thread-title');
   } finally {
@@ -2497,7 +2497,7 @@ test('loadResumeContext: code-review malformed prior with both base-ref and comm
     });
     // Must be rejected regardless of what the current target is
     for (const args of [
-      { reviewTarget: 'base', base: 'main' },
+      { reviewTarget: 'base', baseRef: 'main' },
       { reviewTarget: 'commit', commit: 'abc1234567890abcdef1234567890abcdef12345' },
       { reviewTarget: 'uncommitted' },
     ]) {
@@ -2539,7 +2539,7 @@ test('discoverResumeArtifact: code-review --base skips newer wrong-target artifa
       'codex-thread-id': 'thread-old-wrong',
       'codex-resume-status': 'fresh',
     });
-    const r = await discoverResumeArtifact('code-review', { out: tmp, reviewTarget: 'base', base: 'main' });
+    const r = await discoverResumeArtifact('code-review', { out: tmp, reviewTarget: 'base', baseRef: 'main' });
     assert.equal(r.error, undefined);
     assert.equal(r.path, middle);
   } finally {

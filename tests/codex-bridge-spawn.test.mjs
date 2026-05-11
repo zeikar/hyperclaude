@@ -11,9 +11,9 @@ import {
   readFileSync,
   existsSync,
   mkdirSync,
+  readdirSync,
 } from 'node:fs';
 import os from 'node:os';
-import { readdirSync } from 'node:fs';
 import { runCodexResume, parseFrontmatter } from '../scripts/codex-bridge.mjs';
 
 const BRIDGE = path.join(
