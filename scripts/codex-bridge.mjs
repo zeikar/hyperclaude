@@ -2,131 +2,36 @@
 // Codex bridge — see docs/architecture.md "The bridge" section.
 
 import { readFile, readdir, mkdir, writeFile, unlink } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 
-// ---------- slug ----------
+// ---------- leaf modules ----------
+// Re-exported here so existing importers (tests, smoke scripts) keep working
+// while we incrementally split the bridge into focused modules.
 
-export function slugify(input) {
-  if (typeof input !== 'string') return null;
-  // Drop non-ASCII, lowercase, then keep alnum + spaces.
-  const ascii = input.replace(/[^\x00-\x7f]/g, '');
-  const cleaned = ascii.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
-  const words = cleaned.split(/\s+/).filter(Boolean).slice(0, 5);
-  if (words.length === 0) return null;
-  return words.join('-');
-}
+import {
+  slugify, slugifyRef, extractSlugFromPlanFilename,
+} from './codex/slug.mjs';
+import {
+  fmString, renderFrontmatter, renderCodeReviewFrontmatter,
+  renderDocsReviewFrontmatter, parseFrontmatter,
+} from './codex/frontmatter.mjs';
+import { getGitHead } from './codex/git.mjs';
+import {
+  loadTemplate, readTemplateFile, renderFileListBlock, renderDiffBaseBlock,
+} from './codex/templates.mjs';
 
-// ---------- frontmatter ----------
-
-export function renderFrontmatter({
-  mode, task, slug, generated, codexVersion, templateVersion,
-  planPath, cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
-}) {
-  const lines = ['---'];
-  lines.push(`mode: ${mode}`);
-  // task: always block scalar (|-) to handle quotes/colons/newlines safely.
-  lines.push('task: |-');
-  for (const line of String(task).split('\n')) {
-    lines.push(`  ${line}`);
-  }
-  lines.push(`slug: ${slug}`);
-  lines.push(`generated: ${generated}`);
-  lines.push(`codex-version: ${codexVersion}`);
-  lines.push(`template-version: ${templateVersion}`);
-  if (planPath) lines.push(fmString('plan-path', planPath));
-  lines.push(fmString('cwd', cwd));
-  lines.push(fmString('git-head', gitHead));
-  if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
-  lines.push(`codex-resume-status: ${codexResumeStatus}`);
-  if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
-  lines.push('---');
-  lines.push('');
-  return lines.join('\n');
-}
-
-// ---------- code-review frontmatter ----------
-
-export function slugifyRef(ref) {
-  if (ref === 'main') return 'vs-main';
-  const cleaned = ref.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  if (!cleaned) return 'vs-ref';
-  // Cap at 8 hyphen-separated segments to keep filenames safely under FS limits
-  // (mirrors slugify's word cap; an unbounded ref body can trip ENAMETOOLONG on
-  // pathological branch names like 200+ char auto-generated names).
-  const body = cleaned.split('-').slice(0, 8).join('-');
-  return 'vs-' + body;
-}
-
-export function renderCodeReviewFrontmatter({
-  slug, generated, codexVersion, gitHead, reviewTarget, baseRef, commit, title,
-  cwd, codexThreadId, codexResumeStatus, codexResumedFrom,
-}) {
-  const lines = ['---'];
-  lines.push('mode: code-review');
-  lines.push(`slug: ${slug}`);
-  lines.push(`generated: ${generated}`);
-  lines.push(`codex-version: ${codexVersion}`);
-  lines.push(fmString('git-head', gitHead));
-  if (reviewTarget === 'base') lines.push(fmString('base-ref', baseRef));
-  if (reviewTarget === 'commit') lines.push(fmString('commit', commit));
-  if (title) lines.push(fmString('title', title));
-  lines.push(fmString('cwd', cwd));
-  if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
-  lines.push(`codex-resume-status: ${codexResumeStatus}`);
-  if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
-  lines.push('---');
-  lines.push('');
-  return lines.join('\n');
-}
-
-export function renderDocsReviewFrontmatter({
-  slug, generated, codexVersion, docsTarget, diffBase,
-  cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
-}) {
-  const lines = ['---'];
-  lines.push('mode: docs-review');
-  lines.push(`slug: ${slug}`);
-  lines.push(`generated: ${generated}`);
-  lines.push(`codex-version: ${codexVersion}`);
-  lines.push('template-version: 1');
-  lines.push(fmString('docs-target', docsTarget));
-  if (diffBase) lines.push(fmString('diff-base', diffBase));
-  lines.push(fmString('cwd', cwd));
-  lines.push(fmString('git-head', gitHead));
-  if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
-  lines.push(`codex-resume-status: ${codexResumeStatus}`);
-  if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
-  lines.push('---');
-  lines.push('');
-  return lines.join('\n');
-}
-
-export function getGitHead() {
-  const r = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', cwd: process.cwd() });
-  if (r.error || r.status !== 0) return 'unknown';
-  return r.stdout.trim();
-}
-
-// ---------- templates ----------
-
-export function loadTemplate(templateText, vars) {
-  return templateText.replace(/\{\{([A-Z_]+)\}\}/g, (m, key) => {
-    return Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : m;
-  });
-}
-
-// Resolve a template file relative to this script's directory.
-export async function readTemplateFile(name) {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const filepath = path.join(here, '..', 'templates', 'codex', `${name}.md`);
-  return readFile(filepath, 'utf8');
-}
-
-import { existsSync } from 'node:fs';
+export {
+  slugify, slugifyRef, extractSlugFromPlanFilename,
+  fmString, renderFrontmatter, renderCodeReviewFrontmatter,
+  renderDocsReviewFrontmatter, parseFrontmatter,
+  getGitHead,
+  loadTemplate, readTemplateFile, renderFileListBlock, renderDiffBaseBlock,
+};
 
 // ---------- args ----------
 
@@ -286,15 +191,6 @@ function pickAvailablePath(basePath) {
   return `${stem}-${Date.now()}${ext}`;
 }
 
-// Plan files are named `<YYYYMMDD-HHMM>-<slug>.md` per convention.
-// Strip the timestamp prefix so the review reuses the plan's slug — preserves
-// the same-slug traceability of the research → plan → review trio.
-function extractSlugFromPlanFilename(planPath) {
-  const base = path.basename(planPath, '.md');
-  const m = base.match(/^\d{8}-\d{4}-(.+)$/);
-  return m ? m[1] : base;
-}
-
 export function buildInvocation({ args, now = new Date() }) {
   const timestamp = formatTimestamp(now);
   let slug;
@@ -413,12 +309,6 @@ export function parseCodexJsonl(stdoutText) {
     }
   }
   return out;
-}
-
-// ---------- frontmatter helper ----------
-
-export function fmString(key, value) {
-  return `${key}: ${JSON.stringify(value)}`;
 }
 
 // ---------- failure body renderer ----------
@@ -650,25 +540,6 @@ async function runCodexExec(argv, stdinPayload, timeoutSec, knownThreadId = null
 
 // ---------- resume helpers ----------
 
-// renderFileListBlock: for a non-empty array of file paths, returns a numbered
-// "Files reviewed:" block (with trailing newline). For empty/null input returns ''.
-export function renderFileListBlock(files) {
-  if (!Array.isArray(files) || files.length === 0) return '';
-  const lines = ['Files reviewed:'];
-  for (let i = 0; i < files.length; i++) {
-    lines.push(`  ${i + 1}. ${files[i]}`);
-  }
-  lines.push('');
-  return lines.join('\n');
-}
-
-// renderDiffBaseBlock: for a truthy ref returns the "Also re-check `git diff <ref>...HEAD`.\n"
-// line. For falsy input returns ''.
-export function renderDiffBaseBlock(diffBase) {
-  if (!diffBase) return '';
-  return `Also re-check \`git diff ${diffBase}...HEAD\`.\n`;
-}
-
 // runCodexResume: resumes an existing Codex thread by id.
 // Passes knownThreadId as the 4th arg to runCodexExec so the result's threadId
 // is authoritative even when `thread.started` is not re-emitted on resume.
@@ -679,70 +550,6 @@ export function runCodexResume(threadId, prompt, timeoutSec) {
     timeoutSec,
     threadId,
   );
-}
-
-// ---------- frontmatter parser ----------
-
-// parseFrontmatter: narrow extractor for the frontmatter we write. Returns
-// a flat object of scalar fields. Block-scalar values (`key: |-`) are skipped
-// (we only need scalar identity fields for resume validation).
-//
-// Behaviour:
-// - CRLF tolerant.
-// - Returns {} when the text has no leading `---` line.
-// - Reads `key: value` lines until the closing `---`.
-// - JSON-quoted values (starting with `"`) are JSON.parsed; on parse failure
-//   the raw substring is stored verbatim.
-// - Bare-token values are stored as the raw substring after `: `.
-// - `key: |-` and `key: |` start a block scalar; subsequent indented lines
-//   (any line starting with at least one space) are skipped without storing.
-export function parseFrontmatter(text) {
-  const out = {};
-  if (typeof text !== 'string' || text.length === 0) return out;
-  const rawLines = text.split('\n');
-  // Strip CRLF.
-  const lines = rawLines.map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
-  if (lines.length === 0 || lines[0] !== '---') return out;
-  let i = 1;
-  let inBlockScalar = false;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (line === '---') break;
-    if (inBlockScalar) {
-      // Continuation of a block scalar: any line with leading whitespace (or empty).
-      // Empty line stays inside the block; non-indented non-empty line ends it.
-      if (line.length === 0 || line.startsWith(' ')) {
-        i += 1;
-        continue;
-      }
-      inBlockScalar = false;
-      // Fall through to top-level key handling.
-    }
-    // Top-level key: `key: <rest>` — match minimally.
-    const m = line.match(/^([A-Za-z][A-Za-z0-9_-]*):(?: (.*))?$/);
-    if (!m) {
-      i += 1;
-      continue;
-    }
-    const key = m[1];
-    const rest = m[2] === undefined ? '' : m[2];
-    if (rest === '|-' || rest === '|') {
-      inBlockScalar = true;
-      i += 1;
-      continue;
-    }
-    if (rest.startsWith('"')) {
-      try {
-        out[key] = JSON.parse(rest);
-      } catch {
-        out[key] = rest;
-      }
-    } else {
-      out[key] = rest;
-    }
-    i += 1;
-  }
-  return out;
 }
 
 // ---------- resume context loaders ----------
