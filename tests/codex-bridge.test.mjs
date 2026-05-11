@@ -2319,3 +2319,279 @@ test('discoverResumeArtifact: skips ineligible artifacts (mode mismatch) and fin
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+// ── Task 2: loadResumeContext code-review identity ────────────────────────────
+
+test('loadResumeContext: code-review --base main identity success', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cr-base-'));
+  try {
+    const prior = path.join(tmp, '20260510-1015-x.md');
+    writePriorReview(prior, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'base-ref': 'main',
+      'codex-thread-id': 'thread-cr-base',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', base: 'main' });
+    assert.equal(ctx.error, undefined);
+    assert.equal(ctx.threadId, 'thread-cr-base');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: code-review base-ref mismatch rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cr-basemis-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'base-ref': 'main',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', base: 'develop' });
+    assert.match(ctx.error, /code-review target differs from current/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: code-review --uncommitted identity success when prior also uncommitted', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cr-unc-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      // no base-ref, no commit — means uncommitted
+      'codex-thread-id': 'thread-unc',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'uncommitted' });
+    assert.equal(ctx.error, undefined);
+    assert.equal(ctx.threadId, 'thread-unc');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: code-review --commit <sha> identity success on exact SHA match', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cr-sha-'));
+  try {
+    const sha = 'abc1234567890abcdef1234567890abcdef12345';
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'commit': sha,
+      'codex-thread-id': 'thread-sha',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'commit', commit: sha });
+    assert.equal(ctx.error, undefined);
+    assert.equal(ctx.threadId, 'thread-sha');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: code-review --uncommitted current vs --base prior rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cr-uncvbase-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'base-ref': 'main',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'uncommitted' });
+    assert.match(ctx.error, /code-review target differs from current/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: code-review title differs but base-ref matches → identity success', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cr-title-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'base-ref': 'main',
+      'title': 'Old title',
+      'codex-thread-id': 'thread-title',
+      'codex-resume-status': 'fresh',
+    });
+    // title is purely cosmetic — a different --title arg must not block resumption
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', base: 'main', title: 'New title' });
+    assert.equal(ctx.error, undefined);
+    assert.equal(ctx.threadId, 'thread-title');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: code-review commit SHA mismatch (prefix of the other) rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cr-shapfx-'));
+  try {
+    const fullSha = 'abc1234567890abcdef1234567890abcdef12345';
+    const shortSha = 'abc1234';
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'commit': fullSha,
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    // Passing the 7-char prefix must not match (string equality, not prefix match)
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'commit', commit: shortSha });
+    assert.match(ctx.error, /code-review target differs from current/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: code-review malformed prior with both base-ref and commit rejected for every target', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cr-both-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'base-ref': 'main',
+      'commit': 'abc1234567890abcdef1234567890abcdef12345',
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    // Must be rejected regardless of what the current target is
+    for (const args of [
+      { reviewTarget: 'base', base: 'main' },
+      { reviewTarget: 'commit', commit: 'abc1234567890abcdef1234567890abcdef12345' },
+      { reviewTarget: 'uncommitted' },
+    ]) {
+      const ctx = await loadResumeContext(prior, 'code-review', args);
+      assert.match(ctx.error, /code-review target differs from current/);
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// ── Task 2: discoverResumeArtifact code-review ────────────────────────────────
+
+test('discoverResumeArtifact: code-review --base skips newer wrong-target artifact, picks matching one', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-cr-base-'));
+  try {
+    // newest: wrong base-ref (feature-x)
+    writePriorReview(path.join(tmp, '20260601-0000-newest.md'), {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'base-ref': 'feature-x',
+      'codex-thread-id': 'thread-wrong',
+      'codex-resume-status': 'fresh',
+    });
+    // middle: matching base-ref (main)
+    const middle = path.join(tmp, '20260510-1015-middle.md');
+    writePriorReview(middle, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'base-ref': 'main',
+      'codex-thread-id': 'thread-match',
+      'codex-resume-status': 'fresh',
+    });
+    // oldest: wrong base-ref (feature-x)
+    writePriorReview(path.join(tmp, '20260101-0000-oldest.md'), {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'base-ref': 'feature-x',
+      'codex-thread-id': 'thread-old-wrong',
+      'codex-resume-status': 'fresh',
+    });
+    const r = await discoverResumeArtifact('code-review', { out: tmp, reviewTarget: 'base', base: 'main' });
+    assert.equal(r.error, undefined);
+    assert.equal(r.path, middle);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: code-review --commit skips newer wrong-SHA artifact, picks matching one', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-cr-sha-'));
+  try {
+    const targetSha = 'aaaa1111bbbb2222cccc3333dddd4444eeee5555';
+    const otherSha = 'ffff9999aaaa1111bbbb2222cccc3333dddd4444';
+    // newest: wrong commit SHA
+    writePriorReview(path.join(tmp, '20260601-0000-newest.md'), {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'commit': otherSha,
+      'codex-thread-id': 'thread-wrong',
+      'codex-resume-status': 'fresh',
+    });
+    // middle: matching commit SHA
+    const middle = path.join(tmp, '20260510-1015-middle.md');
+    writePriorReview(middle, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'commit': targetSha,
+      'codex-thread-id': 'thread-match',
+      'codex-resume-status': 'fresh',
+    });
+    // oldest: wrong commit SHA
+    writePriorReview(path.join(tmp, '20260101-0000-oldest.md'), {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'commit': otherSha,
+      'codex-thread-id': 'thread-old-wrong',
+      'codex-resume-status': 'fresh',
+    });
+    const r = await discoverResumeArtifact('code-review', { out: tmp, reviewTarget: 'commit', commit: targetSha });
+    assert.equal(r.error, undefined);
+    assert.equal(r.path, middle);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: code-review --uncommitted skips newer non-uncommitted artifact, picks matching one', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-cr-unc-'));
+  try {
+    // newest: has base-ref, so not uncommitted
+    writePriorReview(path.join(tmp, '20260601-0000-newest.md'), {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'base-ref': 'main',
+      'codex-thread-id': 'thread-wrong',
+      'codex-resume-status': 'fresh',
+    });
+    // middle: no base-ref, no commit → uncommitted
+    const middle = path.join(tmp, '20260510-1015-middle.md');
+    writePriorReview(middle, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      // no base-ref, no commit
+      'codex-thread-id': 'thread-match',
+      'codex-resume-status': 'fresh',
+    });
+    // oldest: has commit, so not uncommitted
+    writePriorReview(path.join(tmp, '20260101-0000-oldest.md'), {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'commit': 'deadbeef1234deadbeef1234deadbeef12345678',
+      'codex-thread-id': 'thread-old-wrong',
+      'codex-resume-status': 'fresh',
+    });
+    const r = await discoverResumeArtifact('code-review', { out: tmp, reviewTarget: 'uncommitted' });
+    assert.equal(r.error, undefined);
+    assert.equal(r.path, middle);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});

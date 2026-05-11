@@ -810,6 +810,34 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
     if (prevDiff !== curDiff) {
       return { error: 'prior artifact docs-target/diff-base differs from current' };
     }
+  } else if (expectedMode === 'code-review') {
+    // title is purely cosmetic — does NOT participate in identity (it does not
+    // affect what Codex reviewed, only the display label in the output file).
+    const hasPriorBaseRef = Object.prototype.hasOwnProperty.call(fm, 'base-ref');
+    const hasPriorCommit = Object.prototype.hasOwnProperty.call(fm, 'commit');
+    // Precheck: a well-formed prior artifact has at most one of base-ref/commit.
+    // Both present means malformed frontmatter — reject before target matching to
+    // prevent the absence-means-uncommitted inference from granting a false match.
+    if (hasPriorBaseRef && hasPriorCommit) {
+      return { error: 'prior artifact code-review target differs from current' };
+    }
+    const curTarget = currentArgs.reviewTarget;
+    if (curTarget === 'base') {
+      // Match on ref name string only (no SHA resolve).
+      if (!hasPriorBaseRef || fm['base-ref'] !== currentArgs.base) {
+        return { error: 'prior artifact code-review target differs from current' };
+      }
+    } else if (curTarget === 'commit') {
+      // Match on exact SHA string.
+      if (!hasPriorCommit || fm['commit'] !== currentArgs.commit) {
+        return { error: 'prior artifact code-review target differs from current' };
+      }
+    } else {
+      // uncommitted: prior must lack both base-ref and commit keys.
+      if (hasPriorBaseRef || hasPriorCommit) {
+        return { error: 'prior artifact code-review target differs from current' };
+      }
+    }
   }
   return { threadId, frontmatter: fm };
 }
