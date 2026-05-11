@@ -1183,6 +1183,32 @@ async function main(argv) {
       process.exit(1);
     }
 
+    // Resume resolution: try to resolve a prior thread when --resume is set.
+    // On 'auto' miss → fall back to fresh + stderr note. On explicit failure → fail hard.
+    let resumeContext = null;       // { threadId, frontmatter } when valid
+    let resumeFromPath = null;      // resolved prior artifact path (for codexResumedFrom)
+    let resumeStatus = 'fresh';
+    if (args.resumeFrom) {
+      const r = await resolveResume('code-review', args);
+      if (r.ok) {
+        resumeContext = r.context;
+        resumeFromPath = r.prevPath;
+      } else if (r.fatal) {
+        process.stdout.write(JSON.stringify({
+          ok: false,
+          error: `resume rejected: ${r.error}`,
+          path: null,
+          resumeStatus: 'fallback',
+          threadId: null,
+        }) + '\n');
+        process.exit(1);
+      } else {
+        // 'auto' fell back: warn, run fresh.
+        process.stderr.write(`hyperclaude: resume fallback — ${r.error}\n`);
+        resumeStatus = 'fallback';
+      }
+    }
+
     const targetFlags = [];
     if (args.reviewTarget === 'base') {
       targetFlags.push('--base', args.baseRef);
@@ -1194,8 +1220,41 @@ async function main(argv) {
     const titleFlag = args.title ? ['--title', args.title] : [];
 
     const gitHead = getGitHead();
-    const argv = ['exec', 'review', '-c', 'sandbox_mode=read-only', ...targetFlags, ...titleFlag];
-    const result = await runCodexExec(argv, null, args.timeout);
+
+    // Spawn: resume path uses runCodexResume; fresh path uses runCodexExec.
+    let result;
+    if (resumeContext) {
+      // Build TARGET_INSTRUCTION block for the resume template.
+      let targetInstruction;
+      if (args.reviewTarget === 'base') {
+        targetInstruction = `Re-read the diff via:\n\n  git diff ${args.baseRef}...HEAD --name-status\n  git diff ${args.baseRef}...HEAD -- <file>   # per changed path`;
+      } else if (args.reviewTarget === 'commit') {
+        targetInstruction = `Re-read the commit via:\n\n  git show --format= --patch ${args.commit}`;
+      } else {
+        targetInstruction = `Re-read the working tree via:\n\n  git status --short\n  git diff           # unstaged\n  git diff --cached  # staged\n\nFor untracked files (paths starting with "??" in git status output), read their content directly — they have no diff.`;
+      }
+      let resumeTemplateText;
+      try {
+        resumeTemplateText = await readTemplateFile('code-review-resumed');
+      } catch (err) {
+        process.stdout.write(JSON.stringify({
+          ok: false,
+          error: `failed to read prompt template: ${err.message}`,
+        }) + '\n');
+        process.exit(1);
+      }
+      const prompt = loadTemplate(resumeTemplateText, { TARGET_INSTRUCTION: targetInstruction });
+      result = await runCodexResume(resumeContext.threadId, prompt, args.timeout);
+    } else {
+      const argv = ['exec', 'review', '-c', 'sandbox_mode=read-only', ...targetFlags, ...titleFlag];
+      result = await runCodexExec(argv, null, args.timeout);
+    }
+
+    // Pick final resume status.
+    if (resumeContext) {
+      resumeStatus = result.ok ? 'resumed' : 'resume-failed';
+    }
+
     await mkdir(inv.dir, { recursive: true });
 
     const fm = renderCodeReviewFrontmatter({
@@ -1209,8 +1268,8 @@ async function main(argv) {
       title: args.title,
       cwd: process.cwd(),
       codexThreadId: result.threadId,
-      codexResumeStatus: 'fresh',
-      codexResumedFrom: undefined,
+      codexResumeStatus: resumeStatus,
+      codexResumedFrom: resumeContext && result.ok ? resumeFromPath : undefined,
     });
 
     let heading;
@@ -1240,6 +1299,7 @@ async function main(argv) {
         ok: false,
         error: result.reason,
         path: inv.outputPath,
+        resumeStatus,
         threadId: result.threadId,
       }) + '\n');
       process.exit(1);
@@ -1250,6 +1310,7 @@ async function main(argv) {
       path: inv.outputPath,
       slug: inv.slug,
       threadId: result.threadId,
+      resumeStatus,
     }) + '\n');
     return;
   }
