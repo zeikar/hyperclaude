@@ -30,7 +30,9 @@ hyperclaude/
 │   └── hyper-debug/             helper — debugging discipline
 ├── agents/                      sub-Claude personas (planner, implementer, verifier, documenter)
 ├── scripts/
-│   ├── codex-bridge.mjs         the only executable code in the plugin
+│   ├── codex-bridge.mjs         CLI entry; re-exports the helpers below
+│   ├── codex/                   bridge modules (slug, frontmatter, git, templates,
+│   │                            args, paths, codex spawn + JSONL, failure, resume)
 │   └── test/smoke.sh            acceptance smoke checks
 ├── templates/codex/             prompt templates rendered into Codex stdin
 │   ├── research.md
@@ -82,7 +84,7 @@ Direction:
 
 ## The bridge
 
-One file: [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs). Four modes, exposed as positional subcommands:
+CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modules under [scripts/codex/](../scripts/codex/) (slug, frontmatter, git, templates, args, paths, codex spawn + JSONL, failure body, resume). The entry file owns the `main()` mode dispatch; everything else is pure-ish helpers. Four modes, exposed as positional subcommands:
 
 | Mode          | Codex invocation                                  | Template                           | Output dir                       |
 |---------------|---------------------------------------------------|------------------------------------|----------------------------------|
