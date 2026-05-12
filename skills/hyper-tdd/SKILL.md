@@ -1,11 +1,11 @@
 ---
 name: hyper-tdd
-description: Applies test-driven development discipline when implementing code changes. Use when about to write or modify behavior-bearing code (functions, modules, business logic). Skip for pure config changes, documentation edits, or one-shot scripts where tests would not outlive the change.
+description: Applies test-driven development discipline when implementing code changes. Use when the user invokes /hyperclaude:hyper-tdd, or about to write or modify behavior-bearing code (functions, modules, business logic). Skip for pure config changes, documentation edits, or one-shot scripts where tests would not outlive the change.
 ---
 
 # hyper-tdd
 
-Test-driven discipline tailored to this author's preferences. Inspired by superpowers' tdd skill but tighter.
+Test-driven discipline tailored to this author's preferences.
 
 ## The loop
 

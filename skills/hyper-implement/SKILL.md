@@ -100,7 +100,3 @@ After all tasks:
   - Mechanical (1-2 files, exact spec): haiku
   - Standard (multi-file, integration): sonnet
   - Architectural / judgment-heavy: opus
-
-## Reference
-
-The v0.1 implementation history (`d5754a2..461df61`) was produced with this exact flow (under superpowers:subagent-driven-development at the time). 11 tasks, ~33 subagent dispatches, two real bugs caught by reviews before they hit main.

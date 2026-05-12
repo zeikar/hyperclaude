@@ -1,6 +1,6 @@
 ---
 name: hyper-research
-description: Run Codex pre-implementation research on a task. Use when the user invokes /hyperclaude:hyper-research, or when starting a non-trivial implementation and you want Codex's prior-art / pitfalls / recommendations before designing.
+description: Run Codex pre-implementation research on a task. Use when the user invokes /hyperclaude:hyper-research, or when starting a non-trivial implementation and you want Codex's prior-art / pitfalls / recommendations before designing. Skip for one-line fixes or when a recent research artifact already covers the task.
 ---
 
 # hyper-research

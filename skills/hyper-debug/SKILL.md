@@ -1,11 +1,11 @@
 ---
 name: hyper-debug
-description: Applies systematic debugging discipline when a test fails, code throws, or behavior diverges from expectation. Use the moment something is unexpectedly broken. Skip for "I know what's wrong" one-line fixes; this skill is for when the cause is not immediately obvious.
+description: Applies systematic debugging discipline when a test fails, code throws, or behavior diverges from expectation. Use when the user invokes /hyperclaude:hyper-debug, or the moment something is unexpectedly broken. Skip for "I know what's wrong" one-line fixes; this skill is for when the cause is not immediately obvious.
 ---
 
 # hyper-debug
 
-Debugging discipline tailored to this author's preferences. Inspired by superpowers' systematic-debugging but tighter.
+Debugging discipline tailored to this author's preferences.
 
 ## The cycle
 
