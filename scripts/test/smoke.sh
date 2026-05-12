@@ -186,14 +186,57 @@ if node -e '
   const j = JSON.parse(raw);
   const additionalContext = j.hookSpecificOutput && j.hookSpecificOutput.additionalContext;
   const template = fs.readFileSync("templates/hooks/session-start-reminder.md", "utf8");
+  // additionalContext must start with the template byte-for-byte. Anything
+  // after the template is a dynamic .hyperclaude/ snapshot footer (optional;
+  // only present when the project has artifacts under .hyperclaude/).
   const passed = j.continue === true &&
     j.hookSpecificOutput && j.hookSpecificOutput.hookEventName === "SessionStart" &&
-    additionalContext === template;
+    typeof additionalContext === "string" &&
+    additionalContext.startsWith(template);
   process.exit(passed ? 0 : 1);
 ' 2>/dev/null; then
-  ok "SessionStart hook golden-path: additionalContext equals templates/hooks/session-start-reminder.md byte-for-byte"
+  ok "SessionStart hook golden-path: additionalContext starts with templates/hooks/session-start-reminder.md byte-for-byte"
 else
-  miss "SessionStart hook golden-path: additionalContext equals templates/hooks/session-start-reminder.md byte-for-byte"
+  miss "SessionStart hook golden-path: additionalContext starts with templates/hooks/session-start-reminder.md byte-for-byte"
+fi
+
+# Snapshot footer is dynamic — it should appear iff .hyperclaude/ has artifacts.
+if node -e '
+  const { execSync } = require("child_process");
+  const fs = require("fs");
+  const path = require("path");
+  const raw = execSync(
+    "printf \x27{\"session_id\":\"smoke\",\"source\":\"startup\"}\x27 | node hooks/session-start-reminder.mjs",
+    { encoding: "utf8" }
+  );
+  const j = JSON.parse(raw);
+  const additionalContext = j.hookSpecificOutput.additionalContext;
+  const template = fs.readFileSync("templates/hooks/session-start-reminder.md", "utf8");
+  const footer = additionalContext.slice(template.length);
+
+  // Determine whether .hyperclaude/ currently holds any artifacts.
+  const sections = ["plans", "research", "reviews", "code-reviews", "docs-reviews"];
+  let hasArtifacts = false;
+  for (const s of sections) {
+    const dir = path.join(".hyperclaude", s);
+    try {
+      const files = fs.readdirSync(dir).filter((f) => f.endsWith(".md"));
+      if (files.length > 0) { hasArtifacts = true; break; }
+    } catch {}
+  }
+
+  let passed;
+  if (hasArtifacts) {
+    passed = footer.includes("## .hyperclaude/ snapshot") &&
+      footer.includes(".hyperclaude/");
+  } else {
+    passed = footer.length === 0;
+  }
+  process.exit(passed ? 0 : 1);
+' 2>/dev/null; then
+  ok "SessionStart hook snapshot footer: present iff .hyperclaude/ has artifacts"
+else
+  miss "SessionStart hook snapshot footer: missing or malformed"
 fi
 
 out=$(node <<'NODE_EOF' 2>&1
@@ -222,12 +265,12 @@ else
   miss "manifest wiring assertion failed: $out"
 fi
 
-if out=$(printf 'not json' | node hooks/session-start-reminder.mjs 2>&1); then
+if out=$(printf 'not json' | node hooks/session-start-reminder.mjs 2>/dev/null); then
   if printf '%s' "$out" | node -e '
     const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
     process.exit(j.continue === true && j.suppressOutput === true ? 0 : 1);
   '; then
-    ok "SessionStart hook fail-open: invalid stdin JSON → suppressOutput"
+    ok "SessionStart hook fail-open: invalid stdin JSON → suppressOutput (stdout intact; diagnostic on stderr)"
   else
     miss "SessionStart hook fail-open: invalid stdin JSON → suppressOutput assertion failed: $out"
   fi

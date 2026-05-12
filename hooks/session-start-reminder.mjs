@@ -1,12 +1,87 @@
 #!/usr/bin/env node
-// SessionStart hook — loads templates/hooks/session-start-reminder.md at runtime
-// and injects its contents as additionalContext.
+// SessionStart hook — loads templates/hooks/session-start-reminder.md at
+// runtime and injects its contents as additionalContext. When the project
+// has a `.hyperclaude/` directory with recent artifacts, appends a short
+// "snapshot" footer so a freshly-started session knows where to pick up.
 
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const templatePath = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'templates', 'hooks', 'session-start-reminder.md');
+
+const SNAPSHOT_SECTIONS = [
+  { dir: 'plans', label: 'Active plan', countUnchecked: true },
+  { dir: 'research', label: 'Recent research' },
+  { dir: 'reviews', label: 'Recent plan-review' },
+  { dir: 'code-reviews', label: 'Recent code-review' },
+  { dir: 'docs-reviews', label: 'Recent docs-review' },
+];
+
+async function newestMarkdown(dir) {
+  let entries;
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return null;
+  }
+  const mdFiles = entries.filter((f) => f.endsWith('.md'));
+  if (mdFiles.length === 0) return null;
+  const stats = await Promise.all(mdFiles.map(async (name) => {
+    const path = resolve(dir, name);
+    const st = await stat(path);
+    return { name, path, mtime: st.mtimeMs };
+  }));
+  stats.sort((a, b) => b.mtime - a.mtime);
+  return stats[0];
+}
+
+async function countUncheckedTasks(filePath) {
+  try {
+    const content = await readFile(filePath, 'utf8');
+    return (content.match(/^- \[ \]/gm) || []).length;
+  } catch {
+    return 0;
+  }
+}
+
+async function buildSnapshotFooter(projectDir) {
+  const hcRoot = resolve(projectDir, '.hyperclaude');
+  try {
+    const st = await stat(hcRoot);
+    if (!st.isDirectory()) return '';
+  } catch {
+    return '';
+  }
+
+  const lines = [];
+  for (const section of SNAPSHOT_SECTIONS) {
+    const newest = await newestMarkdown(resolve(hcRoot, section.dir));
+    if (!newest) continue;
+    let suffix = '';
+    if (section.countUnchecked) {
+      const unchecked = await countUncheckedTasks(newest.path);
+      if (unchecked > 0) {
+        suffix = ` (${unchecked} unchecked task${unchecked === 1 ? '' : 's'})`;
+      }
+    }
+    lines.push(`- ${section.label}: \`.hyperclaude/${section.dir}/${newest.name}\`${suffix}`);
+  }
+
+  if (lines.length === 0) return '';
+
+  return [
+    '',
+    '---',
+    '',
+    '## .hyperclaude/ snapshot',
+    '',
+    ...lines,
+    '',
+    'If picking up where you left off, consult these artifacts.',
+    '',
+  ].join('\n');
+}
 
 async function main() {
   try {
@@ -14,8 +89,11 @@ async function main() {
     for await (const chunk of process.stdin) {
       input += chunk;
     }
-    JSON.parse(input);
-    const additionalContext = await readFile(templatePath, 'utf8');
+    const parsed = JSON.parse(input);
+    const projectDir = process.env.CLAUDE_PROJECT_DIR || parsed.cwd || process.cwd();
+    const template = await readFile(templatePath, 'utf8');
+    const footer = await buildSnapshotFooter(projectDir);
+    const additionalContext = template + footer;
     process.stdout.write(JSON.stringify({
       continue: true,
       hookSpecificOutput: {
