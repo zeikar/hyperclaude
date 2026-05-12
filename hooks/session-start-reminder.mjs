@@ -1,17 +1,12 @@
 #!/usr/bin/env node
-// SessionStart hook — inject hyper-* workflow skills list into user context.
+// SessionStart hook — loads templates/hooks/session-start-reminder.md at runtime
+// and injects its contents as additionalContext.
 
-const REMINDER = `Hyper-* workflow skills:
+import { readFile } from 'node:fs/promises';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-• hyper-research — Codex pre-implementation research (prior art, pitfalls, recommendations) before designing a non-trivial change.
-• hyper-plan — Generate a multi-task plan via the planner agent (saves to .hyperclaude/plans/) before implementation.
-• hyper-plan-review — Codex critique of an implementation plan before execution.
-• hyper-code-review — Codex code review on the current branch, working tree, or a specific commit.
-• hyper-docs-sync — Sync docs to reflect recent code changes (reads CLAUDE.md/AGENTS.md mapping, dispatches documenter per affected doc).
-• hyper-docs-review — Codex accuracy review on documentation (drift, broken links, cross-doc consistency).
-• hyper-implement — Execute a plan task-by-task with fresh subagents, spec + code reviews between tasks.
-• hyper-tdd — Test-driven development discipline for behavior-bearing code.
-• hyper-debug — Systematic debugging when a test fails or code throws unexpectedly.`;
+const templatePath = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'templates', 'hooks', 'session-start-reminder.md');
 
 async function main() {
   try {
@@ -20,11 +15,12 @@ async function main() {
       input += chunk;
     }
     JSON.parse(input);
+    const additionalContext = await readFile(templatePath, 'utf8');
     process.stdout.write(JSON.stringify({
       continue: true,
       hookSpecificOutput: {
         hookEventName: 'SessionStart',
-        additionalContext: REMINDER,
+        additionalContext,
       },
     }) + '\n');
   } catch {
