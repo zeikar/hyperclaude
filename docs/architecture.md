@@ -40,6 +40,7 @@ hyperclaude/
 │   ├── review-resumed.md
 │   ├── docs-review.md
 │   └── docs-review-resumed.md
+├── templates/hooks/             hook prompt templates (SessionStart hook reads session-start-reminder.md)
 ├── tests/                       node --test unit tests for the bridge
 ├── docs/                        this directory
 ├── README.md, LICENSE, .gitignore
@@ -92,6 +93,10 @@ CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modu
 | `review`      | `codex exec --sandbox read-only -` (stdin prompt) | [templates/codex/review.md](../templates/codex/review.md)         | `.hyperclaude/reviews/`          |
 | `code-review` | `codex exec review -c sandbox_mode=read-only [--base \| --uncommitted \| --commit]` | none — `codex exec review` owns its prompt | `.hyperclaude/code-reviews/`     |
 | `docs-review` | `codex exec --sandbox read-only -` (stdin prompt) | [templates/codex/docs-review.md](../templates/codex/docs-review.md)    | `.hyperclaude/docs-reviews/`     |
+
+### SessionStart hook
+
+The [SessionStart hook](../hooks/session-start-reminder.mjs) is template-driven: it reads [templates/hooks/session-start-reminder.md](../templates/hooks/session-start-reminder.md) at runtime and injects its contents as `additionalContext`. If the template file is missing, the hook fails open and does not raise an error. This design allows the workflow reminder text to be edited without touching code.
 
 ### Sandbox policy
 
