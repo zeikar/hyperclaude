@@ -9,6 +9,7 @@
   "repository": "https://github.com/zeikar/hyperclaude",
   "homepage": "https://github.com/zeikar/hyperclaude",
   "license": "MIT",
+  "hooks": "./hooks/hooks.json",
   "keywords": [
     "claude-code",
     "plugin",

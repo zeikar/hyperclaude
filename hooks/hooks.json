@@ -1,0 +1,17 @@
+{
+  "description": "Session lifecycle hooks for hyperclaude",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-reminder.mjs\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
