@@ -199,12 +199,13 @@ fi
 out=$(node <<'NODE_EOF' 2>&1
 const plugin = JSON.parse(require("fs").readFileSync(".claude-plugin/plugin.json","utf8"));
 const hooksConfig = JSON.parse(require("fs").readFileSync("hooks/hooks.json","utf8"));
-const entry = hooksConfig.hooks && hooksConfig.hooks.SessionStart &&
-  hooksConfig.hooks.SessionStart[0] && hooksConfig.hooks.SessionStart[0].hooks &&
-  hooksConfig.hooks.SessionStart[0].hooks[0];
+const block = hooksConfig.hooks && hooksConfig.hooks.SessionStart &&
+  hooksConfig.hooks.SessionStart[0];
+const entry = block && block.hooks && block.hooks[0];
 const expectedCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-reminder.mjs"';
 const passed = plugin.hooks === "./hooks/hooks.json" &&
   Array.isArray(hooksConfig.hooks && hooksConfig.hooks.SessionStart) &&
+  block && block.matcher === "startup|clear|compact" &&
   entry && entry.type === "command" &&
   entry.timeout === 5 &&
   entry.command === expectedCmd;
@@ -212,7 +213,7 @@ process.exit(passed ? 0 : 1);
 NODE_EOF
 )
 if [ $? -eq 0 ]; then
-  ok "manifest wiring: plugin.hooks, hooks.json shape, type/timeout/command exact match"
+  ok "manifest wiring: plugin.hooks, hooks.json shape, matcher excludes resume, type/timeout/command exact match"
 else
   miss "manifest wiring assertion failed: $out"
 fi
