@@ -183,10 +183,10 @@ if out=$(printf '{"session_id":"smoke","source":"startup"}' | node hooks/session
       "hyper-research","hyper-plan","hyper-plan-review","hyper-code-review",
       "hyper-docs-sync","hyper-docs-review","hyper-implement","hyper-tdd","hyper-debug"
     ];
-    const ok = j.continue === true &&
+    const passed = j.continue === true &&
       j.hookSpecificOutput && j.hookSpecificOutput.hookEventName === "SessionStart" &&
       skills.every(s => ctx.includes(s));
-    process.exit(ok ? 0 : 1);
+    process.exit(passed ? 0 : 1);
   '; then
     ok "SessionStart hook golden-path: continue, hookEventName, all 9 skills in additionalContext"
   else
@@ -196,23 +196,25 @@ else
   miss "SessionStart hook golden-path invocation failed: $out"
 fi
 
-if node -e '
-  const plugin = JSON.parse(require("fs").readFileSync(".claude-plugin/plugin.json","utf8"));
-  const hooksConfig = JSON.parse(require("fs").readFileSync("hooks/hooks.json","utf8"));
-  const entry = hooksConfig.hooks && hooksConfig.hooks.SessionStart &&
-    hooksConfig.hooks.SessionStart[0] && hooksConfig.hooks.SessionStart[0].hooks &&
-    hooksConfig.hooks.SessionStart[0].hooks[0];
-  const expectedCmd = '\''node "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-reminder.mjs"'\'';
-  const ok = plugin.hooks === "./hooks/hooks.json" &&
-    Array.isArray(hooksConfig.hooks && hooksConfig.hooks.SessionStart) &&
-    entry && entry.type === "command" &&
-    entry.timeout === 5 &&
-    entry.command === expectedCmd;
-  process.exit(ok ? 0 : 1);
-' 2>/dev/null; then
+out=$(node <<'NODE_EOF' 2>&1
+const plugin = JSON.parse(require("fs").readFileSync(".claude-plugin/plugin.json","utf8"));
+const hooksConfig = JSON.parse(require("fs").readFileSync("hooks/hooks.json","utf8"));
+const entry = hooksConfig.hooks && hooksConfig.hooks.SessionStart &&
+  hooksConfig.hooks.SessionStart[0] && hooksConfig.hooks.SessionStart[0].hooks &&
+  hooksConfig.hooks.SessionStart[0].hooks[0];
+const expectedCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-reminder.mjs"';
+const passed = plugin.hooks === "./hooks/hooks.json" &&
+  Array.isArray(hooksConfig.hooks && hooksConfig.hooks.SessionStart) &&
+  entry && entry.type === "command" &&
+  entry.timeout === 5 &&
+  entry.command === expectedCmd;
+process.exit(passed ? 0 : 1);
+NODE_EOF
+)
+if [ $? -eq 0 ]; then
   ok "manifest wiring: plugin.hooks, hooks.json shape, type/timeout/command exact match"
 else
-  miss "manifest wiring assertion failed"
+  miss "manifest wiring assertion failed: $out"
 fi
 
 if out=$(printf 'not json' | node hooks/session-start-reminder.mjs 2>&1); then

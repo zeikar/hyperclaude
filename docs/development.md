@@ -66,7 +66,7 @@ Output goes to mode-specific subdirectories of `.hyperclaude/` by default — `.
 
 ```bash
 node --test tests/*.mjs            # unit tests for the bridge — currently 211 cases
-bash scripts/test/smoke.sh         # smoke runs core checks (required files, dry-runs, template renders, the SessionStart hook, + 3 Codex probes when codex is on PATH + optional `claude plugin validate` when claude is on PATH)
+bash scripts/test/smoke.sh         # smoke runs core checks (required files, dry-runs, hook invocations, the SessionStart hook, + 3 Codex probes when codex is on PATH + optional `claude plugin validate` when claude is on PATH)
 ```
 
 Both must pass cleanly before shipping a release. Zero npm dependencies; nothing to install.
