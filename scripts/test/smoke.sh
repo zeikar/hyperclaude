@@ -203,7 +203,11 @@ const block = hooksConfig.hooks && hooksConfig.hooks.SessionStart &&
   hooksConfig.hooks.SessionStart[0];
 const entry = block && block.hooks && block.hooks[0];
 const expectedCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-reminder.mjs"';
-const passed = plugin.hooks === "./hooks/hooks.json" &&
+// hooks/hooks.json is auto-discovered from the standard plugin location;
+// plugin.json should NOT carry a hooks field pointing back at the default
+// path — that is redundant and triggers duplicate hook-file handling per the
+// official plugins reference. Manifest should omit hooks entirely.
+const passed = plugin.hooks === undefined &&
   Array.isArray(hooksConfig.hooks && hooksConfig.hooks.SessionStart) &&
   block && block.matcher === "startup|clear|compact" &&
   entry && entry.type === "command" &&
@@ -213,7 +217,7 @@ process.exit(passed ? 0 : 1);
 NODE_EOF
 )
 if [ $? -eq 0 ]; then
-  ok "manifest wiring: plugin.hooks, hooks.json shape, matcher excludes resume, type/timeout/command exact match"
+  ok "manifest wiring: plugin.json omits redundant hooks field, hooks.json shape correct (matcher excludes resume, type/timeout/command exact)"
 else
   miss "manifest wiring assertion failed: $out"
 fi
