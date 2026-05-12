@@ -1,6 +1,6 @@
 ---
 name: hyper-debug
-description: Apply systematic debugging discipline when a test fails, code throws, or behavior diverges from expectation. Use the moment something is unexpectedly broken. Skip for "I know what's wrong" one-line fixes; this skill is for when the cause is not immediately obvious.
+description: Applies systematic debugging discipline when a test fails, code throws, or behavior diverges from expectation. Use the moment something is unexpectedly broken. Skip for "I know what's wrong" one-line fixes; this skill is for when the cause is not immediately obvious.
 ---
 
 # hyper-debug

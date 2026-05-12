@@ -1,6 +1,6 @@
 ---
 name: hyper-tdd
-description: Apply test-driven development discipline when implementing code changes. Use when about to write or modify behavior-bearing code (functions, modules, business logic). Skip for pure config changes, documentation edits, or one-shot scripts where tests would not outlive the change.
+description: Applies test-driven development discipline when implementing code changes. Use when about to write or modify behavior-bearing code (functions, modules, business logic). Skip for pure config changes, documentation edits, or one-shot scripts where tests would not outlive the change.
 ---
 
 # hyper-tdd

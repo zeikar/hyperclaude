@@ -23,7 +23,8 @@ async function main() {
         additionalContext,
       },
     }) + '\n');
-  } catch {
+  } catch (err) {
+    process.stderr.write(`[session-start-reminder] ${err?.message ?? err}\n`);
     process.stdout.write(JSON.stringify({
       continue: true,
       suppressOutput: true,
