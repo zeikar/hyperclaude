@@ -26,7 +26,13 @@ Skip when:
 
 In priority order:
 
-1. `$ARGUMENTS` non-empty → that is the task. Derive its canonical slug deterministically (rule below). Then scan **all** research files under `.hyperclaude/research/*.md` (not just the newest) and look for one whose frontmatter `slug:` equals the derived slug — if found, treat it as the linked research artifact and read it in Step 3 for context. This deterministic slug-equality check is what preserves `research → plan → plan-review` traceability even when an unrelated newer research file exists.
+1. `$ARGUMENTS` non-empty → that is the task. Then, in order:
+
+   1. Derive the canonical slug deterministically (rule below).
+   2. Scan **all** research files under `.hyperclaude/research/*.md` — not just the newest. Read each file's frontmatter `slug:` field (the canonical key — do not match against the filename, which may have collision suffixes like `-2`).
+   3. If any file's frontmatter `slug:` equals the derived slug, treat it as the linked research artifact and read it in Step 3 for context.
+
+   This deterministic slug-equality scan is what preserves `research → plan → plan-review` traceability even when an unrelated newer research file exists.
 
 2. `$ARGUMENTS` empty → list research files newest-first:
 

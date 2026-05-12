@@ -1,6 +1,6 @@
 ---
 name: hyper-docs-sync
-description: Sync documentation to reflect recent code changes. Use when the user invokes /hyperclaude:hyper-docs-sync or after implementing changes that affect documented behavior (API surface, schemas, CLI flags, architecture). Reads code-to-doc mapping from CLAUDE.md/AGENTS.md, identifies affected docs, dispatches the documenter agent once per affected doc.
+description: Sync documentation to reflect recent code changes. Use when the user invokes /hyperclaude:hyper-docs-sync, or after non-trivial implementation that affects documented API, schemas, CLI flags, or architecture. Skip pure refactors with no behavioral change, or when docs are already up to date.
 ---
 
 # hyper-docs-sync
