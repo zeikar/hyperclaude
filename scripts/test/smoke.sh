@@ -140,6 +140,7 @@ for f in \
   templates/codex/review-resumed.md \
   templates/codex/docs-review-resumed.md \
   templates/codex/code-review-resumed.md \
+  templates/hooks/session-start-reminder.md \
   skills/hyper-research/SKILL.md \
   skills/hyper-plan/SKILL.md \
   skills/hyper-plan-review/SKILL.md \
@@ -175,25 +176,24 @@ else
   miss "hooks/session-start-reminder.mjs has syntax errors"
 fi
 
-if out=$(printf '{"session_id":"smoke","source":"startup"}' | node hooks/session-start-reminder.mjs 2>&1); then
-  if printf '%s' "$out" | node -e '
-    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
-    const ctx = j.hookSpecificOutput && j.hookSpecificOutput.additionalContext || "";
-    const skills = [
-      "hyper-research","hyper-plan","hyper-plan-review","hyper-code-review",
-      "hyper-docs-sync","hyper-docs-review","hyper-implement","hyper-tdd","hyper-debug"
-    ];
-    const passed = j.continue === true &&
-      j.hookSpecificOutput && j.hookSpecificOutput.hookEventName === "SessionStart" &&
-      skills.every(s => ctx.includes(s));
-    process.exit(passed ? 0 : 1);
-  '; then
-    ok "SessionStart hook golden-path: continue, hookEventName, all 9 skills in additionalContext"
-  else
-    miss "SessionStart hook golden-path assertion failed: $out"
-  fi
+if node -e '
+  const { execSync } = require("child_process");
+  const fs = require("fs");
+  const raw = execSync(
+    "printf \x27{\"session_id\":\"smoke\",\"source\":\"startup\"}\x27 | node hooks/session-start-reminder.mjs",
+    { encoding: "utf8" }
+  );
+  const j = JSON.parse(raw);
+  const additionalContext = j.hookSpecificOutput && j.hookSpecificOutput.additionalContext;
+  const template = fs.readFileSync("templates/hooks/session-start-reminder.md", "utf8");
+  const passed = j.continue === true &&
+    j.hookSpecificOutput && j.hookSpecificOutput.hookEventName === "SessionStart" &&
+    additionalContext === template;
+  process.exit(passed ? 0 : 1);
+' 2>/dev/null; then
+  ok "SessionStart hook golden-path: additionalContext equals templates/hooks/session-start-reminder.md byte-for-byte"
 else
-  miss "SessionStart hook golden-path invocation failed: $out"
+  miss "SessionStart hook golden-path: additionalContext equals templates/hooks/session-start-reminder.md byte-for-byte"
 fi
 
 out=$(node <<'NODE_EOF' 2>&1
@@ -223,12 +223,28 @@ if out=$(printf 'not json' | node hooks/session-start-reminder.mjs 2>&1); then
     const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
     process.exit(j.continue === true && j.suppressOutput === true ? 0 : 1);
   '; then
-    ok "SessionStart hook fail-open: invalid input yields continue=true suppressOutput=true"
+    ok "SessionStart hook fail-open: invalid stdin JSON → suppressOutput"
   else
-    miss "SessionStart hook fail-open assertion failed: $out"
+    miss "SessionStart hook fail-open: invalid stdin JSON → suppressOutput assertion failed: $out"
   fi
 else
-  miss "SessionStart hook fail-open invocation failed: $out"
+  miss "SessionStart hook fail-open: invalid stdin JSON → suppressOutput invocation failed: $out"
+fi
+
+if out=$(
+  (
+    tmp=$(mktemp -d -t sshr.XXXXXX)
+    bak="$tmp/session-start-reminder.md"
+    trap '[ -e "$bak" ] && mv "$bak" templates/hooks/session-start-reminder.md 2>/dev/null; rmdir "$tmp" 2>/dev/null' EXIT
+    mv templates/hooks/session-start-reminder.md "$bak"
+    printf '{"session_id":"smoke","source":"startup"}' \
+      | node hooks/session-start-reminder.mjs \
+      | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8")); process.exit(j.continue===true && j.suppressOutput===true ? 0 : 1)'
+  ) 2>&1
+); then
+  ok "SessionStart hook fail-open: missing template → suppressOutput"
+else
+  miss "SessionStart hook missing-template fail-open failed: $out"
 fi
 
 echo
