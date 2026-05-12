@@ -27,11 +27,19 @@ async function newestMarkdown(dir) {
   }
   const mdFiles = entries.filter((f) => f.endsWith('.md'));
   if (mdFiles.length === 0) return null;
-  const stats = await Promise.all(mdFiles.map(async (name) => {
+  // Stat per-file with a local catch so one broken symlink, permission error,
+  // or readdir/stat race cannot reject the whole Promise.all and disable the
+  // SessionStart hook (the snapshot is optional local state).
+  const stats = (await Promise.all(mdFiles.map(async (name) => {
     const path = resolve(dir, name);
-    const st = await stat(path);
-    return { name, path, mtime: st.mtimeMs };
-  }));
+    try {
+      const st = await stat(path);
+      return { name, path, mtime: st.mtimeMs };
+    } catch {
+      return null;
+    }
+  }))).filter(Boolean);
+  if (stats.length === 0) return null;
   stats.sort((a, b) => b.mtime - a.mtime);
   return stats[0];
 }
