@@ -161,14 +161,6 @@ do
 done
 
 echo
-echo "==> No shadowing commands/ files"
-if [ -e commands ]; then
-  miss "commands/ directory exists — drop it. /hyperclaude:* invocations resolve via skills/ alone."
-else
-  ok "no commands/ directory (skills/ provides slash invocations)"
-fi
-
-echo
 echo "==> SessionStart hook"
 if node --check hooks/session-start-reminder.mjs 2>/dev/null; then
   ok "node --check hooks/session-start-reminder.mjs"
