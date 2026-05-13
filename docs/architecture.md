@@ -10,7 +10,7 @@ hyperclaude wires three things together:
 - **Agents** — sub-Claude personas with restricted tool sets. Each is one `<name>.md` under [agents/](../agents/).
 - **Bridge** — [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs), a Node 18+ stdlib script that shells out to `codex` and writes structured output under `.hyperclaude/`.
 
-There is no daemon, no MCP server, no shared process state. The bridge runs on demand; skills and agents are static markdown. The only persisted state is `.hyperclaude/` artifacts (one markdown file per gate run); they are read back by `--resume` for thread-id discovery.
+There is no daemon, no MCP server, no shared process state. The bridge runs on demand; skills and agents are static markdown. The primary persisted state is `.hyperclaude/` artifacts — gate runs produce one markdown file each, read back by `--resume` for thread-id discovery; the hyper-loop layer additionally maintains JSON state files whose lifecycle spans multiple turns within a session.
 
 ## Directory layout
 
@@ -19,6 +19,7 @@ hyperclaude/
 ├── .claude-plugin/
 │   ├── plugin.json              plugin manifest (name, version, repo)
 │   └── marketplace.json         marketplace listing (consumed by `/plugin marketplace add`)
+├── commands/                    argv-bearing slash commands (e.g. `/hyperclaude:hyper-loop <plan>`). Explicit-gesture entries, distinct from skills' description-triggered dispatch.
 ├── skills/                      one directory per skill, each with SKILL.md
 │   ├── hyper-research/          gate — Codex research
 │   ├── hyper-plan-review/       gate — Codex plan critique
@@ -29,6 +30,7 @@ hyperclaude/
 │   ├── hyper-tdd/               helper — TDD discipline
 │   └── hyper-debug/             helper — debugging discipline
 ├── agents/                      sub-Claude personas (planner, implementer, verifier, documenter)
+├── hooks/                       event-bound hook scripts (SessionStart, UserPromptExpansion, Stop)
 ├── scripts/
 │   ├── codex-bridge.mjs         CLI entry; re-exports the helpers below
 │   ├── codex/                   bridge modules (slug, frontmatter, git, templates,
@@ -97,6 +99,33 @@ CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modu
 ### SessionStart hook
 
 The [SessionStart hook](../hooks/session-start-reminder.mjs) is template-driven: it reads [templates/hooks/session-start-reminder.md](../templates/hooks/session-start-reminder.md) at runtime and injects its contents as `additionalContext`. If the template file is missing, the hook fails open and does not raise an error. This design allows the workflow reminder text to be edited without touching code.
+
+### Hyper-loop (commands + intake/Stop hooks)
+
+Two commands and two hooks form a self-contained ralph-style loop layer over `hyper-implement`.
+
+**Commands:**
+
+- `commands/hyper-loop.md` — `/hyperclaude:hyper-loop <plan-path> [--max=N]`. Starts an iteration loop. Default `--max=10`, range 1–1000. Thin dispatcher; the intake hook does the state work.
+- `commands/hyper-loop-cancel.md` — `/hyperclaude:hyper-loop-cancel <plan-path>`. Flips `active: false`. Works even when the plan file has been deleted.
+
+**State files:** `.hyperclaude/loops/<sanitized-slug>__<sanitized-session_id>.json`. Body: `{active, iteration, max, plan_path, session_id, started_at}`. Per-session per-slug. Distinct from the markdown gate-run artifacts.
+
+**Session-scoping mechanism:** The intake hook fires on the `UserPromptExpansion` event, which carries `session_id` in its stdin payload. At command-issue time the hook writes the state file bound to that `session_id`. Markdown commands cannot read `session_id` directly (no env var); the hook does it for them.
+
+**Stop hook:** on each turn the Stop hook scans `.hyperclaude/loops/` for a state file matching the current `session_id` with `active: true`. Three decision branches:
+
+1. **All plan checkboxes done** — blocks with "all plan tasks complete; run /hyperclaude:hyper-code-review then exit".
+2. **`iteration >= max`** — blocks with "max iterations reached" plus a cancel/restart suggestion.
+3. **Otherwise** — increments `iteration`, blocks with "[HYPER-LOOP iter N/M] K unchecked tasks remain; continue per /hyperclaude:hyper-implement protocol".
+
+Unchecked-checkbox regex: `/^\s*- \[ \]/gm` (leading whitespace allowed — nested checkboxes count). This differs from `session-start-reminder.mjs`'s root-only `/^- \[ \]/gm`.
+
+**Multi-match guard:** if two state files match the same `session_id` with `active: true` (corrupt or manual state), the Stop hook blocks and asks the user to cancel one.
+
+**Recovery path:** if the plan file is missing when the Stop hook runs, it surfaces a quoted cancel command so the user can escape cleanly.
+
+**Invariant:** neither hook spawns codex. This is pure orchestration — the "Claude builds, Codex reviews" model is unchanged.
 
 ### Sandbox policy
 
@@ -210,7 +239,8 @@ Codex gates and Claude-authored plans write artifacts to `.hyperclaude/` in the 
 ├── plans/           Claude-authored implementation plans (manual; the slug feeds plan-reviews/)
 ├── plan-reviews/    Codex critiques of plans (plan-review mode)
 ├── code-reviews/    Codex code-review outputs (code-review mode)
-└── docs-reviews/    Codex docs accuracy outputs (docs-review mode)
+├── docs-reviews/    Codex docs accuracy outputs (docs-review mode)
+└── loops/           JSON state files for hyper-loop; per-session per-slug; distinct from the markdown gate-run artifacts
 ```
 
 Naming is consistent across all subdirs: `<YYYYMMDD-HHMM>-<slug>.md`. The slug is the trace key — a `research` slug carries through to the `plan` written by Claude, then into the `plan-review` of that plan. The bridge's `extractSlugFromPlanFilename()` reuses the slug from a plan filename when invoking `plan-review`, so the trio shares a slug end-to-end.
