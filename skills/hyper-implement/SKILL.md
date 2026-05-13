@@ -47,7 +47,7 @@ For EACH task in order:
 1. **Implementer.** Dispatch via the Agent tool. Prefer `subagent_type: hyperclaude:implementer`. Prompt MUST include:
    - The full task text (paste it; do not make the subagent re-read the plan file).
    - Project context: where this fits, recent commits, base SHA before this task.
-   - Global constraints from the plan's preamble (zero deps, sandbox rules, no `commands/` directory, etc.).
+   - Global constraints from the plan's preamble (zero deps, sandbox invariant, naming traps, etc.).
    - A self-review checklist before reporting back.
    - Expected report format: status (DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT), files changed, test counts, commit SHA.
 
@@ -71,9 +71,9 @@ For EACH task in order:
 
 4. **Verifier — when tests or build steps changed.** If the task added or modified test files (`tests/**`, `*.test.*`, `*.spec.*`) or build/CI configuration (`package.json` scripts, smoke script, CI workflow), dispatch `subagent_type: hyperclaude:verifier`. Verifier runs `node --test`, `bash scripts/test/smoke.sh`, lint, etc. and reports PASS / PARTIAL / FAIL with verbatim output. Verifier never modifies files. Skip the verifier when the task didn't touch tests or build inputs — the spec/quality reviews above already cover code correctness.
 
-5. **Mark task complete in TodoWrite.** Move on.
+5. **Mark the task's step checkboxes as `- [x]` in the plan file.** After both reviews approve, use the Edit tool to convert every `- [ ]` inside the current `## Task N: <title>` block to `- [x]`. Scope is the task block only — leave other tasks' boxes alone. This keeps the plan file's checkbox state the durable source of "what's done", which `/hyperclaude:hyper-loop`'s Stop hook reads to decide when the loop has naturally completed. Do this BEFORE the TodoWrite update so the durable artifact lands first.
 
-6. **Mark the task's step checkboxes as `- [x]` in the plan file.** After both reviews approve, use the Edit tool to convert every `- [ ]` inside the current `## Task N: <title>` block to `- [x]`. Scope is the task block only — leave other tasks' boxes alone. This keeps the plan file's checkbox state the durable source of "what's done", which `/hyperclaude:hyper-loop`'s Stop hook reads to decide when the loop has naturally completed.
+6. **Mark task complete in TodoWrite.** Move on.
 
 ### Step 4 — Final pass
 
