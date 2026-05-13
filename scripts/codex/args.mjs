@@ -23,7 +23,7 @@ export function parseArgs(argv) {
     planPath: null,
     out: null,
     dryRun: false,
-    timeout: 300,
+    timeout: 600,
     reviewTarget: null,
     baseRef: null,
     commit: null,

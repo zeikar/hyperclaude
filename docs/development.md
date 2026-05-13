@@ -66,7 +66,7 @@ node scripts/codex-bridge.mjs docs-review --docs-path README.md
 node scripts/codex-bridge.mjs research --task "test" --dry-run
 ```
 
-Output goes to mode-specific subdirectories of `.hyperclaude/` by default — `.hyperclaude/research/`, `.hyperclaude/plan-reviews/`, `.hyperclaude/code-reviews/`, `.hyperclaude/docs-reviews/`. Override with `--out`. Set `--timeout <seconds>` for slow networks (default 300s). `--resume` is supported for `plan-review`, `docs-review`, and `code-review`; not `research`. See [architecture.md](architecture.md#cli-surface) for the full flag reference.
+Output goes to mode-specific subdirectories of `.hyperclaude/` by default — `.hyperclaude/research/`, `.hyperclaude/plan-reviews/`, `.hyperclaude/code-reviews/`, `.hyperclaude/docs-reviews/`. Override with `--out`. Set `--timeout <seconds>` for slow networks (default 600s). `--resume` is supported for `plan-review`, `docs-review`, and `code-review`; not `research`. See [architecture.md](architecture.md#cli-surface) for the full flag reference.
 
 ## Tests
 

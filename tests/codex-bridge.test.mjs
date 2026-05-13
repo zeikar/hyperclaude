@@ -107,7 +107,7 @@ test('parseArgs: research mode', () => {
     planPath: null,
     out: null,
     dryRun: false,
-    timeout: 300,
+    timeout: 600,
     reviewTarget: null,
     baseRef: null,
     commit: null,
@@ -156,14 +156,14 @@ test('parseArgs: --timeout must be a positive finite number', () => {
     () => parseArgs(['research', '--task', 'x', '--timeout', '0']),
     /--timeout/
   );
-  // Default (300) and explicit positive values are accepted.
-  assert.equal(parseArgs(['research', '--task', 'x']).timeout, 300);
+  // Default (600) and explicit positive values are accepted.
+  assert.equal(parseArgs(['research', '--task', 'x']).timeout, 600);
   assert.equal(parseArgs(['research', '--task', 'x', '--timeout', '60']).timeout, 60);
 });
 
 test('buildInvocation: derives slug and output path for research', () => {
   const inv = buildInvocation({
-    args: { mode: 'research', task: 'add OAuth login', slug: null, out: null, dryRun: true, timeout: 300, planPath: null },
+    args: { mode: 'research', task: 'add OAuth login', slug: null, out: null, dryRun: true, timeout: 600, planPath: null },
     now: new Date('2026-05-10T10:15:30.000Z'),
   });
   assert.equal(inv.slug, 'add-oauth-login');
@@ -173,7 +173,7 @@ test('buildInvocation: derives slug and output path for research', () => {
 
 test('buildInvocation: timestamp-only filename when slug derivation fails', () => {
   const inv = buildInvocation({
-    args: { mode: 'research', task: '한글만', slug: null, out: null, dryRun: true, timeout: 300, planPath: null },
+    args: { mode: 'research', task: '한글만', slug: null, out: null, dryRun: true, timeout: 600, planPath: null },
     now: new Date('2026-05-10T10:15:30.000Z'),
   });
   assert.equal(inv.slug, null);
@@ -190,7 +190,7 @@ test('buildInvocation: plan-review reuses plan slug, not the timestamp prefix', 
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: '.hyperclaude/plans/20260510-1015-oauth-login.md',
     },
     now: new Date('2026-05-10T11:30:00.000Z'),
@@ -207,7 +207,7 @@ test('buildInvocation: plan-review falls back to full basename for non-timestamp
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: 'docs/plans/oauth-login.md',
     },
     now: new Date('2026-05-10T11:30:00.000Z'),
@@ -223,7 +223,7 @@ test('buildInvocation: plan-review preserves long plan slugs (no re-slugify trun
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: '.hyperclaude/plans/20260510-1015-a-b-c-d-e-f.md',
     },
     now: new Date('2026-05-10T11:30:00.000Z'),
@@ -240,7 +240,7 @@ test('buildInvocation: appends -2, -3 suffixes on filesystem collision', () => {
       slug: null,
       out: tmp,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
     };
     const now = new Date('2026-05-10T10:15:00.000Z');
@@ -542,7 +542,7 @@ test('buildInvocation: code-review --base main → slug vs-main, dir .hyperclaud
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: 'base',
       baseRef: 'main',
@@ -563,7 +563,7 @@ test('buildInvocation: code-review --base origin/main → slug vs-origin-main', 
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: 'base',
       baseRef: 'origin/main',
@@ -583,7 +583,7 @@ test('buildInvocation: code-review --base release/2026.05 → slug vs-release-20
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: 'base',
       baseRef: 'release/2026.05',
@@ -603,7 +603,7 @@ test('buildInvocation: code-review --base feature_branch → slug vs-feature-bra
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: 'base',
       baseRef: 'feature_branch',
@@ -623,7 +623,7 @@ test('buildInvocation: code-review --uncommitted → slug uncommitted', () => {
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: 'uncommitted',
       baseRef: null,
@@ -643,7 +643,7 @@ test('buildInvocation: code-review --commit abc1234f → slug commit-abc1234 (fi
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: 'commit',
       baseRef: null,
@@ -663,7 +663,7 @@ test('buildInvocation: code-review --commit abc1234f567890 → slug commit-abc12
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: 'commit',
       baseRef: null,
@@ -1101,7 +1101,7 @@ test('buildInvocation: docs-review --docs-path docs/api.md → slug api, dir .hy
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: null,
       baseRef: null,
@@ -1125,7 +1125,7 @@ test('buildInvocation: docs-review --docs-path README.md → slug readme', () =>
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: null,
       baseRef: null,
@@ -1148,7 +1148,7 @@ test('buildInvocation: docs-review --docs-path "API Reference.md" → slug api-r
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: null,
       baseRef: null,
@@ -1171,7 +1171,7 @@ test('buildInvocation: docs-review --docs-dir docs/reference/ → slug reference
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: null,
       baseRef: null,
@@ -1194,7 +1194,7 @@ test('buildInvocation: docs-review --docs-dir docs/ → slug docs', () => {
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: null,
       baseRef: null,
@@ -1217,7 +1217,7 @@ test('buildInvocation: docs-review --docs-path path/to/some-guide.md → slug so
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: null,
       baseRef: null,
@@ -1240,7 +1240,7 @@ test('buildInvocation: docs-review slug fallback to docs when slugify returns nu
       slug: null,
       out: null,
       dryRun: true,
-      timeout: 300,
+      timeout: 600,
       planPath: null,
       reviewTarget: null,
       baseRef: null,

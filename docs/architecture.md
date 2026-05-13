@@ -153,7 +153,7 @@ node scripts/codex-bridge.mjs <mode> [flags]
 
 Defaults:
 
-- `--timeout` 300s. Validated as a positive finite number.
+- `--timeout` 600s. Validated as a positive finite number. (Large code-review diffs can exceed 5 min on a fresh Codex thread; 600s default avoids token waste from premature timeouts. Pass an explicit `--timeout` for niche cases.)
 - `--out` defaults to the mode-specific output directory listed in the table above (`.hyperclaude/research/`, `.hyperclaude/plan-reviews/`, `.hyperclaude/code-reviews/`, `.hyperclaude/docs-reviews/`).
 - `--slug` is auto-derived: from the task text (`research`), the plan filename's slug suffix (`plan-review`), the base ref / commit short SHA / `uncommitted` (`code-review`), or the docs target's basename (`docs-review`). User-provided slugs must match `^[a-z0-9]+(?:-[a-z0-9]+){0,4}$`.
 - `--dry-run` for `research` / `plan-review` / `docs-review` validates the template loads but skips the codex spawn; `code-review` dry-run is a pure plan emission and does not require codex on PATH.
