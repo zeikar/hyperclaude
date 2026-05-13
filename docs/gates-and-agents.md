@@ -154,6 +154,38 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 
 ---
 
+## Commands
+
+Argv-bearing explicit-gesture slash entries. Distinct from skills (description-triggered dispatch) and hooks (event-bound).
+
+### `/hyperclaude:hyper-loop` — unattended plan iteration
+
+```
+/hyperclaude:hyper-loop <plan-path> [--max=N]
+```
+
+Starts a ralph-style iteration loop over the plan. Default `--max=10`, range 1–1000. The intake hook (`UserPromptExpansion` event) writes session-scoped state to `.hyperclaude/loops/<sanitized-slug>__<sanitized-session_id>.json` at command-issue time. The Stop hook drives continuation each turn: it increments the iteration counter and blocks with the hyper-implement protocol prompt until all checkboxes are checked or `--max` is reached.
+
+The loop reuses the `/hyperclaude:hyper-implement` protocol — no new agent is introduced.
+
+**Use when:** long plans where each task is independent enough to run without per-task supervision (unattended / batch work).
+
+**Skip when:** one-off tasks, ambiguous plans, anything you want to drive turn-by-turn yourself.
+
+**Source:** [commands/hyper-loop.md](../commands/hyper-loop.md).
+
+### `/hyperclaude:hyper-loop-cancel` — cancel an active loop
+
+```
+/hyperclaude:hyper-loop-cancel <plan-path>
+```
+
+Flips `active: false` on the matching state file. Recovery path — works even when the plan file has been deleted.
+
+**Source:** [commands/hyper-loop-cancel.md](../commands/hyper-loop-cancel.md).
+
+---
+
 ## When to dispatch what
 
 | Situation | Use |
@@ -162,6 +194,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 | Need an ordered plan with verification per step | `/hyperclaude:hyper-plan` (wraps the `planner` agent) |
 | Plan written; want Codex to critique it | `/hyperclaude:hyper-plan-review` |
 | Multi-task plan ready; want disciplined execution | `/hyperclaude:hyper-implement` |
+| Iterating a plan to completion unattended | `/hyperclaude:hyper-loop <plan>` |
 | One concrete coded step, no plan needed | `implementer` agent directly |
 | Need to confirm tests / build pass | `verifier` agent |
 | Code change might affect docs | `/hyperclaude:hyper-docs-sync` |

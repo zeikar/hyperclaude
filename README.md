@@ -56,7 +56,7 @@ Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step 
 
 Three layers:
 
-1. **Slash commands** — `/hyperclaude:hyper-research`, `/hyperclaude:hyper-plan`, `/hyperclaude:hyper-plan-review`, `/hyperclaude:hyper-code-review`, `/hyperclaude:hyper-docs-sync`, `/hyperclaude:hyper-docs-review`, `/hyperclaude:hyper-implement` (plugin-namespaced per Claude Code's contract)
+1. **Slash commands** — `/hyperclaude:hyper-research`, `/hyperclaude:hyper-plan`, `/hyperclaude:hyper-plan-review`, `/hyperclaude:hyper-code-review`, `/hyperclaude:hyper-docs-sync`, `/hyperclaude:hyper-docs-review`, `/hyperclaude:hyper-implement` (plugin-namespaced per Claude Code's contract); **explicit-gesture commands** — `/hyperclaude:hyper-loop <plan> [--max=N]` (unattended plan iteration loop), `/hyperclaude:hyper-loop-cancel <plan>` (cancel an active loop)
 2. **Skills** — Codex gates (`hyper-research`, `hyper-plan-review`, `hyper-code-review`, `hyper-docs-review`) + Claude orchestrators (`hyper-plan`, `hyper-docs-sync`) + plan execution (`hyper-implement`) + implementation discipline (`hyper-tdd`, `hyper-debug`)
 3. **Agents** — Claude implementation arm (`planner`, `implementer`, `verifier`, `documenter`)
 
