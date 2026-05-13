@@ -73,6 +73,8 @@ For EACH task in order:
 
 5. **Mark task complete in TodoWrite.** Move on.
 
+6. **Mark the task's step checkboxes as `- [x]` in the plan file.** After both reviews approve, use the Edit tool to convert every `- [ ]` inside the current `## Task N: <title>` block to `- [x]`. Scope is the task block only — leave other tasks' boxes alone. This keeps the plan file's checkbox state the durable source of "what's done", which `/hyperclaude:hyper-loop`'s Stop hook reads to decide when the loop has naturally completed.
+
 ### Step 4 — Final pass
 
 After all tasks:
