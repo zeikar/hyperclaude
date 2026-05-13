@@ -13,8 +13,8 @@ The plugin is meant to be installed into Claude Code (`/plugin install hyperclau
 Prerequisites: Node 18+, `codex-cli >= 0.130.0` on PATH, `git`. No `npm install` step — stdlib only.
 
 ```bash
-node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs
-                                          # unit tests (~232 cases). NOTE: `node --test tests/*.mjs`
+node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs tests/hyper-loop-intake.test.mjs tests/hyper-loop-stop.test.mjs
+                                          # unit tests. NOTE: `node --test tests/*.mjs`
                                           # works too; `node --test tests/` (dir form) does NOT — it
                                           # interprets the path as a test name and fails.
 node --test tests/codex-bridge.test.mjs --test-name-pattern "<regex>"
