@@ -41,7 +41,8 @@ hyperclaude/
 │   ├── plan-review.md
 │   ├── plan-review-resumed.md
 │   ├── docs-review.md
-│   └── docs-review-resumed.md
+│   ├── docs-review-resumed.md
+│   └── code-review-resumed.md
 ├── templates/hooks/             hook prompt templates (SessionStart hook reads session-start-reminder.md)
 ├── tests/                       node --test unit tests for the bridge
 ├── docs/                        this directory
@@ -93,7 +94,7 @@ CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modu
 |---------------|---------------------------------------------------|------------------------------------|----------------------------------|
 | `research`    | `codex exec --sandbox read-only -` (stdin prompt) | [templates/codex/research.md](../templates/codex/research.md)       | `.hyperclaude/research/`         |
 | `plan-review` | `codex exec --sandbox read-only -` (stdin prompt) | [templates/codex/plan-review.md](../templates/codex/plan-review.md)         | `.hyperclaude/plan-reviews/`     |
-| `code-review` | `codex exec review -c sandbox_mode=read-only [--base \| --uncommitted \| --commit]` | none — `codex exec review` owns its prompt | `.hyperclaude/code-reviews/`     |
+| `code-review` | `codex exec review -c sandbox_mode=read-only [--base \| --uncommitted \| --commit]` | fresh: none — `codex exec review` owns its prompt; resume: [templates/codex/code-review-resumed.md](../templates/codex/code-review-resumed.md) | `.hyperclaude/code-reviews/`     |
 | `docs-review` | `codex exec --sandbox read-only -` (stdin prompt) | [templates/codex/docs-review.md](../templates/codex/docs-review.md)    | `.hyperclaude/docs-reviews/`     |
 
 ### SessionStart hook
@@ -132,8 +133,8 @@ Unchecked-checkbox regex: `/^\s*- \[ \]/gm` (leading whitespace allowed — nest
 Three cases, all read-only:
 
 - **Fresh `codex exec`** (`research`, `plan-review`, `docs-review`): passes `--sandbox read-only` flag. Codex cannot write to the workspace regardless of the user's `~/.codex/config.toml` defaults.
-- **`codex exec resume`** (`plan-review`, `docs-review` with `--resume`): no `--sandbox` flag; instead passes `-c sandbox_mode=read-only` as a config override (resume does not inherit the original session's sandbox).
-- **`codex exec review`** (`code-review`): no `--sandbox` flag; passes `-c sandbox_mode=read-only` as a config override. `codex exec review` is a review-only subcommand and does not author patches.
+- **`codex exec resume`** (`plan-review`, `docs-review`, `code-review` with `--resume`): no `--sandbox` flag; instead passes `-c sandbox_mode=read-only` as a config override (resume does not inherit the original session's sandbox).
+- **`codex exec review`** (fresh `code-review`): no `--sandbox` flag; passes `-c sandbox_mode=read-only` as a config override. `codex exec review` is a review-only subcommand and does not author patches.
 
 Net result: Codex is a *critic*, never an *editor*, in every mode.
 
@@ -147,7 +148,7 @@ node scripts/codex-bridge.mjs <mode> [flags]
 |---------------|------------------------------------------------------------|--------------------------------------------------------------------------------------|
 | `research`    | `--task <text>` OR `--task-file <path>`                    | `--slug`, `--out`, `--timeout`, `--dry-run`                                          |
 | `plan-review` | `--plan-path <path>`                                       | `--resume <path\|auto>`, `--slug`, `--out`, `--timeout`, `--dry-run`                 |
-| `code-review` | none — defaults to `--base main`                           | one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--title`, `--out`, `--timeout`, `--dry-run` |
+| `code-review` | none — defaults to `--base main`                           | one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--resume <path\|auto>`, `--title`, `--out`, `--timeout`, `--dry-run` |
 | `docs-review` | `--docs-path <file>` OR `--docs-dir <dir>`                 | `--resume <path\|auto>`, `--diff-base <ref>`, `--out`, `--timeout`, `--dry-run`      |
 
 Defaults:
@@ -192,7 +193,7 @@ Filename: `<YYYYMMDD-HHMM>-<slug>.md` (UTC). Per-mode slug fallbacks:
 
 On collision, the bridge appends `-2`, `-3`, … until free.
 
-On success (non-dry-run, `plan-review` / `docs-review`) the script exits 0 and prints `{"ok":true,"path":"…","slug":"…","threadId":"<uuid>","resumeStatus":"<state>"}`. On failure those modes print `{"ok":false,"error":"…","path":"<path|null>","resumeStatus":"<state>","threadId":"<uuid|null>"}`. `code-review` success / failure prints `threadId` (when known) but no `resumeStatus` field — its frontmatter still records `codex-resume-status: fresh`. Research success / failure uses the same v0.3 shape (no `threadId` / `resumeStatus` exposed). `--dry-run` skips the write and prints `{"ok":true,"dryRun":true,"mode":"…","slug":"…","outputPath":"…","timestamp":"…"}` (unchanged for all modes).
+On success (non-dry-run, `plan-review` / `docs-review` / `code-review`) the script exits 0 and prints `{"ok":true,"path":"…","slug":"…","threadId":"<uuid>","resumeStatus":"<state>"}`. On failure those modes print `{"ok":false,"error":"…","path":"<path|null>","resumeStatus":"<state>","threadId":"<uuid|null>"}`. Research success / failure uses the same v0.3 shape (no `threadId` / `resumeStatus` exposed). `--dry-run` skips the write and prints `{"ok":true,"dryRun":true,"mode":"…","slug":"…","outputPath":"…","timestamp":"…"}` (unchanged for all modes).
 
 Exits are: argv errors (exit 2), missing/unreadable input (exit 1), failed `git diff` for `--diff-base` (exit 1), template load failures (exit 1), Codex spawn / non-zero / timeout (exit 1), oversized payloads (exit 1, with byte count), resume budget exceeded (exit 1; no fallback). Filesystem failures during output (`mkdir`, `writeFile`) propagate as unhandled rejections — they only fire when the caller's `.hyperclaude/` directory is unwritable. Even on Codex failure the file is still written with a structured failure body (see below).
 

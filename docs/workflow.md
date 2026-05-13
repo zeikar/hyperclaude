@@ -167,7 +167,7 @@ Code review also supports resume:
 /hyperclaude:hyper-code-review --resume .hyperclaude/code-reviews/20260510-1430-vs-main.md
 ```
 
-Resume reuses the prior Codex thread. The bridge sends a small follow-up ("the file has been revised; re-read it") and Codex re-reads from disk via read-only sandbox. The original docs payload + critique stay in conversation cache, so token cost drops dramatically.
+Resume reuses the prior Codex thread. The bridge sends a small follow-up — plan/docs modes say "the file has been revised; re-read it"; code-review embeds the exact git command (`{{TARGET_INSTRUCTION}}`) so the resumed `UserTurn` re-fetches the diff, since `codex exec resume` does not re-trigger native diff capture. In every mode Codex re-reads from disk via read-only sandbox. The original context + critique stay in conversation cache, so token cost drops dramatically.
 
 Validation: bridge re-checks same mode, same cwd, same plan-path / docs-target / diff-base (for code-review: same base ref, commit, or uncommitted state), prior thread-id present, prior `codex-resume-status` ∈ {fresh, resumed}. Mismatch behavior:
 

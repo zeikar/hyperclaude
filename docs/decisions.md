@@ -80,8 +80,8 @@ When to revisit: a specific error code shows up in a bug report.
 **Decision:** every Codex spawn enforces read-only, but the mechanism varies by subcommand:
 
 - **Fresh `codex exec`** (research / plan-review / docs-review): passes the `--sandbox read-only` flag.
-- **`codex exec resume`** (plan-review / docs-review with `--resume`): no `--sandbox` flag is exposed; passes `-c sandbox_mode=read-only` as a config override.
-- **`codex exec review`** (code-review): no `--sandbox` flag; passes `-c sandbox_mode=read-only` as a config override.
+- **`codex exec resume`** (plan-review / docs-review / code-review with `--resume`): no `--sandbox` flag is exposed; passes `-c sandbox_mode=read-only` as a config override.
+- **`codex exec review`** (fresh code-review): no `--sandbox` flag; passes `-c sandbox_mode=read-only` as a config override.
 
 `code-review` was migrated from the bare `codex review` subcommand to `codex exec review` in v0.4. Same review-only behavior, but gains JSONL stream, thread-id capture, structured failure body, and shared spawn helper. Native review prompt is preserved (no positional prompt, no stdin pipe).
 
@@ -94,7 +94,7 @@ When to revisit: a specific error code shows up in a bug report.
 
 ### Resume requires `-c sandbox_mode=read-only`
 
-**Decision:** `runCodexResume` in `scripts/codex-bridge.mjs` explicitly passes `-c sandbox_mode=read-only` on every `codex exec resume` call.
+**Decision:** `runCodexResume` (defined in `scripts/codex/codex.mjs` and re-exported via `scripts/codex-bridge.mjs`) explicitly passes `-c sandbox_mode=read-only` on every `codex exec resume` call.
 
 **Why:** `codex exec resume` does NOT inherit the original session's `--sandbox` flag. Verified empirically: a session originally spawned with `--sandbox read-only` then resumed without sandbox config wrote files freely (both `/tmp` and the workspace). Adding `-c sandbox_mode=read-only` to the resume argv enforces read-only correctly and preserves the bridge's hard contract — Codex never writes the workspace — across resume.
 
@@ -111,7 +111,7 @@ When to revisit: a specific error code shows up in a bug report.
 
 ### Resumed prompts are minimal follow-ups; bridge owns file list and size budgets, not Codex
 
-**Decision:** the resumed prompt does NOT re-upload the docs or plan payload. It names the changed file, asks Codex to re-read via the read-only sandbox, and (for `docs-review --docs-dir`) embeds the exact aggregated file list. Codex's prompt cache covers the original payload across the conversation.
+**Decision:** the resumed prompt does NOT re-upload the original payload (docs, plan, or code diff). For `plan-review` and `docs-review` it names the changed file and asks Codex to re-read via the read-only sandbox; for `docs-review --docs-dir` it embeds the exact aggregated file list; for `code-review` it embeds explicit git commands (`{{TARGET_INSTRUCTION}}`) so the resumed `UserTurn` re-fetches the diff (since `codex exec resume` does not re-trigger native diff capture). Codex's prompt cache covers the original payload across the conversation.
 
 **Why:** re-uploading defeats the token-savings purpose of resume. The trade-off is that the bridge re-runs the 200KB / 500KB size budgets on resume to ensure Codex isn't asked to re-read a payload that's now too large. If the budget is exceeded on resume, the bridge fails (not a silent fallback) because the user changed the situation.
 
@@ -152,7 +152,7 @@ When to revisit: a specific error code shows up in a bug report.
 
 **Why:**
 - Plugins should be cheap to install and audit. A Claude Code user who runs `/plugin install hyperclaude` should not also need `npm install` for a plugin to work.
-- The bridge is one file (~1.4k lines as of v0.4). A YAML parser, a fancy CLI lib, a templating engine — none earn their weight here.
+- The bridge code lives in `scripts/codex-bridge.mjs` (the CLI entry that owns mode dispatch) plus leaf modules under `scripts/codex/` (`args`, `paths`, `resume`, `templates`, `frontmatter`, `slug`, `git`, `codex`, `failure`). A YAML parser, a fancy CLI lib, a templating engine — none earn their weight here.
 - Stdlib forces simpler design: regex slugs, tagged template strings instead of Handlebars, hand-rolled argv parsing instead of yargs.
 
 **Cost accepted:** a custom argv parser that has to be tested per-mode (`ALLOWED_FLAGS_PER_MODE`); manual frontmatter rendering. Both are covered by unit tests.
