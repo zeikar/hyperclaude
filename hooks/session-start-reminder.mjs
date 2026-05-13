@@ -13,7 +13,7 @@ const templatePath = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'tem
 const SNAPSHOT_SECTIONS = [
   { dir: 'plans', label: 'Active plan', countUnchecked: true },
   { dir: 'research', label: 'Recent research' },
-  { dir: 'reviews', label: 'Recent plan-review' },
+  { dir: 'plan-reviews', label: 'Recent plan-review' },
   { dir: 'code-reviews', label: 'Recent code-review' },
   { dir: 'docs-reviews', label: 'Recent docs-review' },
 ];

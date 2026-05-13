@@ -60,7 +60,7 @@ export function buildInvocation({ args, now = new Date() }) {
         ? slugify(args.task)
         : extractSlugFromPlanFilename(args.planPath)
     );
-    dir = args.out ?? `.hyperclaude/${args.mode === 'research' ? 'research' : 'reviews'}`;
+    dir = args.out ?? `.hyperclaude/${args.mode === 'research' ? 'research' : 'plan-reviews'}`;
   }
   const filename = slug ? `${timestamp}-${slug}.md` : `${timestamp}.md`;
   const baseOutputPath = path.join(dir, filename);

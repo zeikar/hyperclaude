@@ -11,7 +11,7 @@ import { parseFrontmatter } from './frontmatter.mjs';
 // .hyperclaude/. Mirrors the implicit mapping in buildInvocation.
 export function defaultModeDir(mode) {
   if (mode === 'research') return '.hyperclaude/research';
-  if (mode === 'review') return '.hyperclaude/reviews';
+  if (mode === 'plan-review') return '.hyperclaude/plan-reviews';
   if (mode === 'code-review') return '.hyperclaude/code-reviews';
   if (mode === 'docs-review') return '.hyperclaude/docs-reviews';
   throw new Error(`unknown mode: ${mode}`);
@@ -26,7 +26,7 @@ export function defaultModeDir(mode) {
 //  3. cwd matches process.cwd() under path.resolve()
 //  4. codex-thread-id is truthy
 //  5. codex-resume-status is fresh or resumed (not fallback / resume-failed)
-//  6. mode-specific identity (plan-path for review; docs-target+diff-base for docs-review)
+//  6. mode-specific identity (plan-path for plan-review; docs-target+diff-base for docs-review)
 export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   let text;
   try {
@@ -54,7 +54,7 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   if (status !== 'fresh' && status !== 'resumed') {
     return { error: `prior artifact has resume-status "${status ?? ''}"; only fresh/resumed eligible` };
   }
-  if (expectedMode === 'review') {
+  if (expectedMode === 'plan-review') {
     const prevPlan = fm['plan-path'];
     if (typeof prevPlan !== 'string' || path.resolve(prevPlan) !== path.resolve(currentArgs.planPath)) {
       return { error: 'prior artifact plan-path differs from current' };

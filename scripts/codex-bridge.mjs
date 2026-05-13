@@ -471,13 +471,13 @@ async function main(argv) {
     process.exit(1);
   }
 
-  // Review-only: try to resolve resume context before reading the plan, so
+  // Plan-review-only: try to resolve resume context before reading the plan, so
   // that an explicit-path validation failure short-circuits with a clean error.
   let resumeContext = null;
   let resumeFromPath = null;
   let resumeStatus = 'fresh';
-  if (args.mode === 'review' && args.resumeFrom) {
-    const r = await resolveResume('review', args);
+  if (args.mode === 'plan-review' && args.resumeFrom) {
+    const r = await resolveResume('plan-review', args);
     if (r.ok) {
       resumeContext = r.context;
       resumeFromPath = r.prevPath;
@@ -497,7 +497,7 @@ async function main(argv) {
   }
 
   let plan = '';
-  if (args.mode === 'review') {
+  if (args.mode === 'plan-review') {
     try {
       plan = await readFile(args.planPath, 'utf8');
     } catch (err) {
@@ -522,7 +522,7 @@ async function main(argv) {
 
   let templateText;
   try {
-    const templateName = (args.mode === 'review' && resumeContext) ? 'review-resumed' : args.mode;
+    const templateName = (args.mode === 'plan-review' && resumeContext) ? 'plan-review-resumed' : args.mode;
     templateText = await readTemplateFile(templateName);
   } catch (err) {
     process.stdout.write(JSON.stringify({
@@ -533,7 +533,7 @@ async function main(argv) {
   }
 
   let prompt;
-  if (args.mode === 'review' && resumeContext) {
+  if (args.mode === 'plan-review' && resumeContext) {
     prompt = loadTemplate(templateText, { PLAN_PATH: args.planPath });
   } else {
     prompt = loadTemplate(templateText, {
@@ -556,7 +556,7 @@ async function main(argv) {
 
   const subject =
     args.mode === 'research' ? args.task :
-    /* review */ args.planPath;
+    /* plan-review */ args.planPath;
 
   const fm = renderFrontmatter({
     mode: args.mode,
@@ -565,7 +565,7 @@ async function main(argv) {
     generated: new Date().toISOString(),
     codexVersion: v.version,
     templateVersion: 1,
-    planPath: args.mode === 'review' ? args.planPath : undefined,
+    planPath: args.mode === 'plan-review' ? args.planPath : undefined,
     cwd: process.cwd(),
     gitHead: getGitHead(),
     codexThreadId: result.threadId,
@@ -575,7 +575,7 @@ async function main(argv) {
 
   const heading = args.mode === 'research'
     ? `# Research: ${args.task}\n\n`
-    : `# Review: ${path.basename(args.planPath)}\n\n`;
+    : `# Plan review: ${path.basename(args.planPath)}\n\n`;
 
   const body = result.body;
   await writeFile(inv.outputPath, fm + heading + body, 'utf8');
@@ -586,7 +586,7 @@ async function main(argv) {
       error: result.reason,
       path: inv.outputPath,
     };
-    if (args.mode === 'review') {
+    if (args.mode === 'plan-review') {
       json.resumeStatus = resumeStatus;
       json.threadId = result.threadId;
     }
@@ -599,7 +599,7 @@ async function main(argv) {
     path: inv.outputPath,
     slug: inv.slug,
   };
-  if (args.mode === 'review') {
+  if (args.mode === 'plan-review') {
     json.threadId = result.threadId;
     json.resumeStatus = resumeStatus;
   }

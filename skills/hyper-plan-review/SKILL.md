@@ -5,7 +5,7 @@ description: Run Codex critique on an implementation plan. Use when the user inv
 
 # hyper-plan-review
 
-Plan review gate. Locates a plan file, sends it to Codex for critique, saves the review to `.hyperclaude/reviews/<timestamp>-<slug>.md`, and you read the review and refine the plan.
+Plan review gate. Locates a plan file, sends it to Codex for critique, saves the review to `.hyperclaude/plan-reviews/<timestamp>-<slug>.md`, and you read the review and refine the plan.
 
 ## When to use
 
@@ -66,7 +66,7 @@ In priority order:
 ### Step 2 — Run the bridge
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" review --plan-path "<resolved path>"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<resolved path>"
 ```
 
 If `--resume` was matched (Group 2 truthy), append `--resume <value>` to the argv passed to the bridge, where `<value>` is Group 3 if present, otherwise `auto`.
@@ -85,4 +85,4 @@ When you revise the plan, **always overwrite the same plan file in place**. Do n
 
 ## Output contract
 
-Review files have frontmatter (mode: review, task: plan path, slug, generated, codex-version, template-version, plan-path) followed by Issues / Improvements / Verdict sections.
+Review files have frontmatter (mode: plan-review, task: plan path, slug, generated, codex-version, template-version, plan-path) followed by Issues / Improvements / Verdict sections.

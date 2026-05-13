@@ -136,8 +136,8 @@ for f in \
   .claude-plugin/marketplace.json \
   scripts/codex-bridge.mjs \
   templates/codex/research.md \
-  templates/codex/review.md \
-  templates/codex/review-resumed.md \
+  templates/codex/plan-review.md \
+  templates/codex/plan-review-resumed.md \
   templates/codex/docs-review-resumed.md \
   templates/codex/code-review-resumed.md \
   templates/hooks/session-start-reminder.md \
@@ -215,7 +215,7 @@ if node -e '
   const footer = additionalContext.slice(template.length);
 
   // Determine whether .hyperclaude/ currently holds any artifacts.
-  const sections = ["plans", "research", "reviews", "code-reviews", "docs-reviews"];
+  const sections = ["plans", "research", "plan-reviews", "code-reviews", "docs-reviews"];
   let hasArtifacts = false;
   for (const s of sections) {
     const dir = path.join(".hyperclaude", s);

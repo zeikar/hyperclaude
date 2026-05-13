@@ -1060,10 +1060,10 @@ test('resume validation fail (explicit path, mode mismatch) → ok:false, no fre
 
     const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-dr-fail-out-'));
     try {
-      // Prior artifact has mode: review (mismatch with docs-review).
+      // Prior artifact has mode: plan-review (mismatch with docs-review).
       const prior = path.join(outDir, '20260510-1015-old.md');
       writePriorArtifact(prior, {
-        mode: 'review',
+        mode: 'plan-review',
         slug: 'old',
         cwd: process.cwd(),
         'plan-path': '/tmp/p.md',
@@ -1297,7 +1297,7 @@ test('resume auto honors --out: discovers prior under custom dir, not the defaul
   }
 });
 
-test('resume happy path: review --resume <prev> spawns exec resume', () => {
+test('resume happy path: plan-review --resume <prev> spawns exec resume', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-rev-ok-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -1311,7 +1311,7 @@ test('resume happy path: review --resume <prev> spawns exec resume', () => {
     try {
       const prior = path.join(outDir, '20260510-1130-oauth.md');
       writePriorArtifact(prior, {
-        mode: 'review',
+        mode: 'plan-review',
         slug: 'oauth',
         cwd: process.cwd(),
         'plan-path': planPath,
@@ -1321,7 +1321,7 @@ test('resume happy path: review --resume <prev> spawns exec resume', () => {
 
       const result = spawnSync(
         process.execPath,
-        [BRIDGE, 'review', '--plan-path', planPath, '--resume', prior, '--out', outDir],
+        [BRIDGE, 'plan-review', '--plan-path', planPath, '--resume', prior, '--out', outDir],
         {
           encoding: 'utf8',
           env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },

@@ -34,14 +34,14 @@ The bridge is a regular Node script. You can call it directly to debug a gate wi
 echo "add OAuth login to the API" > /tmp/task.txt
 node scripts/codex-bridge.mjs research --task-file /tmp/task.txt
 
-# Review
-node scripts/codex-bridge.mjs review --plan-path .hyperclaude/plans/<file>.md
+# Plan review
+node scripts/codex-bridge.mjs plan-review --plan-path .hyperclaude/plans/<file>.md
 
-# Review (resume — auto-discover the most recent matching prior review)
-node scripts/codex-bridge.mjs review --plan-path .hyperclaude/plans/<file>.md --resume auto
+# Plan review (resume — auto-discover the most recent matching prior review)
+node scripts/codex-bridge.mjs plan-review --plan-path .hyperclaude/plans/<file>.md --resume auto
 
-# Review (resume — from an explicit prior review)
-node scripts/codex-bridge.mjs review --plan-path .hyperclaude/plans/<file>.md --resume .hyperclaude/reviews/<prev>.md
+# Plan review (resume — from an explicit prior review)
+node scripts/codex-bridge.mjs plan-review --plan-path .hyperclaude/plans/<file>.md --resume .hyperclaude/plan-reviews/<prev>.md
 
 # Docs review (resume after fixing the file)
 node scripts/codex-bridge.mjs docs-review --docs-path docs/architecture.md --resume auto
@@ -60,7 +60,7 @@ node scripts/codex-bridge.mjs docs-review --docs-path README.md
 node scripts/codex-bridge.mjs research --task "test" --dry-run
 ```
 
-Output goes to mode-specific subdirectories of `.hyperclaude/` by default — `.hyperclaude/research/`, `.hyperclaude/reviews/`, `.hyperclaude/code-reviews/`, `.hyperclaude/docs-reviews/`. Override with `--out`. Set `--timeout <seconds>` for slow networks (default 300s). `--resume` is supported for `review` and `docs-review` only (not `research` or `code-review`). See [architecture.md](architecture.md#cli-surface) for the full flag reference.
+Output goes to mode-specific subdirectories of `.hyperclaude/` by default — `.hyperclaude/research/`, `.hyperclaude/plan-reviews/`, `.hyperclaude/code-reviews/`, `.hyperclaude/docs-reviews/`. Override with `--out`. Set `--timeout <seconds>` for slow networks (default 300s). `--resume` is supported for `plan-review` and `docs-review` only (not `research` or `code-review`). See [architecture.md](architecture.md#cli-surface) for the full flag reference.
 
 ## Tests
 
@@ -74,8 +74,8 @@ Both must pass cleanly before shipping a release. Zero npm dependencies; nothing
 The unit tests cover argument parsing, slug derivation, frontmatter rendering, file-collision handling, and per-mode invocation planning. The smoke script:
 
 - Runs the unit test suite (`node --test tests/*.mjs`).
-- Verifies that required plugin files exist (manifests, marketplace listing, every `SKILL.md` and agent file, the bridge, and the `research.md` / `review.md` templates). The resumed templates and `docs-review.md` are exercised by unit tests rather than smoke file checks.
-- Dry-runs the bridge for `research`, `code-review`, and `docs-review` and asserts each emits a JSON success line. (`review` is not dry-run by the smoke script.)
+- Verifies that required plugin files exist (manifests, marketplace listing, every `SKILL.md` and agent file, the bridge, and the `research.md` / `plan-review.md` templates). The resumed templates and `docs-review.md` are exercised by unit tests rather than smoke file checks.
+- Dry-runs the bridge for `research`, `code-review`, and `docs-review` and asserts each emits a JSON success line. (`plan-review` is not dry-run by the smoke script.)
 - When `codex` is on PATH, runs three Codex 0.130 surface probes: `codex exec review --help`, `codex exec resume --help`, and `codex exec review --base HEAD -c sandbox_mode=read-only --help` (verifies the `-c sandbox_mode=read-only` config key is accepted). Each probe failure prints an upgrade hint.
 - When `claude` is on PATH, runs `claude plugin validate .` to catch manifest drift.
 
@@ -124,9 +124,9 @@ Conventions:
 
 ## Templates
 
-Codex prompts live in [templates/codex/](../templates/codex/) — `research.md`, `review.md`, `review-resumed.md`, `docs-review.md`, `docs-review-resumed.md`. Variables are `{{UPPERCASE_KEY}}` (e.g. `{{TASK}}`, `{{PLAN}}`, `{{DOCS}}`, `{{DIFF}}`). Unknown placeholders are left literal.
+Codex prompts live in [templates/codex/](../templates/codex/) — `research.md`, `plan-review.md`, `plan-review-resumed.md`, `docs-review.md`, `docs-review-resumed.md`. Variables are `{{UPPERCASE_KEY}}` (e.g. `{{TASK}}`, `{{PLAN}}`, `{{DOCS}}`, `{{DIFF}}`). Unknown placeholders are left literal.
 
-- `review-resumed.md` — continuation prompt used when `--resume` is passed to `review`; substitutes `{{PLAN_PATH}}`.
+- `plan-review-resumed.md` — continuation prompt used when `--resume` is passed to `plan-review`; substitutes `{{PLAN_PATH}}`.
 - `docs-review-resumed.md` — continuation prompt used when `--resume` is passed to `docs-review`; substitutes `{{DOCS_TARGET}}`, `{{FILE_LIST_BLOCK}}` (rendered via `renderFileListBlock`), and `{{DIFF_BASE_BLOCK}}` (rendered via `renderDiffBaseBlock`).
 
 The `code-review` mode does not have a template; `codex exec review` owns its own prompt.

@@ -46,7 +46,7 @@ You can still dispatch the `planner` agent directly, or write the plan inline, w
 /hyperclaude:hyper-plan-review
 ```
 
-Auto-discovers the most recent plan in `.hyperclaude/plans/`. Writes `.hyperclaude/reviews/<timestamp>-<slug>.md` with Issues (Blocker / Major / Minor), Improvements, and Verdict.
+Auto-discovers the most recent plan in `.hyperclaude/plans/`. Writes `.hyperclaude/plan-reviews/<timestamp>-<slug>.md` with Issues (Blocker / Major / Minor), Improvements, and Verdict.
 
 Iterate: refine the plan, re-run `hyper-plan-review`. One or two refinement passes is normal; more than three usually means the plan was scoped too large — split it.
 

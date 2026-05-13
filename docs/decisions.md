@@ -79,8 +79,8 @@ When to revisit: a specific error code shows up in a bug report.
 
 **Decision:** every Codex spawn enforces read-only, but the mechanism varies by subcommand:
 
-- **Fresh `codex exec`** (research / review / docs-review): passes the `--sandbox read-only` flag.
-- **`codex exec resume`** (review / docs-review with `--resume`): no `--sandbox` flag is exposed; passes `-c sandbox_mode=read-only` as a config override.
+- **Fresh `codex exec`** (research / plan-review / docs-review): passes the `--sandbox read-only` flag.
+- **`codex exec resume`** (plan-review / docs-review with `--resume`): no `--sandbox` flag is exposed; passes `-c sandbox_mode=read-only` as a config override.
 - **`codex exec review`** (code-review): no `--sandbox` flag; passes `-c sandbox_mode=read-only` as a config override.
 
 `code-review` was migrated from the bare `codex review` subcommand to `codex exec review` in v0.4. Same review-only behavior, but gains JSONL stream, thread-id capture, structured failure body, and shared spawn helper. Native review prompt is preserved (no positional prompt, no stdin pipe).
@@ -134,9 +134,9 @@ When to revisit: a specific error code shows up in a bug report.
 
 ### Slug propagation via filename suffix
 
-**Decision:** plan files are named `<YYYYMMDD-HHMM>-<slug>.md`. The bridge's `extractSlugFromPlanFilename()` strips the timestamp and reuses the `<slug>` for the review file.
+**Decision:** plan files are named `<YYYYMMDD-HHMM>-<slug>.md`. The bridge's `extractSlugFromPlanFilename()` strips the timestamp and reuses the `<slug>` for the plan-review file.
 
-**Why:** the research → plan → review trio is naturally linked by topic. Sharing a slug across the three artifacts (and not requiring a manifest file) keeps the metadata in the filenames where it's already visible.
+**Why:** the research → plan → plan-review trio is naturally linked by topic. Sharing a slug across the three artifacts (and not requiring a manifest file) keeps the metadata in the filenames where it's already visible.
 
 **Rejected alternative:** a `.hyperclaude/manifest.json` tracking related artifacts. Adds a state file, adds parsing, adds a way to drift. Filenames are the simplest carrier.
 

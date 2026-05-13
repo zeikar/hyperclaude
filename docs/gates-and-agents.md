@@ -35,15 +35,15 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 ### `hyper-plan-review` — Codex plan critique
 
 - **Slash:** `/hyperclaude:hyper-plan-review [path/to/plan.md]`
-  - `--resume` — resume the most recent matching prior review (auto-discovers newest artifact in `.hyperclaude/reviews/` with same mode + cwd + plan-path; falls back to fresh run if none found, records `codex-resume-status: fallback`).
+  - `--resume` — resume the most recent matching prior review (auto-discovers newest artifact in `.hyperclaude/plan-reviews/` with same mode + cwd + plan-path; falls back to fresh run if none found, records `codex-resume-status: fallback`).
   - `--resume <prev-artifact-path>` — resume from an explicit prior review; validation fail → `ok:false`, no fresh run.
-- **Mode:** `review` (Codex `exec`, read-only sandbox).
+- **Mode:** `plan-review` (Codex `exec`, read-only sandbox).
 - **Auto-discovers:** the most recent file under `.hyperclaude/plans/` if no path is passed.
 - **Reads:** the plan markdown.
-- **Writes:** `.hyperclaude/reviews/<timestamp>-<slug>.md` — Issues (Blocker / Major / Minor), Improvements, and Verdict. Frontmatter records `codex-resume-status`: one of `fresh | resumed | fallback | resume-failed`.
-- **Slug:** reused from the plan filename, so the research → plan → review trio shares one slug for traceability.
+- **Writes:** `.hyperclaude/plan-reviews/<timestamp>-<slug>.md` — Issues (Blocker / Major / Minor), Improvements, and Verdict. Frontmatter records `codex-resume-status`: one of `fresh | resumed | fallback | resume-failed`.
+- **Slug:** reused from the plan filename, so the research → plan → plan-review trio shares one slug for traceability.
 - **Use when:** Claude has written a plan and you want Codex to find blockers before execution.
-- **Source:** [skills/hyper-plan-review/SKILL.md](../skills/hyper-plan-review/SKILL.md), template [templates/codex/review.md](../templates/codex/review.md).
+- **Source:** [skills/hyper-plan-review/SKILL.md](../skills/hyper-plan-review/SKILL.md), template [templates/codex/plan-review.md](../templates/codex/plan-review.md).
 
 ### `hyper-code-review` — Codex code review
 

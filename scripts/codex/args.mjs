@@ -4,14 +4,14 @@
 
 const ALLOWED_FLAGS_PER_MODE = {
   research:      new Set(['--task', '--task-file', '--slug', '--out', '--dry-run', '--timeout']),
-  review:        new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout', '--resume']),
+  'plan-review': new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout', '--resume']),
   'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--out', '--dry-run', '--timeout', '--resume']),
   'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--timeout', '--resume']),
 };
 
 export function parseArgs(argv) {
   const [mode, ...rest] = argv;
-  if (mode !== 'research' && mode !== 'review' && mode !== 'code-review' && mode !== 'docs-review') {
+  if (mode !== 'research' && mode !== 'plan-review' && mode !== 'code-review' && mode !== 'docs-review') {
     throw new Error(`unknown mode: ${mode}`);
   }
   const allowed = ALLOWED_FLAGS_PER_MODE[mode];
@@ -122,7 +122,7 @@ export function parseArgs(argv) {
   }
   if (mode === 'research' && out.task && out.taskFile) throw new Error('--task and --task-file are mutually exclusive');
   if (mode === 'research' && !out.task && !out.taskFile) throw new Error('--task or --task-file is required for research');
-  if (mode === 'review' && !out.planPath) throw new Error('--plan-path is required for review');
+  if (mode === 'plan-review' && !out.planPath) throw new Error('--plan-path is required for plan-review');
   if (mode === 'docs-review' && !out.docsPath && !out.docsDir) throw new Error('--docs-path or --docs-dir is required for docs-review');
   if (!Number.isFinite(out.timeout) || out.timeout <= 0) {
     throw new Error(`--timeout must be a positive finite number, got: ${out.timeout}`);
