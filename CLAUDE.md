@@ -10,6 +10,8 @@ The plugin is meant to be installed into Claude Code (`/plugin install hyperclau
 
 ## Commands
 
+Prerequisites: Node 18+, `codex-cli >= 0.130.0` on PATH, `git`. No `npm install` step — stdlib only.
+
 ```bash
 node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs
                                           # unit tests (~232 cases). NOTE: `node --test tests/*.mjs`
@@ -24,6 +26,17 @@ node scripts/codex-bridge.mjs <mode> --dry-run [flags]
 
 Both test commands must pass before tagging a release. Zero npm dependencies — do not introduce any.
 
+## Local dev install (dogfooding)
+
+To exercise skill/agent edits live inside Claude Code, symlink the repo into the plugin cache. Use the version from `.claude-plugin/plugin.json` as the leaf:
+
+```bash
+version=$(node -e 'console.log(require("./.claude-plugin/plugin.json").version)')
+ln -s "$(pwd)" ~/.claude/plugins/cache/hyperclaude/hyperclaude/"$version"
+```
+
+Restart Claude Code (or `/plugin reload` if available) to pick up edits.
+
 ## The bridge
 
 `scripts/codex-bridge.mjs` is the **only executable code** in the plugin. It's a CLI entry that owns mode dispatch; leaf modules in `scripts/codex/` (`args`, `paths`, `resume`, `templates`, `frontmatter`, `slug`, `git`, `codex`, `failure`) are pure-ish helpers re-exported from the entry file for test access.
@@ -36,6 +49,8 @@ Four modes, exposed as positional subcommands. The mode name maps 1:1 to the art
 | `plan-review`     | `.hyperclaude/plan-reviews/` | `codex exec --sandbox read-only -` (stdin prompt)  |
 | `code-review`     | `.hyperclaude/code-reviews/` | `codex exec review -c sandbox_mode=read-only ...`  |
 | `docs-review`     | `.hyperclaude/docs-reviews/` | `codex exec --sandbox read-only -` (stdin prompt)  |
+
+`--resume` is supported by `plan-review`, `docs-review`, and `code-review` — not `research` (deferred; would re-upload context resume is meant to avoid).
 
 **Naming trap:** the `review` string appears in two unrelated places. Inside the bridge, `args.mode === 'plan-review'` is the bridge's *plan-review* mode. The `'review'` token in `scripts/codex/codex.mjs:167` and `scripts/codex-bridge.mjs:394` (`['exec', 'review', ...]`) is Codex CLI's **native `exec review` subcommand** used internally by `code-review` mode. Don't conflate them when renaming.
 
@@ -79,6 +94,8 @@ Behavioral surface changes (CLI flags, frontmatter keys, output paths, mode name
 `.hyperclaude/` (gitignored by consumer convention) holds per-run artifacts. Naming: `<YYYYMMDD-HHMM>-<slug>.md` (UTC). The slug propagates as the trace key — `research → plan → plan-review` share one slug end-to-end (extracted from the plan filename). `code-review` slug comes from the diff target (`vs-main`, `uncommitted`, `commit-<sha7>`); `docs-review` slug from the docs target basename. These are release-level, not feature-level — don't try to align them with the research/plan trio.
 
 Plan files (Claude-authored) live in `.hyperclaude/plans/` and are the input to `plan-review`. Never write `<file>-v2.md` siblings when revising a plan — `--resume` keys on the plan path, so a new path breaks resume continuity.
+
+`.hyperclaude/` is gitignored by convention, so `git mv .hyperclaude/<a> .hyperclaude/<b>` fails with "source directory is empty" — use plain `mv`. Tracked files (templates, scripts) still use `git mv`.
 
 ## Release flow
 
