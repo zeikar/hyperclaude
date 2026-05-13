@@ -155,7 +155,11 @@ for f in \
   agents/verifier.md \
   agents/documenter.md \
   hooks/hooks.json \
-  hooks/session-start-reminder.mjs
+  hooks/session-start-reminder.mjs \
+  hooks/hyper-loop-intake.mjs \
+  hooks/hyper-loop-stop.mjs \
+  commands/hyper-loop.md \
+  commands/hyper-loop-cancel.md
 do
   if [ -f "$f" ]; then ok "$f"; else miss "$f missing"; fi
 done
@@ -234,25 +238,32 @@ fi
 out=$(node <<'NODE_EOF' 2>&1
 const plugin = JSON.parse(require("fs").readFileSync(".claude-plugin/plugin.json","utf8"));
 const hooksConfig = JSON.parse(require("fs").readFileSync("hooks/hooks.json","utf8"));
-const block = hooksConfig.hooks && hooksConfig.hooks.SessionStart &&
-  hooksConfig.hooks.SessionStart[0];
-const entry = block && block.hooks && block.hooks[0];
-const expectedCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-reminder.mjs"';
+const h = hooksConfig.hooks || {};
+
 // hooks/hooks.json is auto-discovered from the standard plugin location;
 // plugin.json should NOT carry a hooks field pointing back at the default
 // path — that is redundant and triggers duplicate hook-file handling per the
 // official plugins reference. Manifest should omit hooks entirely.
+function checkEntry(block, expectedMatcher, expectedCmd) {
+  if (!block) return false;
+  if (block.matcher !== expectedMatcher) return false;
+  const entry = block.hooks && block.hooks[0];
+  return entry && entry.type === "command" && entry.timeout === 5 && entry.command === expectedCmd;
+}
+
+const sessionStartCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-reminder.mjs"';
+const intakeCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/hyper-loop-intake.mjs"';
+const stopCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/hyper-loop-stop.mjs"';
+
 const passed = plugin.hooks === undefined &&
-  Array.isArray(hooksConfig.hooks && hooksConfig.hooks.SessionStart) &&
-  block && block.matcher === "startup|clear|compact" &&
-  entry && entry.type === "command" &&
-  entry.timeout === 5 &&
-  entry.command === expectedCmd;
+  Array.isArray(h.SessionStart) && checkEntry(h.SessionStart[0], "startup|clear|compact", sessionStartCmd) &&
+  Array.isArray(h.UserPromptExpansion) && checkEntry(h.UserPromptExpansion[0], "^(hyperclaude:)?hyper-loop(-cancel)?$", intakeCmd) &&
+  Array.isArray(h.Stop) && checkEntry(h.Stop[0], "", stopCmd);
 process.exit(passed ? 0 : 1);
 NODE_EOF
 )
 if [ $? -eq 0 ]; then
-  ok "manifest wiring: plugin.json omits redundant hooks field, hooks.json shape correct (matcher excludes resume, type/timeout/command exact)"
+  ok "manifest wiring: plugin.json omits redundant hooks field, hooks.json shape correct (SessionStart + UserPromptExpansion + Stop matcher/type/timeout/command all exact)"
 else
   miss "manifest wiring assertion failed: $out"
 fi
@@ -285,6 +296,61 @@ if out=$(
 else
   miss "SessionStart hook missing-template fail-open failed: $out"
 fi
+
+echo
+echo "==> hyper-loop hooks syntax"
+if node --check hooks/hyper-loop-intake.mjs 2>/dev/null; then
+  ok "node --check hooks/hyper-loop-intake.mjs"
+else
+  miss "hooks/hyper-loop-intake.mjs has syntax errors"
+fi
+if node --check hooks/hyper-loop-stop.mjs 2>/dev/null; then
+  ok "node --check hooks/hyper-loop-stop.mjs"
+else
+  miss "hooks/hyper-loop-stop.mjs has syntax errors"
+fi
+
+echo
+echo "==> Intake hook ignores unrelated commands"
+if out=$(printf '{"session_id":"smoke","cwd":"/tmp/nonexistent-hcl-smoke","command_name":"other:thing","command_args":""}' | env -u CLAUDE_PROJECT_DIR node hooks/hyper-loop-intake.mjs 2>/dev/null); then
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    const ok = j.continue === true && j.suppressOutput === true && j.decision === undefined && j.hookSpecificOutput === undefined;
+    process.exit(ok ? 0 : 1);
+  '; then
+    ok "intake hook pass-through on non-target command_name"
+  else
+    miss "intake hook pass-through assertion failed: $out"
+  fi
+else
+  miss "intake hook invocation failed: $out"
+fi
+
+echo
+echo "==> Stop hook pass-through (no loops dir)"
+if out=$(printf '{"session_id":"smoke","cwd":"/tmp/nonexistent-hcl-smoke"}' | env -u CLAUDE_PROJECT_DIR node hooks/hyper-loop-stop.mjs 2>/dev/null); then
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    const ok = j.continue === true && j.suppressOutput === true && j.decision === undefined;
+    process.exit(ok ? 0 : 1);
+  '; then
+    ok "stop hook pass-through when .hyperclaude/loops/ is absent"
+  else
+    miss "stop hook pass-through assertion failed: $out"
+  fi
+else
+  miss "stop hook invocation failed: $out"
+fi
+
+echo
+echo "==> Command frontmatter shape"
+for f in commands/hyper-loop.md commands/hyper-loop-cancel.md; do
+  if head -10 "$f" | awk 'NR==1 && /^---$/ {opened=1; next} opened && /^---$/ {closed=1; exit} END {exit (opened && closed) ? 0 : 1}'; then
+    ok "$f frontmatter (--- pair within first 10 lines)"
+  else
+    miss "$f frontmatter shape: missing leading or closing --- in first 10 lines"
+  fi
+done
 
 echo
 echo "==> Summary"
