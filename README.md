@@ -3,7 +3,7 @@
 > Push Claude Code beyond stock. Claude builds, Codex critiques.
 > A gated research → plan → review → ship pipeline.
 
-> 🚧 **Early alpha.** v0.8 is implemented and dogfooded daily. Layout, naming, and APIs may change between minor versions until v1.0.
+> 🚧 **Early alpha.** v0.9 is implemented and dogfooded daily. Layout, naming, and APIs may change between minor versions until v1.0.
 
 ![Claude builds, Codex critiques](assets/hero.png)
 
@@ -67,7 +67,7 @@ Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step 
 
 Three layers:
 
-1. **Skills** (`skills/`) — Codex gates (`hyper-research`, `hyper-plan-review`, `hyper-code-review`, `hyper-docs-review`) + Claude orchestrators (`hyper-plan`, `hyper-docs-sync`) + plan execution (`hyper-implement`) + implementation discipline (`hyper-tdd`, `hyper-debug`). All surface via Claude Code's description-triggered dispatch.
+1. **Skills** (`skills/`) — Codex gates (`hyper-research`, `hyper-plan-review`, `hyper-code-review`, `hyper-docs-review`) + Claude orchestrators (`hyper-plan`, `hyper-docs-sync`) + autonomous plan-revise loop (`hyper-plan-loop`, requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) + plan execution (`hyper-implement`) + implementation discipline (`hyper-tdd`, `hyper-debug`). All surface via Claude Code's description-triggered dispatch.
 2. **Agents** (`agents/`) — Claude implementation arm (`planner`, `implementer`, `verifier`, `documenter`).
 3. **Hooks** (`hooks/`) — SessionStart reminder (workflow router + `.hyperclaude/` snapshot footer).
 
@@ -122,6 +122,8 @@ Per-feature plans for later versions live in `.hyperclaude/plans/` (gitignored �
 
    After fixing what step 4 flagged, re-run `/hyperclaude:hyper-plan-review --resume` to get an updated critique without re-uploading the plan (token-cheap iterative loop).
 
+   **Autonomous alternative:** `/hyperclaude:hyper-plan-loop` runs the full plan-write → review → revise cycle in one gesture (requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). `hyper-plan` + `hyper-plan-review` remain available for manual use.
+
 5. After implementing, review the code changes:
 
    ```text
@@ -166,7 +168,7 @@ Zero npm dependencies. Node 18+ stdlib only.
 
 ## Status
 
-**v0.8 (alpha).** Use at your own risk; expect breaking changes between minor versions until v1.0.
+**v0.9 (alpha).** Use at your own risk; expect breaking changes between minor versions until v1.0.
 
 ## Acknowledgements
 

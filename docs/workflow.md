@@ -52,6 +52,8 @@ Iterate: refine the plan, re-run `hyper-plan-review`. One or two refinement pass
 
 Do NOT proceed to implement while Blocker-severity issues are unresolved.
 
+**Autonomous alternative:** `/hyperclaude:hyper-plan-loop` combines steps 2–3 into a single gesture — it spawns the `planner` agent as a persistent team teammate, runs Codex `plan-review` via the bridge, sends findings back to the planner for revision, and repeats until no Blocker or Major issues remain (5-review cap). Both `hyper-plan` + `hyper-plan-review` and `hyper-plan-loop` are available; use whichever fits your workflow. `hyper-plan-loop` requires Claude Code's experimental agent-teams feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`).
+
 ## 4. Implement — execute the plan task by task
 
 ```

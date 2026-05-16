@@ -66,7 +66,7 @@ If you add a new spawn path, re-check both argv shapes. New flags must be added 
 
 ## Layers
 
-- **Skills** (`skills/<name>/SKILL.md`) — what Claude reads on the matching trigger. Each skill is one markdown file with YAML frontmatter (`name`, `description`). Skills call the bridge via `Bash` and dispatch agents via the `Agent` tool.
+- **Skills** (`skills/<name>/SKILL.md`) — what Claude reads on the matching trigger. Each skill is one markdown file with YAML frontmatter (`name`, `description`). Skills call the bridge via `Bash` and dispatch agents via the `Agent` tool. A skill MAY also spawn an agent as a persistent team teammate for stateful multi-turn loops (currently only `hyper-plan-loop`); this uses Claude Code's experimental agent-teams feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`).
 - **Agents** (`agents/<name>.md`) — sub-Claude personas with restricted `tools:` lists. Used by skills, never the other way around.
 - **Hooks** (`hooks/*.mjs`, registered in `hooks/hooks.json`) — currently one: SessionStart reminder that injects `templates/hooks/session-start-reminder.md` plus an optional `.hyperclaude/` snapshot footer.
 - **Templates** (`templates/codex/*.md`, `templates/hooks/*.md`) — prompt bodies loaded at runtime with `{{UPPERCASE_KEY}}` substitution.

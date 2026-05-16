@@ -6,9 +6,9 @@ For the underlying mechanics (sandbox, output paths, frontmatter), see [architec
 
 ---
 
-## Gate skills (6)
+## Gate skills (7)
 
-A gate skill mediates a step in the cycle that produces a canonical `.hyperclaude/` artifact (or, in the doc-sync case, the doc edits themselves). Four shell out to the Codex bridge directly; `hyper-plan` and `hyper-docs-sync` orchestrate Claude-side work — `hyper-plan` dispatches the `planner` agent, and `hyper-docs-sync` pairs with `hyper-docs-review` for the Codex critic step.
+A gate skill mediates a step in the cycle that produces a canonical `.hyperclaude/` artifact (or, in the doc-sync case, the doc edits themselves). Four shell out to the Codex bridge directly; `hyper-plan` and `hyper-docs-sync` orchestrate Claude-side work — `hyper-plan` dispatches the `planner` agent, and `hyper-docs-sync` pairs with `hyper-docs-review` for the Codex critic step. `hyper-plan-loop` is a hybrid: it spawns a persistent `planner` teammate for Claude-side revision while calling the bridge directly for each Codex review turn.
 
 ### `hyper-research` — Codex pre-implementation research
 
@@ -44,6 +44,16 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 - **Slug:** reused from the plan filename, so the research → plan → plan-review trio shares one slug for traceability.
 - **Use when:** Claude has written a plan and you want Codex to find blockers before execution.
 - **Source:** [skills/hyper-plan-review/SKILL.md](../skills/hyper-plan-review/SKILL.md), template [templates/codex/plan-review.md](../templates/codex/plan-review.md).
+
+### `hyper-plan-loop` — autonomous plan-revise loop
+
+- **Slash:** `/hyperclaude:hyper-plan-loop [task]`
+- **Mechanics:** team-based revise loop. The skill spawns the [`planner`](#planner) agent once as a persistent team teammate (requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). It then runs Codex `plan-review` directly via the bridge, sends the critique back to the planner teammate via SendMessage, and repeats until the review reports no Blocker or Major issues, or a 5-review cap is reached. The reviewer is always the Codex bridge — NOT a team agent — preserving the "Claude builds, Codex reviews" invariant.
+- **Writes:** `.hyperclaude/plans/<timestamp>-<slug>.md` (same-path overwrite on each revise); `.hyperclaude/plan-reviews/<timestamp>-<slug>.md` per iteration.
+- **`--resume`:** `--resume auto` is passed to `plan-review` from iteration 2 onward (threads the Codex review session for token efficiency).
+- **Use when:** you want a fully autonomous plan-research → plan → review → revise cycle in one gesture. Requires the experimental agent-teams Claude Code feature.
+- **Skip when:** you prefer manual control over each revise turn (use `hyper-plan` + `hyper-plan-review` instead — both remain available and untouched).
+- **Source:** [skills/hyper-plan-loop/SKILL.md](../skills/hyper-plan-loop/SKILL.md).
 
 ### `hyper-code-review` — Codex code review
 
@@ -88,6 +98,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 | `hyper-research` | Codex | (a future) task description |
 | `hyper-plan` | Claude (via `planner` agent) | task → plan generation, no review |
 | `hyper-plan-review` | Codex | Claude's plan |
+| `hyper-plan-loop` | Claude (persistent planner teammate) + Codex (bridge) | autonomous plan-revise loop; reviewer is always Codex |
 | `hyper-code-review` | Codex | a code diff |
 | `hyper-docs-sync` | Claude (via `documenter` agent) | edits docs to match code |
 | `hyper-docs-review` | Codex | docs (optionally with code-diff context) |
@@ -161,6 +172,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 | Starting a non-trivial task; want prior art | `/hyperclaude:hyper-research` |
 | Need an ordered plan with verification per step | `/hyperclaude:hyper-plan` (wraps the `planner` agent) |
 | Plan written; want Codex to critique it | `/hyperclaude:hyper-plan-review` |
+| Want autonomous plan-revise loop in one gesture | `/hyperclaude:hyper-plan-loop` (requires experimental agent-teams) |
 | Multi-task plan ready; want disciplined execution | `/hyperclaude:hyper-implement` |
 | One concrete coded step, no plan needed | `implementer` agent directly |
 | Need to confirm tests / build pass | `verifier` agent |

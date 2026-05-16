@@ -175,6 +175,27 @@ When a real corpus needs more, narrow the scope (`--docs-path`, smaller `--docs-
 
 The two skills are intentionally paired: `hyper-docs-sync` writes; `hyper-docs-review` gates.
 
+### `hyper-plan-loop` keeps the planner as a live teammate but NOT the reviewer
+
+**Decision:** `hyper-plan-loop` spawns the `planner` agent once as a persistent team teammate (retaining context across revise iterations), but the plan reviewer is always a direct Codex bridge call — not a team agent.
+
+**Why persistent planner:** without a persistent teammate, each revise turn would re-spawn a fresh `planner` agent, which re-uploads the plan and research context from scratch every round. The context-reload cost grows with iteration count. Keeping the planner as a live teammate eliminates that overhead.
+
+**Why reviewer stays a direct bridge call:**
+- The "Claude builds, Codex reviews" invariant is the core thesis. Making the reviewer a Claude team agent would collapse the role split.
+- The skills-call-bridge layer rule (skills shell out to the bridge; agents don't) must hold for the reviewer path.
+- A Codex bridge call is auditable and sandbox-enforced; a Claude agent reviewer would bypass both.
+
+**Why agent-teams is env-gated, not probed:**
+- Agent teams is an experimental Claude Code feature. The skill requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`. On spawn failure the skill degrades gracefully rather than probing the environment variable, because the env probe itself is unreliable at skill-invocation time.
+- Users who cannot set the env variable should use the manual `hyper-plan` + `hyper-plan-review` flow, which is untouched.
+
+**Why existing-plan import is left out of v1:** importing an existing plan into the loop adds path-resolution and slug-continuity complexity that is not needed for the primary use case (research → loop). Deferred.
+
+**Tradeoffs:**
+- Pro: no per-iteration context reload; single capped gesture replaces the manual plan → review → revise cycle.
+- Con: depends on experimental agent-teams (env-gated); the teammate lifecycle adds teardown burden; env-unavailable path requires the manual fallback; `hyper-plan` and `hyper-plan-review` remain the stable, unconditional path.
+
 ---
 
 ## Pointers (decisions documented elsewhere)
