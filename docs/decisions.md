@@ -175,10 +175,6 @@ When a real corpus needs more, narrow the scope (`--docs-path`, smaller `--docs-
 
 The two skills are intentionally paired: `hyper-docs-sync` writes; `hyper-docs-review` gates.
 
-### Hook event for hyper-loop intake
-
-**Event chosen:** `UserPromptExpansion` (source: https://code.claude.com/docs/en/hooks). Fires when a slash command expands; covers plugin commands, skills, custom commands, MCP prompts. The stdin payload includes `command_name` (string, no namespace guarantee — docs do not confirm whether `/hyperclaude:hyper-loop` produces `"hyperclaude:hyper-loop"` or `"hyper-loop"`; the hook accepts both) and `command_args` (string, not array — must be tokenized in the hook). Block shape: `{"decision": "block", "reason": "..."}`. Success-with-context shape: `{"continue": true, "hookSpecificOutput": {"hookEventName": "UserPromptExpansion", "additionalContext": "..."}}`. A `UserPromptSubmit` fallback branch is included for resilience (regex on `parsed.prompt` when `command_name` is absent). The `allowed-tools` frontmatter key for command markdown is not documented; commands/* will not use it. For the `hooks.json` matcher (Task 6) a regex is used — e.g. `^(hyperclaude:)?hyper-loop(-cancel)?$` — because the colon in `hyperclaude:hyper-loop` triggers regex mode automatically (the matcher treats any pattern containing non-alphanumeric-non-pipe chars as a regex), and a single regex covers both the namespaced and bare-name ambiguity in one entry.
-
 ---
 
 ## Pointers (decisions documented elsewhere)

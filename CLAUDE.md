@@ -13,7 +13,7 @@ The plugin is meant to be installed into Claude Code (`/plugin install hyperclau
 Prerequisites: Node 18+, `codex-cli >= 0.130.0` on PATH, `git`. No `npm install` step — stdlib only.
 
 ```bash
-node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs tests/hyper-loop-intake.test.mjs tests/hyper-loop-stop.test.mjs
+node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs
                                           # unit tests. NOTE: `node --test tests/*.mjs`
                                           # works too; `node --test tests/` (dir form) does NOT — it
                                           # interprets the path as a test name and fails.
@@ -66,7 +66,6 @@ If you add a new spawn path, re-check both argv shapes. New flags must be added 
 
 ## Layers
 
-- **Commands** (`commands/<name>.md`) — argv-bearing explicit-gesture slash entries. Distinct from skills (description-triggered dispatch) and hooks (event-bound).
 - **Skills** (`skills/<name>/SKILL.md`) — what Claude reads on the matching trigger. Each skill is one markdown file with YAML frontmatter (`name`, `description`). Skills call the bridge via `Bash` and dispatch agents via the `Agent` tool.
 - **Agents** (`agents/<name>.md`) — sub-Claude personas with restricted `tools:` lists. Used by skills, never the other way around.
 - **Hooks** (`hooks/*.mjs`, registered in `hooks/hooks.json`) — currently one: SessionStart reminder that injects `templates/hooks/session-start-reminder.md` plus an optional `.hyperclaude/` snapshot footer.
@@ -83,8 +82,6 @@ If you add a new spawn path, re-check both argv shapes. New flags must be added 
 | `scripts/codex-bridge.mjs`, `scripts/codex/*.mjs` | `docs/architecture.md`, `docs/decisions.md` |
 | `skills/<any>/SKILL.md` | `docs/gates-and-agents.md`, `docs/workflow.md` |
 | `agents/<any>.md` | `docs/gates-and-agents.md` |
-| `commands/*.md` | `docs/gates-and-agents.md`, `docs/workflow.md`, `README.md` |
-| `hooks/hyper-loop-intake.mjs`, `hooks/hyper-loop-stop.mjs` | `docs/architecture.md` (Hyper-loop section) |
 | `hooks/*.mjs`, `templates/hooks/*.md` | `docs/architecture.md` (SessionStart hook section) |
 | `templates/codex/*.md` | `docs/architecture.md`, `docs/development.md` (template-version section) |
 | `scripts/test/smoke.sh`, `tests/*.mjs` | `docs/development.md` |
@@ -99,8 +96,6 @@ Behavioral surface changes (CLI flags, frontmatter keys, output paths, mode name
 Plan files (Claude-authored) live in `.hyperclaude/plans/` and are the input to `plan-review`. Never write `<file>-v2.md` siblings when revising a plan — `--resume` keys on the plan path, so a new path breaks resume continuity.
 
 `.hyperclaude/` is gitignored by convention, so `git mv .hyperclaude/<a> .hyperclaude/<b>` fails with "source directory is empty" — use plain `mv`. Tracked files (templates, scripts) still use `git mv`.
-
-`.hyperclaude/loops/` holds JSON state files (distinct from the markdown artifact dirs). Filename: `<sanitized-slug>__<sanitized-session_id>.json`. Per-session per-slug. Body: `{active, iteration, max, plan_path, session_id, started_at}`.
 
 ## Release flow
 

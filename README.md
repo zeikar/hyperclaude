@@ -28,28 +28,28 @@ research → plan → plan-review → implement → code-review → docs-sync �
 
 Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, and `--resume`.
 
-## Architecture (v0.8)
+## Architecture (v0.9)
 
 ```
                            User in Claude Code
                                    │
-       ┌─────────────────┬─────────┴─────────┬────────────────────┐
-       │                 │                   │                    │
-   Commands           Skills              Agents                Hooks
-       │                 │                   │                    │
-  hyper-loop       Codex gates         Claude impl arm     SessionStart
-  hyper-loop-      (research /         (planner /          reminder
-  cancel           plan-review /       implementer /       hyper-loop
-                   code-review /       verifier /          intake +
-                   docs-review)        documenter)         Stop
-                        +
-                   Claude orch
-                   (plan /
-                   docs-sync /
-                   implement /
-                   tdd / debug)
-       │                 │                   │                    │
-       └─────────────────┴─────────┬─────────┴────────────────────┘
+              ┌────────────────────┼────────────────────┐
+              │                    │                    │
+           Skills               Agents                Hooks
+              │                    │                    │
+        Codex gates         Claude impl arm       SessionStart
+        (research /          (planner /            reminder
+        plan-review /        implementer /         (workflow
+        code-review /        verifier /            router +
+        docs-review)         documenter)           snapshot)
+             +
+        Claude orch
+        (plan /
+        docs-sync /
+        implement /
+        tdd / debug)
+              │                    │                    │
+              └────────────────────┼────────────────────┘
                                    │
                               codex-bridge.mjs
                           (only Codex-spawning code;
@@ -62,16 +62,14 @@ Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step 
                           │   plan-reviews/ │
                           │   code-reviews/ │
                           │   docs-reviews/ │
-                          │   loops/        │
                           └─────────────────┘
 ```
 
-Four layers:
+Three layers:
 
-1. **Commands** (`commands/`) — argv-bearing explicit-gesture entries: `/hyperclaude:hyper-loop <plan> [--max=N]` (unattended plan iteration loop), `/hyperclaude:hyper-loop-cancel <plan>` (cancel an active loop). The other `/hyperclaude:hyper-*` entries are skill-backed and surface via Claude Code's description-triggered dispatch.
-2. **Skills** (`skills/`) — Codex gates (`hyper-research`, `hyper-plan-review`, `hyper-code-review`, `hyper-docs-review`) + Claude orchestrators (`hyper-plan`, `hyper-docs-sync`) + plan execution (`hyper-implement`) + implementation discipline (`hyper-tdd`, `hyper-debug`).
-3. **Agents** (`agents/`) — Claude implementation arm (`planner`, `implementer`, `verifier`, `documenter`).
-4. **Hooks** (`hooks/`) — SessionStart reminder (workflow router + `.hyperclaude/` snapshot footer) + `hyper-loop` intake / Stop hooks that bind loop state to a session and drive continuation until the plan's checkboxes are done.
+1. **Skills** (`skills/`) — Codex gates (`hyper-research`, `hyper-plan-review`, `hyper-code-review`, `hyper-docs-review`) + Claude orchestrators (`hyper-plan`, `hyper-docs-sync`) + plan execution (`hyper-implement`) + implementation discipline (`hyper-tdd`, `hyper-debug`). All surface via Claude Code's description-triggered dispatch.
+2. **Agents** (`agents/`) — Claude implementation arm (`planner`, `implementer`, `verifier`, `documenter`).
+3. **Hooks** (`hooks/`) — SessionStart reminder (workflow router + `.hyperclaude/` snapshot footer).
 
 When hyperclaude invokes `codex exec` (research, plan-review, docs-review), it always passes `--sandbox read-only`. When it invokes `codex exec review` (code review) or `codex exec resume` (`--resume` for plan-review / code-review / docs-review), neither subcommand exposes `--sandbox`, so the bridge passes `-c sandbox_mode=read-only` as a config override. In every mode, Codex's role in hyperclaude is *critic*, never *editor*.
 
@@ -80,7 +78,7 @@ External dependencies: Claude Code plugin runtime, `codex-cli >= 0.130.0`, Node 
 ## Conventions
 
 - **Plan files** — when Claude writes a plan that you intend to review, save it under `.hyperclaude/plans/<YYYYMMDD-HHMM>-<slug>.md`. `/hyperclaude:hyper-plan-review` auto-discovers the most recent file there. You can also pass an explicit path: `/hyperclaude:hyper-plan-review path/to/plan.md`.
-- **Artifacts** — `.hyperclaude/{research,plans,plan-reviews,code-reviews,docs-reviews,loops}/` is created in the consumer project. Add `.hyperclaude/` to your `.gitignore` if you don't want artifacts committed.
+- **Artifacts** — `.hyperclaude/{research,plans,plan-reviews,code-reviews,docs-reviews}/` is created in the consumer project. Add `.hyperclaude/` to your `.gitignore` if you don't want artifacts committed.
 - **Slug** — lowercase kebab-case, ≤5 words, ASCII only. Same slug links a research → plan → plan-review trio.
 
 ## Documentation
@@ -156,14 +154,6 @@ Per-feature plans for later versions live in `.hyperclaude/plans/` (gitignored �
    Writes a review file under `.hyperclaude/docs-reviews/` with valid frontmatter and a Codex-generated accuracy assessment. Fix any accuracy issues before merging.
 
    After fixing documentation issues, re-run `/hyperclaude:hyper-docs-review --resume` to get an updated assessment without re-uploading (token-cheap iterative loop).
-
-8. (Optional) For an unattended pass over a plan whose tasks are already enumerated, hand it to the loop:
-
-   ```text
-   /hyperclaude:hyper-loop .hyperclaude/plans/<slug>.md --max=20
-   ```
-
-   The intake hook binds loop state to the current session; the Stop hook re-fires `hyper-implement` until every checkbox in the plan is `[x]` or `--max` is reached. Cancel mid-flight with `/hyperclaude:hyper-loop-cancel <plan>`.
 
 ## Development
 

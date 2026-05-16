@@ -71,8 +71,8 @@ Output goes to mode-specific subdirectories of `.hyperclaude/` by default — `.
 ## Tests
 
 ```bash
-node --test tests/*.mjs            # unit tests for the bridge + hyper-loop hooks
-bash scripts/test/smoke.sh         # smoke runs core checks (required files, dry-runs, hook invocations, the SessionStart hook byte-for-byte check against templates/hooks/session-start-reminder.md, hyper-loop hook syntax + pass-through probes, manifest wiring across all hook entries, + 3 Codex probes when codex is on PATH + optional `claude plugin validate` when claude is on PATH)
+node --test tests/*.mjs            # unit tests for the bridge
+bash scripts/test/smoke.sh         # smoke runs core checks (required files, dry-runs, hook invocations, the SessionStart hook byte-for-byte check against templates/hooks/session-start-reminder.md, manifest wiring across all hook entries, + 3 Codex probes when codex is on PATH + optional `claude plugin validate` when claude is on PATH)
 ```
 
 Both must pass cleanly before shipping a release. Zero npm dependencies; nothing to install.
@@ -80,7 +80,7 @@ Both must pass cleanly before shipping a release. Zero npm dependencies; nothing
 The unit tests cover argument parsing, slug derivation, frontmatter rendering, file-collision handling, and per-mode invocation planning. The smoke script:
 
 - Runs the unit test suite (`node --test tests/*.mjs`).
-- Verifies that required plugin files exist (manifests, marketplace listing, every `SKILL.md` and agent file, the bridge, the templates including all three resumed variants `plan-review-resumed.md` / `docs-review-resumed.md` / `code-review-resumed.md`, both command files under `commands/`, and both hyper-loop hooks).
+- Verifies that required plugin files exist (manifests, marketplace listing, every `SKILL.md` and agent file, the bridge, the templates including all three resumed variants `plan-review-resumed.md` / `docs-review-resumed.md` / `code-review-resumed.md`, and the SessionStart hook).
 - Dry-runs the bridge for `research`, `code-review`, and `docs-review` and asserts each emits a JSON success line. (`plan-review` is not dry-run by the smoke script.)
 - When `codex` is on PATH, runs three Codex 0.130 surface probes: `codex exec review --help`, `codex exec resume --help`, and `codex exec review --base HEAD -c sandbox_mode=read-only --help` (verifies the `-c sandbox_mode=read-only` config key is accepted). Each probe failure prints an upgrade hint.
 - When `claude` is on PATH, runs `claude plugin validate .` to catch manifest drift.

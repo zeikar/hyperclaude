@@ -155,11 +155,7 @@ for f in \
   agents/verifier.md \
   agents/documenter.md \
   hooks/hooks.json \
-  hooks/session-start-reminder.mjs \
-  hooks/hyper-loop-intake.mjs \
-  hooks/hyper-loop-stop.mjs \
-  commands/hyper-loop.md \
-  commands/hyper-loop-cancel.md
+  hooks/session-start-reminder.mjs
 do
   if [ -f "$f" ]; then ok "$f"; else miss "$f missing"; fi
 done
@@ -252,18 +248,16 @@ function checkEntry(block, expectedMatcher, expectedCmd) {
 }
 
 const sessionStartCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-reminder.mjs"';
-const intakeCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/hyper-loop-intake.mjs"';
-const stopCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/hyper-loop-stop.mjs"';
 
 const passed = plugin.hooks === undefined &&
   Array.isArray(h.SessionStart) && checkEntry(h.SessionStart[0], "startup|clear|compact", sessionStartCmd) &&
-  Array.isArray(h.UserPromptExpansion) && checkEntry(h.UserPromptExpansion[0], "^(hyperclaude:)?hyper-loop(-cancel)?$", intakeCmd) &&
-  Array.isArray(h.Stop) && checkEntry(h.Stop[0], "", stopCmd);
+  h.UserPromptExpansion === undefined &&
+  h.Stop === undefined;
 process.exit(passed ? 0 : 1);
 NODE_EOF
 )
 if [ $? -eq 0 ]; then
-  ok "manifest wiring: plugin.json omits redundant hooks field, hooks.json shape correct (SessionStart + UserPromptExpansion + Stop matcher/type/timeout/command all exact)"
+  ok "manifest wiring: plugin.json omits redundant hooks field, hooks.json shape correct (SessionStart only; no UserPromptExpansion/Stop)"
 else
   miss "manifest wiring assertion failed: $out"
 fi
@@ -296,61 +290,6 @@ if out=$(
 else
   miss "SessionStart hook missing-template fail-open failed: $out"
 fi
-
-echo
-echo "==> hyper-loop hooks syntax"
-if node --check hooks/hyper-loop-intake.mjs 2>/dev/null; then
-  ok "node --check hooks/hyper-loop-intake.mjs"
-else
-  miss "hooks/hyper-loop-intake.mjs has syntax errors"
-fi
-if node --check hooks/hyper-loop-stop.mjs 2>/dev/null; then
-  ok "node --check hooks/hyper-loop-stop.mjs"
-else
-  miss "hooks/hyper-loop-stop.mjs has syntax errors"
-fi
-
-echo
-echo "==> Intake hook ignores unrelated commands"
-if out=$(printf '{"session_id":"smoke","cwd":"/tmp/nonexistent-hcl-smoke","command_name":"other:thing","command_args":""}' | env -u CLAUDE_PROJECT_DIR node hooks/hyper-loop-intake.mjs 2>/dev/null); then
-  if printf '%s' "$out" | node -e '
-    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
-    const ok = j.continue === true && j.suppressOutput === true && j.decision === undefined && j.hookSpecificOutput === undefined;
-    process.exit(ok ? 0 : 1);
-  '; then
-    ok "intake hook pass-through on non-target command_name"
-  else
-    miss "intake hook pass-through assertion failed: $out"
-  fi
-else
-  miss "intake hook invocation failed: $out"
-fi
-
-echo
-echo "==> Stop hook pass-through (no loops dir)"
-if out=$(printf '{"session_id":"smoke","cwd":"/tmp/nonexistent-hcl-smoke"}' | env -u CLAUDE_PROJECT_DIR node hooks/hyper-loop-stop.mjs 2>/dev/null); then
-  if printf '%s' "$out" | node -e '
-    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
-    const ok = j.continue === true && j.suppressOutput === true && j.decision === undefined;
-    process.exit(ok ? 0 : 1);
-  '; then
-    ok "stop hook pass-through when .hyperclaude/loops/ is absent"
-  else
-    miss "stop hook pass-through assertion failed: $out"
-  fi
-else
-  miss "stop hook invocation failed: $out"
-fi
-
-echo
-echo "==> Command frontmatter shape"
-for f in commands/hyper-loop.md commands/hyper-loop-cancel.md; do
-  if head -10 "$f" | awk 'NR==1 && /^---$/ {opened=1; next} opened && /^---$/ {closed=1; exit} END {exit (opened && closed) ? 0 : 1}'; then
-    ok "$f frontmatter (--- pair within first 10 lines)"
-  else
-    miss "$f frontmatter shape: missing leading or closing --- in first 10 lines"
-  fi
-done
 
 echo
 echo "==> Summary"

@@ -71,7 +71,7 @@ For EACH task in order:
 
 4. **Verifier — when tests or build steps changed.** If the task added or modified test files (`tests/**`, `*.test.*`, `*.spec.*`) or build/CI configuration (`package.json` scripts, smoke script, CI workflow), dispatch `subagent_type: hyperclaude:verifier`. Verifier runs `node --test`, `bash scripts/test/smoke.sh`, lint, etc. and reports PASS / PARTIAL / FAIL with verbatim output. Verifier never modifies files. Skip the verifier when the task didn't touch tests or build inputs — the spec/quality reviews above already cover code correctness.
 
-5. **Mark the task's step checkboxes as `- [x]` in the plan file.** After both reviews approve, use the Edit tool to convert every `- [ ]` inside the current `## Task N: <title>` block to `- [x]`. Scope is the task block only — leave other tasks' boxes alone. This keeps the plan file's checkbox state the durable source of "what's done", which `/hyperclaude:hyper-loop`'s Stop hook reads to decide when the loop has naturally completed. Do this BEFORE the TodoWrite update so the durable artifact lands first.
+5. **Mark the task's step checkboxes as `- [x]` in the plan file.** After both reviews approve, use the Edit tool to convert every `- [ ]` inside the current `## Task N: <title>` block to `- [x]`. Scope is the task block only — leave other tasks' boxes alone. This keeps the plan file's checkbox state the durable source of "what's done" — survives context loss and lets a resumed session see exactly which tasks remain. Do this BEFORE the TodoWrite update so the durable artifact lands first.
 
 6. **Mark task complete in TodoWrite.** Move on.
 

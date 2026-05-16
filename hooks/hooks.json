@@ -12,30 +12,6 @@
           }
         ]
       }
-    ],
-    "UserPromptExpansion": [
-      {
-        "matcher": "^(hyperclaude:)?hyper-loop(-cancel)?$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/hyper-loop-intake.mjs\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/hyper-loop-stop.mjs\"",
-            "timeout": 5
-          }
-        ]
-      }
     ]
   }
 }

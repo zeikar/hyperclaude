@@ -70,22 +70,6 @@ Fix loops happen inline — reviewer ❌ → implementer fixes → re-review. Th
 
 When to skip the skill: one-step plans (just dispatch `implementer` directly), tightly-coupled tasks that benefit from shared context, or fast prototyping.
 
-### Optional: unattended loop
-
-For long plans where each task is independent enough to run without supervision, swap `/hyperclaude:hyper-implement` for:
-
-```
-/hyperclaude:hyper-loop <plan-path> [--max=N]
-```
-
-Default `--max=10`, range 1–1000. The loop drives `/hyperclaude:hyper-implement` protocol per turn and stops when all checkboxes are checked or the iteration cap is hit. Escape at any time:
-
-```
-/hyperclaude:hyper-loop-cancel <plan-path>
-```
-
-The cancel command works even if the plan file is missing. The loop honors the same plan-checkbox completion contract as manual `/hyperclaude:hyper-implement` — you get the same implementation quality, just without turn-by-turn supervision.
-
 ## 5. Code review — Codex critiques the diff
 
 ```
