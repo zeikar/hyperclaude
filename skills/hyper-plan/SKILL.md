@@ -64,7 +64,7 @@ Use the Agent tool with `subagent_type: hyperclaude:planner`. Prompt MUST includ
   - **Steps** — `[ ]`-checkboxes, 2–5 minutes each.
   - **Verification** — a command to run, or an observable change.
   - **Commit message** — one line, conventional-commits style.
-- **No frontmatter** — return the plan body only; the skill owns the file name.
+- **No frontmatter** — return the plan body only (planner's default return-body mode); `hyper-plan` deliberately keeps the skill as the file owner.
 
 This is the format `/hyperclaude:hyper-implement` consumes; do not produce a flat numbered list.
 
@@ -80,4 +80,4 @@ Tell the user the plan path, whether the slug was reused from research or freshl
 
 - Calling Codex. This skill is Claude-only; the `planner` agent does the work.
 - Inventing a slug when a matching research artifact exists — that breaks trio traceability.
-- Writing code in the plan. Names, paths, verifications only — `planner` is read-only by design.
+- Writing code in the plan. Names, paths, verifications only — the planner does not write code, tests, or commits; for `hyper-plan` the skill owns the Write (the planner only returns the body here).
