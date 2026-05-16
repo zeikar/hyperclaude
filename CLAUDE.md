@@ -13,7 +13,7 @@ The plugin is meant to be installed into Claude Code (`/plugin install hyperclau
 Prerequisites: Node 18+, `codex-cli >= 0.130.0` on PATH, `git`. No `npm install` step — stdlib only.
 
 ```bash
-node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs
+node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs tests/setup-doctor.test.mjs
                                           # unit tests. NOTE: `node --test tests/*.mjs`
                                           # works too; `node --test tests/` (dir form) does NOT — it
                                           # interprets the path as a test name and fails.
@@ -101,7 +101,7 @@ Plan files (Claude-authored) live in `.hyperclaude/plans/` and are the input to 
 
 When the user asks to release, run the whole flow end to end — don't stop after the commit.
 
-1. **Tests green — re-run immediately before committing**, not "earlier this session": `node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs` and `bash scripts/test/smoke.sh`. Unit must report `fail 0`; smoke must report `failed: 0`. Either red → stop and fix first.
+1. **Tests green — re-run immediately before committing**, not "earlier this session": `node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs tests/setup-doctor.test.mjs` and `bash scripts/test/smoke.sh`. Unit must report `fail 0`; smoke must report `failed: 0`. Either red → stop and fix first.
 2. **Bump `version`** in `.claude-plugin/plugin.json`. Pre-1.0: minor bump for breaking changes — bridge subcommand renames, frontmatter key changes, artifact directory renames, layer/command/skill removals all count. The bump rides in the release commit, not a separate one.
 3. **Commit + push to `main`.** Conventional-commit subject; breaking changes take a `!` (`feat!:` / `refactor!:`) and a `BREAKING CHANGE:` footer spelling out migration steps. Review `git status` and stage the release's files explicitly — don't blanket `git add -A`. (`.hyperclaude/` is gitignored so its artifacts never appear, but any *other* untracked file would be swept into the release commit.)
 4. **Tag:** `git tag -a vX.Y.Z -m "vX.Y.Z: <one-line>"` then `git push origin vX.Y.Z`.
