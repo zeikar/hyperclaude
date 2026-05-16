@@ -17,6 +17,10 @@ Skip when:
 - You want hands-on control over each plan / review round — use `/hyperclaude:hyper-plan` + `/hyperclaude:hyper-plan-review` manually.
 - The experimental agent-teams feature is unavailable (this skill stops with a documented fallback message — see Step 2).
 
+## Failure & recovery protocol — read first
+
+`references/failure-protocol.md` carries the recovery procedures invoked at this skill's decision points: §1 anchored-gate corrective, §2 unsolicited-message protocol, §3 revise-validation redo pipeline, §4 teardown recovery, §5 full anti-pattern list. These are load-bearing, not optional troubleshooting — Step 0 makes Reading it mandatory before the loop starts, so the full protocol is in context when its conditions arise.
+
 ## Agent-teams tool contract
 
 This skill uses the experimental agent-teams tools. The per-run team name is passed **only** to `TeamCreate` and `Agent` — it is **never** a tool argument to `SendMessage` or `TeamDelete`.
@@ -26,7 +30,7 @@ This skill uses the experimental agent-teams tools. The per-run team name is pas
 - `SendMessage` — `{ to: <teammate name, e.g. "planner">, message: <string | {type:"shutdown_request"}>, summary? }`. No `team_name` field. `summary` is REQUIRED whenever `message` is a string; the shutdown object message takes no `summary`. Plain-text output is NOT visible to teammates; messaging requires this tool.
 - `TeamDelete` — `{}` (no args; team inferred from session). Fails if the team still has a live member, so shut members down first.
 - A teammate's `shutdown_response` or idle-termination notification is auto-delivered as a new turn — there is no poll/wait tool; its arrival IS the confirmation. Idle teammates keep their process + context alive between turns; a later SendMessage wakes them with context intact — this is the property the revise loop depends on.
-- **Plan ownership:** the planner writes the canonical plan file itself via caller-directed write-file mode (its Step 3 prompt carries the exact resolved path). The lead never Writes or Reads the plan body on the normal path — it does a filesystem-level `cp` backup/restore plus a quiet `ok`/`bad` structure check, and only Reads the body for human-facing failure diagnostics. Every write-file-mode reply (initial, retry, revise redo) is gated to `WROTE: <path>`-only (Step 4 anchored gate). Unsolicited planner messages follow the lead-side protocol (Step 4a) — prompt-only idle discipline is insufficient.
+- **Plan ownership:** the planner writes the canonical plan file itself via caller-directed write-file mode (its Step 3 prompt carries the exact resolved path). The lead never Writes or Reads the plan body on the normal path — it does a filesystem-level `cp` backup/restore plus a quiet `ok`/`bad` structure check, and only Reads the body for human-facing failure diagnostics. Every write-file-mode reply (initial, retry, revise redo) is gated to `WROTE: <path>`-only (Step 4 anchored gate). Unsolicited planner messages follow the lead-side protocol (`references/failure-protocol.md` §2) — prompt-only idle discipline is insufficient.
 
 ## How to invoke
 
@@ -37,6 +41,10 @@ This skill uses the experimental agent-teams tools. The per-run team name is pas
 - `$ARGUMENTS` non-empty → that is the task.
 - `$ARGUMENTS` empty → fall back to the newest `.hyperclaude/research/*.md` (its `task:` frontmatter), or the user's most recent build/implement intent in this conversation.
 - Nothing found → ask the user and STOP.
+
+### Step 0 — Read the failure & recovery protocol
+
+Before any team creation, Read `references/failure-protocol.md` (sibling of this file) into context. It is **mandatory** — the loop's failure branches reference its sections by number and the lead must follow them verbatim when reached.
 
 ### Step 1 — Resolve task + slug + plan path
 
@@ -112,17 +120,7 @@ The lead no longer Writes the plan — the planner writes the canonical file its
 ^WROTE: <the exact resolved plan path from Step 1>\s*$
 ```
 
-The path must equal the resolved plan path verbatim. On any body echo, added prose, preamble, or a different path, send ONE corrective message:
-
-```
-SendMessage({
-  to: "planner",
-  summary: "Reply contract: WROTE: <path> only",
-  message: "<re-state: use Write to write the full plan to the exact resolved path; reply with exactly 'WROTE: <that exact path>' and nothing else — no plan body, no prose, no preamble>"
-})
-```
-
-If the next reply still fails the anchored gate → Step 8 teardown, then STOP (**"hyper-plan-loop reply-contract failure"**).
+The path must equal the resolved plan path verbatim. On any body echo, added prose, preamble, or a different path → apply the corrective + escalation in `references/failure-protocol.md` §1.
 
 **File check (only after the gate passes):** confirm the file is non-empty via the Bash tool:
 
@@ -130,27 +128,13 @@ If the next reply still fails the anchored gate → Step 8 teardown, then STOP (
 [ -s "<resolved plan path>" ]
 ```
 
-If missing or empty, send ONE corrective `SendMessage` (with `summary`) instructing the planner to Write the exact resolved path again — its reply re-enters the same anchored gate above. If it is still missing or empty after that → Step 8 teardown, then STOP (**"hyper-plan-loop planner-write failure"**).
+If missing or empty → apply the file-check corrective + escalation in `references/failure-protocol.md` §1.
 
 **In-place rule (now binds the planner):** every later revision overwrites THIS SAME path; never a `-v2.md` (or any other) sibling — the bridge's `--resume` keys on the plan path, and a new path breaks resume continuity.
 
-### Step 4a — Lead-side unsolicited-message protocol
+### Step 4a — Unsolicited planner messages
 
-This is an operational backstop for the Step 3 idle/no-resend prompt instruction. Prompt-only discipline is **insufficient**; this lead-side rule is **mandatory**.
-
-**Scope:** applies ONLY while the planner is active and BEFORE Step 8 teardown has begun. It EXEMPTS the teardown exchange — once the lead has sent `shutdown_request`, the planner's `shutdown_response` / idle-termination notification is EXPECTED, not unsolicited, and is never a violation.
-
-Within scope, the only planner message the lead expects is the anchored `WROTE:` reply to the lead's most recent SendMessage (spawn, revise, or corrective). Any other inbound planner message — a duplicate body, a `RESEND:`-style re-emit, a nag, or anything arriving when the lead solicited nothing (including a message auto-delivered after a long Codex-review turn) — is **unsolicited**. The lead ignores its content and sends ONE message:
-
-```
-SendMessage({
-  to: "planner",
-  summary: "Idle until contacted",
-  message: "<remain idle; DO NOT reply to this message; do not resend; wait for revise findings or a shutdown_request>"
-})
-```
-
-After that single idle correction, a short content-free acknowledgment (e.g. "ok, waiting") is tolerated and ignored ONCE — not a violation, as long as it carries no plan body, no `RESEND:`, and no nag. A SECOND substantive unsolicited message of the same kind (body / `RESEND:` / nag) → Step 8 teardown, then STOP (**"hyper-plan-loop reply-contract failure"**).
+While the planner is live and BEFORE Step 8 teardown, the only planner message the lead expects is the anchored `WROTE:` reply to the lead's most recent SendMessage (spawn, revise, or corrective). Any other inbound planner message — duplicate body, `RESEND:`-style re-emit, nag, or anything arriving when the lead solicited nothing (including a message auto-delivered after a long Codex-review turn) — is **unsolicited**. Handle it per `references/failure-protocol.md` §2. This lead-side rule is **mandatory** — prompt-only idle discipline (Step 3) is insufficient. The teardown exchange is exempt (a `shutdown_response` after `shutdown_request` is expected, never a violation).
 
 ### Step 5 — Plan-review iteration 1 (fresh)
 
@@ -197,31 +181,23 @@ SendMessage({
 
 Do NOT re-send the task or research — the planner still holds that context.
 
-**Revise-validation pipeline** — the ordered sequence every revise reply must pass: (1) **anchored reply gate** (Step 4) → (2) **`cmp -s` no-op compare vs `.bak`** → (3) **structure `ok`/`bad` check**. EVERY corrective redo in this step — the no-op corrective AND the `bad`/malformed corrective — re-enters this FULL pipeline from step (1) in this exact order. A redo is never "just the gate" or a partial check. The retry budget is unchanged: exactly ONE corrective redo per failure kind, then STOP via Step 8 teardown — but that single redo must pass the full validation pipeline, not a partial check. Because `.bak` is only `rm`'d on the `ok` success path or after terminal teardown, it still exists on every redo path, so the `cmp -s` compare is valid for the redo too.
+**Revise-validation pipeline** — every revise reply must pass this ordered sequence: (1) **anchored reply gate** (Step 4) → (2) **`cmp -s` no-op compare vs `.bak`** → (3) **structure `ok`/`bad` check**. Each failure branch, its single-redo budget, the corrective message wording, the no-op / malformed terminal STOPs, and the `.bak` restore + cleanup ordering are specified in `references/failure-protocol.md` §3 — follow it verbatim. The two bash checks themselves:
 
-Apply the **anchored reply gate from Step 4** to the reply (initial corrective + escalation to **"hyper-plan-loop reply-contract failure"** via Step 8 teardown if it still fails).
-
-**No-op-revise detection (after the gate passes, before the structure check):** confirm the planner actually changed the file — compare it to the pre-revise backup via the Bash tool:
+No-op compare (step 2):
 
 ```bash
 cmp -s "<resolved plan path>" "<resolved plan path>.bak"
 ```
 
-Exit 0 = byte-identical = the planner replied `WROTE:` but applied NO revision. On byte-identical, send ONE corrective `SendMessage({ to: "planner", summary: "Revision not applied — file unchanged", message: "<you replied WROTE: but the plan file is byte-identical to before; actually apply the Blocker/Major revisions and re-Write the exact resolved plan path; reply with exactly 'WROTE: <that exact path>' and nothing else>" })`. That corrective's reply re-enters the FULL revise-validation pipeline from step (1): anchored reply gate → `cmp -s` no-op compare vs `.bak` → structure `ok`/`bad` check. If the redo is STILL byte-identical at the `cmp -s` step → this is a planner-write failure: Step 8 teardown, then STOP (**"hyper-plan-loop no-op revise"**). The `.bak` equals the canonical file so no restore is needed; `rm "<resolved plan path>.bak"` AFTER teardown to avoid stale-backup clutter (consistent with the existing terminal-cleanup rule).
+Exit 0 = byte-identical = the planner replied `WROTE:` but applied NO revision → §3 no-op handling.
 
-Only when the file genuinely differs from `.bak` do you proceed to the structure check below. A real change that is `bad`/malformed still follows the restore-from-`.bak` logic unchanged.
-
-After the gate and no-op check pass, **quietly** validate structure without pulling the body into context — a one-liner that prints only `ok` or `bad`:
+Structure check (step 3, only when the file genuinely differs from `.bak`) — a one-liner that prints only `ok` or `bad`:
 
 ```bash
 node -e 'try{process.stdout.write(/^##\s*Task\s/m.test(require("fs").readFileSync(process.argv[1],"utf8"))?"ok":"bad")}catch{process.stdout.write("bad")}' "<resolved plan path>"
 ```
 
-The try/catch is load-bearing: any read failure (the planner deleted or clobbered the canonical path) prints `bad` instead of throwing — so a missing/unreadable file routes through the restore-from-`.bak` path below, not to teardown as an unexpected tool error that would leave the canonical file missing.
-
-If `bad` (the planner clobbered the canonical path with malformed content, OR the file is missing/unreadable): restore via `cp "<resolved plan path>.bak" "<resolved plan path>"`, then send ONE corrective `SendMessage` (with `summary`) instructing the planner to redo the revision. That corrective's reply re-enters the FULL revise-validation pipeline from step (1): anchored reply gate → `cmp -s` no-op compare vs `.bak` → structure `ok`/`bad` check. If the redo is still `bad` at the structure step → `cp "<resolved plan path>.bak" "<resolved plan path>"` again, then Step 8 teardown, then STOP (**"hyper-plan-loop planner format, iter N"**) with the canonical path holding the restored last-valid plan. On that terminal STOP-after-restore path, `rm "<resolved plan path>.bak"` only AFTER the restore `cp` has succeeded — never before the restore is confirmed.
-
-Only Read the full file into lead context for human-facing failure diagnostics — never on the success path. (Residual risk: a transient malformed file exists on disk until the immediate `cp` restore — acceptable, since the lead never proceeds to review on a `bad` file.)
+`bad` → §3 restore-from-`.bak` + corrective + terminal handling.
 
 On `ok`, delete the backup (`rm "<resolved plan path>.bak"`). Increment the iteration counter and re-invoke the bridge via the Bash tool with `timeout: 600000`:
 
@@ -245,7 +221,7 @@ Exact procedure:
 2. The planner's `shutdown_response` / idle-termination notification arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check.
 3. `TeamDelete({})`.
 
-If `TeamDelete` fails because a member is still live: send `shutdown_request` once more, then retry `TeamDelete` a single time. If it STILL fails, STOP with a named-loop report (**"hyper-plan-loop teardown"**) surfacing the verbatim `TeamDelete` error and the run's team name, stating the team may still be live. Do NOT instruct manual deletion of internal team state (`~/.claude/teams/<team-name>/` is internal — unsupported, and deleting it does not terminate a live teammate).
+If `TeamDelete` fails because a member is still live → apply the recovery in `references/failure-protocol.md` §4.
 
 ### Step 9 — Final report
 
@@ -260,18 +236,11 @@ After successful teardown, report:
 
 ## Anti-patterns
 
+Core invariants (full list in `references/failure-protocol.md` §5):
+
 - Making the reviewer a team agent. The Codex bridge IS the reviewer — this preserves the "Claude builds, Codex reviews" invariant.
 - Re-spawning the planner fresh each iteration. Context-reuse via the live teammate is the entire reason this skill exists.
-- Accepting an existing-plan-path argument. Not a v1 input mode — `$ARGUMENTS` is a task description only.
+- Reading the plan body into lead context each revise round, or accepting any non-`WROTE:` reply / a byte-identical no-op revise as success.
 - Writing `<plan>-v2.md` (or any) sibling files. Always overwrite the same plan path; `--resume` keys on it.
-- Reading the plan body into lead context each revise round. Use `cp` backup + the quiet `ok`/`bad` check — Read-caching the body reintroduces the token cost this skill removes.
-- Accepting any non-`WROTE:` reply (body echo, prose, preamble, wrong path) as success. The anchored gate is exact-match only.
-- Accepting a revise `WROTE:` whose file is byte-identical to the pre-revise `.bak` — the loop would re-review an unchanged plan until the cap; detect the no-op and treat it as a planner-write failure.
-- Treating prompt-only idle discipline as sufficient. The lead-side unsolicited-message rule (Step 4a) is mandatory.
-- Proceeding to Codex review on a `bad` (malformed) just-written file instead of `cp`-restoring the last-valid plan first.
-- Writing the wrong base path. The resolved plan path is a Step 1 concept; Step 2 is team creation only — never derive the path from Step 2.
-- Treating Minor findings as blocking. Only Blocker/Major gate the loop.
-- Omitting `--plan-path` or `--resume auto` on iteration 2+. `--plan-path` is required every iteration; `--resume auto` from iteration 2 onward.
-- Stopping silently at the cap. Always emit the named cap report (after teardown).
-- Skipping `shutdown_request` + `TeamDelete`, or calling `TeamDelete` before the teammate is down. Shutdown first; `TeamDelete` fails while a member is live.
+- Skipping `shutdown_request` + `TeamDelete`, or calling `TeamDelete` before the teammate is down; stopping silently at the cap.
 - Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.
