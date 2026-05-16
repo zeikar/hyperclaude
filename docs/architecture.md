@@ -11,7 +11,7 @@ hyperclaude wires four things together:
 - **Agents** — sub-Claude personas with restricted tool sets. Each is one `<name>.md` under [agents/](../agents/).
 - **Bridge** — [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs), a Node 18+ stdlib script that shells out to `codex` and writes structured output under `.hyperclaude/`.
 
-There is no daemon, no MCP server, no shared process state — with one documented exception: `hyper-plan-loop` spawns a `planner` agent as a persistent team teammate (via Claude Code's experimental agent-teams feature) that retains context across revise iterations for the duration of the loop. All other skills and agents are stateless and fresh-per-task. The bridge runs on demand; skills and agents are static markdown. The primary persisted state is `.hyperclaude/` artifacts — gate runs produce one markdown file each, read back by `--resume` for thread-id discovery.
+There is no daemon, no MCP server, no shared process state — with one documented exception: `hyper-plan-loop` spawns a `planner` agent as a persistent team teammate (via Claude Code's experimental agent-teams feature) that retains context across revise iterations for the duration of the loop. In `hyper-plan-loop`, the persistent planner teammate also writes the plan file directly at the lead-resolved path (caller-directed write-file mode), eliminating per-iteration plan-body round-trips. This write-file behavior is scoped to `hyper-plan-loop`; other agents' existing tool permissions and dispatch semantics are unchanged; stock `hyper-plan` still has the skill own the Write. All other skills and agents are stateless and fresh-per-task. The bridge runs on demand; skills and agents are static markdown. The primary persisted state is `.hyperclaude/` artifacts — gate runs produce one markdown file each, read back by `--resume` for thread-id discovery.
 
 ## Directory layout
 
@@ -71,7 +71,9 @@ Functional runtime surface stops at the directory above. Zero npm dependencies; 
    │   verifier / documenter)         │    restricted tool set
    │                                  │    (exception: hyper-plan-loop keeps
    │                                  │    planner as a live teammate via
-   │                                  │    experimental agent-teams)
+   │                                  │    experimental agent-teams; the planner
+   │                                  │    also writes the plan file directly in
+   │                                  │    caller-directed write-file mode)
    └──────────┬───────────────────────┘
               │ skills (not agents) shell out
               ▼

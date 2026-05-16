@@ -63,7 +63,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 ### `hyper-plan-loop` — autonomous plan-revise loop
 
 - **Slash:** `/hyperclaude:hyper-plan-loop [task]`
-- **Mechanics:** team-based revise loop. The skill spawns the [`planner`](#planner) agent once as a persistent team teammate (requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). It then runs Codex `plan-review` directly via the bridge, sends the critique back to the planner teammate via SendMessage, and repeats until the review reports no Blocker or Major issues, or a 5-review cap is reached. The reviewer is always the Codex bridge — NOT a team agent — preserving the "Claude builds, Codex reviews" invariant.
+- **Mechanics:** team-based revise loop. The skill spawns the [`planner`](#planner) agent once as a persistent team teammate (requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). The lead resolves the plan path and instructs the planner teammate to write the plan file itself at that path (caller-directed write-file mode); the planner replies `WROTE: <path>` only and idles between turns. The lead then runs Codex `plan-review` directly via the bridge, sends the critique back to the planner teammate via SendMessage, and repeats until the review reports no Blocker or Major issues, or a 5-review cap is reached. The reviewer is always the Codex bridge — NOT a team agent — preserving the "Claude builds, Codex reviews" invariant.
 - **Writes:** `.hyperclaude/plans/<timestamp>-<slug>.md` (same-path overwrite on each revise); `.hyperclaude/plan-reviews/<timestamp>-<slug>.md` per iteration.
 - **`--resume`:** `--resume auto` is passed to `plan-review` from iteration 2 onward (threads the Codex review session for token efficiency).
 - **Use when:** you want a fully autonomous plan-research → plan → review → revise cycle in one gesture. Requires the experimental agent-teams Claude Code feature.
@@ -156,7 +156,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 
 ### `planner`
 
-- **Tools:** `Read, Glob, Grep, Bash, WebFetch`. Read-only — cannot edit code.
+- **Tools:** `Read, Glob, Grep, Bash, WebFetch, Write`. In caller-directed write-file mode (used only by `hyper-plan-loop`), the planner writes the plan file itself at the lead-resolved path. In the standard flow (`hyper-plan`), the planner returns the plan body and the skill owns the Write.
 - **Job:** decompose a task into ordered, bite-sized steps with file paths and per-step verification checks. Produces a numbered plan, typically saved to `.hyperclaude/plans/<timestamp>-<slug>.md` for `hyper-plan-review` to consume.
 - **Source:** [agents/planner.md](../agents/planner.md).
 

@@ -186,6 +186,15 @@ The two skills are intentionally paired: `hyper-docs-sync` writes; `hyper-docs-r
 - The skills-call-bridge layer rule (skills shell out to the bridge; agents don't) must hold for the reviewer path.
 - A Codex bridge call is auditable and sandbox-enforced; a Claude agent reviewer would bypass both.
 
+**Amendment — planner writes the plan file directly (caller-directed write-file mode):**
+
+In `hyper-plan-loop`, the lead (skill) resolves and owns the plan path, then instructs the planner teammate to write the file itself at that exact path. The planner replies `WROTE: <path>` only and idles between turns (no resending). This is caller-directed write-file mode: the lead directs which path to write; the planner acts on that instruction.
+
+The earlier "lead owns the plan file / planner returns body" design was superseded for the loop because per-iteration plan-body round-trips (the lead sending the full plan text back to itself to write) waste tokens on every revise cycle.
+
+- **Pro:** far fewer tokens per revise round; no RESEND churn from the planner re-sending unsolicited plan bodies between turns.
+- **Con:** the planner now has `Write` in its tool list (mitigated: the write-file behavior is caller-directed, exact-path-bound, and scoped to the loop; stock `hyper-plan` still uses return-body mode — the skill owns the Write — so its behavior is unchanged).
+
 **Why agent-teams is env-gated, not probed:**
 - Agent teams is an experimental Claude Code feature. The skill requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`. On spawn failure the skill degrades gracefully rather than probing the environment variable, because the env probe itself is unreliable at skill-invocation time.
 - Users who cannot set the env variable should use the manual `hyper-plan` + `hyper-plan-review` flow, which is untouched.
