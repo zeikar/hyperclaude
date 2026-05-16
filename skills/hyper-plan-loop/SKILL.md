@@ -75,7 +75,7 @@ Failure handling:
 
 Documented stop message:
 
-> agent teams unavailable (or TeamCreate failed — see error below) — this skill requires the experimental agent-teams feature; a future /hyperclaude:hyper-setup will diagnose prerequisites. Use /hyperclaude:hyper-plan + /hyperclaude:hyper-plan-review manually instead.
+> agent teams unavailable (or TeamCreate failed — see error below) — this skill requires the experimental agent-teams feature; run /hyperclaude:hyper-setup to diagnose prerequisites. Use /hyperclaude:hyper-plan + /hyperclaude:hyper-plan-review manually instead.
 
 ### Step 3 — Spawn the planner teammate
 

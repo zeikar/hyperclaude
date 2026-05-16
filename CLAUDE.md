@@ -66,6 +66,7 @@ If you add a new spawn path, re-check both argv shapes. New flags must be added 
 
 ## Layers
 
+- **Commands** (`commands/<name>.md`) — explicitly-invoked slash commands (`/hyperclaude:<name>`), distinct from description-triggered Skills. Auto-discovered by Claude Code; no manifest entry required. The only command is `hyper-setup`: a local prerequisite probe that never spawns Codex or agents — it runs `scripts/setup-doctor.mjs` and reports the result.
 - **Skills** (`skills/<name>/SKILL.md`) — what Claude reads on the matching trigger. Each skill is one markdown file with YAML frontmatter (`name`, `description`). Skills call the bridge via `Bash` and dispatch agents via the `Agent` tool. A skill MAY also spawn an agent as a persistent team teammate for stateful multi-turn loops (currently only `hyper-plan-loop`); this uses Claude Code's experimental agent-teams feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`).
 - **Agents** (`agents/<name>.md`) — sub-Claude personas with restricted `tools:` lists. Used by skills, never the other way around.
 - **Hooks** (`hooks/*.mjs`, registered in `hooks/hooks.json`) — currently one: SessionStart reminder that injects `templates/hooks/session-start-reminder.md` plus an optional `.hyperclaude/` snapshot footer.
@@ -79,6 +80,8 @@ If you add a new spawn path, re-check both argv shapes. New flags must be added 
 
 | Code | Docs |
 |------|------|
+| `commands/*.md` | `docs/gates-and-agents.md`, `docs/workflow.md`, `README.md` |
+| `scripts/setup-doctor.mjs` | `docs/architecture.md`, `docs/development.md` (non-bridge probe; never spawns Codex) |
 | `scripts/codex-bridge.mjs`, `scripts/codex/*.mjs` | `docs/architecture.md`, `docs/decisions.md` |
 | `skills/<any>/SKILL.md` | `docs/gates-and-agents.md`, `docs/workflow.md` |
 | `agents/<any>.md` | `docs/gates-and-agents.md` |

@@ -4,8 +4,9 @@ System layout for hyperclaude — a Claude Code plugin that pairs Claude (builde
 
 ## Overview
 
-hyperclaude wires three things together:
+hyperclaude wires four things together:
 
+- **Commands** — explicitly-invoked slash commands (`/hyperclaude:<name>`), auto-discovered from `commands/*.md`. Currently one: `hyper-setup`, a local prerequisite probe that never spawns Codex.
 - **Skills** — instructions that Claude reads when it sees the matching trigger. Each skill is one `SKILL.md` under [skills/](../skills/).
 - **Agents** — sub-Claude personas with restricted tool sets. Each is one `<name>.md` under [agents/](../agents/).
 - **Bridge** — [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs), a Node 18+ stdlib script that shells out to `codex` and writes structured output under `.hyperclaude/`.
@@ -19,6 +20,8 @@ hyperclaude/
 ├── .claude-plugin/
 │   ├── plugin.json              plugin manifest (name, version, repo)
 │   └── marketplace.json         marketplace listing (consumed by `/plugin marketplace add`)
+├── commands/                    explicitly-invoked slash commands (auto-discovered, no manifest entry)
+│   └── hyper-setup.md           prerequisite doctor (/hyperclaude:hyper-setup)
 ├── skills/                      one directory per skill, each with SKILL.md
 │   ├── hyper-research/          gate — Codex research
 │   ├── hyper-plan-review/       gate — Codex plan critique
@@ -33,6 +36,7 @@ hyperclaude/
 ├── hooks/                       event-bound hook scripts (SessionStart)
 ├── scripts/
 │   ├── codex-bridge.mjs         CLI entry; re-exports the helpers below
+│   ├── setup-doctor.mjs         standalone local probe (non-bridge; never spawns Codex)
 │   ├── codex/                   bridge modules (slug, frontmatter, git, templates,
 │   │                            args, paths, codex spawn + JSONL, failure, resume)
 │   └── test/smoke.sh            acceptance smoke checks
@@ -58,7 +62,7 @@ Functional runtime surface stops at the directory above. Zero npm dependencies; 
               │
               ▼
    ┌──────────────────────────────────┐
-   │ Skills (gates + helpers)         │  ← /hyperclaude:hyper-* slash commands
+   │ Skills (gates + helpers)         │  ← description-triggered /hyperclaude:hyper-* skills
    └──────────┬───────────────────────┘
               │ dispatches Agent / runs Bash / writes files
               ▼
@@ -88,6 +92,8 @@ Direction:
 - Skills call agents (via Claude's `Agent` tool) and call the bridge (via `Bash`). Agents do not call skills.
 - Skills are the only layer that shells out to the bridge. Agents stay focused on their narrow job.
 - The bridge is the only component that talks to `codex`. Skills never invoke `codex` directly.
+
+`commands/` is a distinct layer: explicitly-invoked slash commands (`/hyperclaude:<name>`), not description-triggered skills. Commands are auto-discovered from `commands/*.md` with no manifest entry. Currently one command: `hyper-setup` (`/hyperclaude:hyper-setup`), which runs `scripts/setup-doctor.mjs` — a standalone local probe that checks Node, codex-cli, git, and the agent-teams env var. `setup-doctor.mjs` is not part of the Codex bridge and never spawns Codex.
 
 ## The bridge
 

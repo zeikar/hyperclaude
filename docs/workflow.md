@@ -2,6 +2,8 @@
 
 The end-to-end cycle hyperclaude is built around. This is the dogfooding loop the author actually runs to ship its own releases.
 
+Before running any gate for the first time, run `/hyperclaude:hyper-setup` to diagnose host prerequisites (Node 18+, codex-cli >= 0.130.0, git, and the optional `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var for `hyper-plan-loop`).
+
 For per-skill mechanics, see [gates-and-agents.md](gates-and-agents.md). For the bridge details, see [architecture.md](architecture.md).
 
 ## The cycle

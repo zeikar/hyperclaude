@@ -1,8 +1,23 @@
 # Gates and agents
 
-Reference for every skill and agent in the plugin: what it does, when it fires, what it reads, what it writes.
+Reference for every skill, agent, and command in the plugin: what it does, when it fires, what it reads, what it writes.
 
 For the underlying mechanics (sandbox, output paths, frontmatter), see [architecture.md](architecture.md). For the cycle that strings these together, see [workflow.md](workflow.md).
+
+---
+
+## Commands (1)
+
+Commands are explicitly-invoked slash commands (`/hyperclaude:<name>`), distinct from description-triggered skills. They are auto-discovered from `commands/*.md`; no manifest entry is required.
+
+### `hyper-setup` — prerequisite doctor
+
+- **Slash:** `/hyperclaude:hyper-setup`
+- **Mechanics:** a command (not a skill/gate) that runs one local Node probe (`scripts/setup-doctor.mjs`) via inline bash.
+- **Reads:** host environment (Node.js version, `codex` on PATH, `git` on PATH, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var).
+- **Writes:** nothing — report only, no `.hyperclaude/` artifact.
+- **Use when:** before first use to verify that Node 18+, codex-cli >= 0.130.0, and git are installed; also surfaces whether `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set (required only by `hyper-plan-loop`).
+- **Source:** [commands/hyper-setup.md](../commands/hyper-setup.md).
 
 ---
 
@@ -169,6 +184,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 
 | Situation | Use |
 |---|---|
+| First-time setup; want to verify prerequisites | `/hyperclaude:hyper-setup` |
 | Starting a non-trivial task; want prior art | `/hyperclaude:hyper-research` |
 | Need an ordered plan with verification per step | `/hyperclaude:hyper-plan` (wraps the `planner` agent) |
 | Plan written; want Codex to critique it | `/hyperclaude:hyper-plan-review` |
