@@ -143,6 +143,7 @@ for f in \
   templates/hooks/session-start-reminder.md \
   skills/hyper-research/SKILL.md \
   skills/hyper-plan/SKILL.md \
+  skills/hyper-plan-loop/SKILL.md \
   skills/hyper-plan-review/SKILL.md \
   skills/hyper-tdd/SKILL.md \
   skills/hyper-debug/SKILL.md \
@@ -341,6 +342,16 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
        /hyperclaude:hyper-docs-review
      Verify a file appears under .hyperclaude/docs-reviews/ with
      valid frontmatter.
+
+  8. Run:
+       /hyperclaude:hyper-plan-loop <small task>
+     If agent teams are available: verify a plan appears under
+     .hyperclaude/plans/, at least one Codex plan-review runs, and
+     the loop reaches a terminal state (clean exit, iteration cap, or
+     controlled failure) ending in a successful TeamDelete.
+     If agent teams are unavailable: verify it prints the documented
+     graceful-fallback message and leaves no team behind.
+     One branch always applies — this check is required either way.
 
 If any of the above fails, STOP and fix before shipping.
 ====================================================================
