@@ -96,6 +96,53 @@ else
 fi
 
 echo
+echo "==> setup-doctor probe"
+if out=$(node scripts/setup-doctor.mjs 2>&1); then
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    // Cross-check mirror: these names MUST match scripts/setup-doctor.mjs exactly.
+    // Duplication is intentional — a rename in the doctor with no smoke update is a test failure.
+    const expectedNames = [
+      "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1",
+      "Node.js >= 18",
+      "codex-cli >= 0.130.0 (version floor only)",
+      "git on PATH"
+    ].sort();
+    const actualNames = j.checks.map(c => c.name).sort();
+    const namesMatch = JSON.stringify(actualNames) === JSON.stringify(expectedNames);
+    const passed =
+      typeof j.ok === "boolean" &&
+      Array.isArray(j.checks) &&
+      j.checks.length === 4 &&
+      j.checks.every(c => c.detected) &&
+      namesMatch;
+    process.exit(passed ? 0 : 1);
+  '; then
+    ok "setup-doctor probe: shape ok, 4 checks, all detected, names match"
+  else
+    miss "setup-doctor probe: JSON shape unexpected: $out"
+  fi
+else
+  miss "setup-doctor probe failed: $out"
+fi
+
+echo
+echo "==> hyper-setup command file content"
+if node -e '
+  const fs = require("fs");
+  const text = fs.readFileSync("commands/hyper-setup.md", "utf8");
+  const passed =
+    text.includes("node \"\${CLAUDE_PLUGIN_ROOT}/scripts/setup-doctor.mjs\"") &&
+    text.includes("Prerequisite probe could not complete:") &&
+    text.includes("hyperclaude prerequisites are UNKNOWN");
+  process.exit(passed ? 0 : 1);
+' 2>/dev/null; then
+  ok "hyper-setup command file: probe invocation + fallback sentences present"
+else
+  miss "hyper-setup command file: missing expected content in commands/hyper-setup.md"
+fi
+
+echo
 echo "==> Plugin manifest validation"
 if command -v claude >/dev/null 2>&1; then
   if claude plugin validate . > /tmp/hyperclaude-validate.log 2>&1; then
@@ -156,7 +203,9 @@ for f in \
   agents/verifier.md \
   agents/documenter.md \
   hooks/hooks.json \
-  hooks/session-start-reminder.mjs
+  hooks/session-start-reminder.mjs \
+  commands/hyper-setup.md \
+  scripts/setup-doctor.mjs
 do
   if [ -f "$f" ]; then ok "$f"; else miss "$f missing"; fi
 done
@@ -352,6 +401,12 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
+
+  9. Run (in a fresh Claude Code session):
+       /hyperclaude:hyper-setup
+     Verify it runs the doctor probe, renders a per-prerequisite
+     pass/fail table with remediation lines for any non-PASS check,
+     and writes NO file under .hyperclaude/ (report-only, not a gate).
 
 If any of the above fails, STOP and fix before shipping.
 ====================================================================
