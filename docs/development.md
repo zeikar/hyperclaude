@@ -155,7 +155,7 @@ The version is recorded in research / plan-review / docs-review output frontmatt
 6. **Push.** `git push origin main v0.X.Y`.
 7. **Verify GitHub install.** From a fresh checkout: `/plugin marketplace add zeikar/hyperclaude` → `/plugin install hyperclaude` → run a gate.
 
-The user does steps 5–7 manually. Skills never push or tag-then-push.
+All seven steps run when the user asks to release — steps 1–3 are validation prerequisites, not optional; never tag/push (4–7) without them. The autonomous `hyper-implement` executor is the exception — during plan execution it never pushes or tag-then-pushes on its own.
 
 ## Self-test from a clean state
 

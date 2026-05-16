@@ -173,14 +173,14 @@ Status taxonomy recorded in `codex-resume-status` frontmatter:
 
 `research` does NOT support `--resume` (deferred; see decisions.md).
 
-## 8. Ship — tag and push (manual)
+## 8. Ship — tag and push
 
 ```bash
 git tag -a v0.X.Y -m "v0.X.Y: <one-line summary>"
 git push origin main v0.X.Y
 ```
 
-Always manual. Skills never push, never tag-then-push. The `hyper-implement` skill creates a local tag only if the plan's final task says to, and even then leaves the push to the user.
+Driven by an explicit release request — when the user asks to release, run the flow end to end (see Release flow in [CLAUDE.md](../CLAUDE.md)). The autonomous `hyper-implement` executor is the exception: during plan execution it creates a local tag only if the plan's final task says to, and never pushes it.
 
 ---
 

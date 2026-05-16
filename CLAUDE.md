@@ -99,13 +99,13 @@ Plan files (Claude-authored) live in `.hyperclaude/plans/` and are the input to 
 
 ## Release flow
 
-1. Tests green: `node --test tests/codex-bridge*.test.mjs` and `bash scripts/test/smoke.sh`.
-2. Bump `version` in `.claude-plugin/plugin.json` (pre-1.0: minor bump for breaking changes — bridge subcommand renames, frontmatter key changes, artifact directory renames all count).
-3. Commit. Push.
-4. `git tag -a vX.Y.Z -m "vX.Y.Z: <one-line>"` then `git push origin vX.Y.Z`.
-5. GitHub release via `gh release create vX.Y.Z` (include migration notes when breaking).
+When the user asks to release, run the whole flow end to end — don't stop after the commit.
 
-Tagging and releasing are user-initiated; skills never push or tag themselves.
+1. **Tests green — re-run immediately before committing**, not "earlier this session": `node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs` and `bash scripts/test/smoke.sh`. Unit must report `fail 0`; smoke must report `failed: 0`. Either red → stop and fix first.
+2. **Bump `version`** in `.claude-plugin/plugin.json`. Pre-1.0: minor bump for breaking changes — bridge subcommand renames, frontmatter key changes, artifact directory renames, layer/command/skill removals all count. The bump rides in the release commit, not a separate one.
+3. **Commit + push to `main`.** Conventional-commit subject; breaking changes take a `!` (`feat!:` / `refactor!:`) and a `BREAKING CHANGE:` footer spelling out migration steps. Review `git status` and stage the release's files explicitly — don't blanket `git add -A`. (`.hyperclaude/` is gitignored so its artifacts never appear, but any *other* untracked file would be swept into the release commit.)
+4. **Tag:** `git tag -a vX.Y.Z -m "vX.Y.Z: <one-line>"` then `git push origin vX.Y.Z`.
+5. **GitHub release:** `gh release create vX.Y.Z --title "..." --notes "..."`. When breaking, the notes must carry a **Migration** section whose steps match the commit's `BREAKING CHANGE:` footer.
 
 ## See also
 
