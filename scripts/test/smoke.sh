@@ -203,10 +203,11 @@ for f in \
   skills/hyper-code-review/SKILL.md \
   skills/hyper-docs-sync/SKILL.md \
   skills/hyper-docs-review/SKILL.md \
-  agents/planner.md \
-  agents/implementer.md \
-  agents/verifier.md \
   agents/documenter.md \
+  agents/implementer.md \
+  agents/planner.md \
+  agents/researcher.md \
+  agents/verifier.md \
   hooks/hooks.json \
   hooks/session-start-reminder.mjs \
   commands/hyper-setup.md \

@@ -20,13 +20,15 @@ Each step has a single concrete trigger and a single concrete output. Slugs prop
 
 ---
 
-## 1. Research — Codex surfaces context
+## 1. Research — surfaces context
 
 ```
 /hyperclaude:hyper-research add OAuth login to the API
 ```
 
-Writes `.hyperclaude/research/<timestamp>-add-oauth-login-to-the.md`. Read it. Don't skip the Pitfalls section — that's where Codex earns its keep.
+Writes `.hyperclaude/research/<timestamp>-add-oauth-login-to-the.md`. Read it. Don't skip the Pitfalls section.
+
+By default, research is produced by Codex (read-only sandbox, live web search via `--search`). On an explicit Claude-native / no-Codex / second-opinion request, `hyper-research` dispatches the `researcher` agent instead (uses `WebFetch` on known URLs — not a web-search substitute). Either path writes the same always-present frontmatter keys and section structure; slug and trio traceability (`research → plan → plan-review`) are unaffected by which path ran.
 
 When to skip: the task is mechanical (rename, dep bump, one-file fix).
 

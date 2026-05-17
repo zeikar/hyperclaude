@@ -41,7 +41,8 @@ Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step 
    (prerequisite          (research /                  (planner /
    doctor; no             plan-review /                implementer /
    Codex spawn)           code-review /                verifier /
-                          docs-review)                 documenter)
+                          docs-review)                 documenter /
+                                                       researcher)
                                +
                           Claude orch
                           (plan /
@@ -75,7 +76,7 @@ Four layers:
 
 1. **Commands** (`commands/`) — explicitly-invoked slash commands, distinct from description-triggered skills. Auto-discovered; no manifest entry. Currently one: `hyper-setup` (`/hyperclaude:hyper-setup`) — a local prerequisite doctor that never spawns Codex or agents.
 2. **Skills** (`skills/`) — Codex gates (`hyper-research`, `hyper-plan-review`, `hyper-code-review`, `hyper-docs-review`) + Claude orchestrators (`hyper-plan`, `hyper-docs-sync`) + autonomous plan-revise loop (`hyper-plan-loop`, requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) + plan execution (`hyper-implement`) + implementation discipline (`hyper-tdd`, `hyper-debug`). All surface via Claude Code's description-triggered dispatch.
-3. **Agents** (`agents/`) — Claude implementation arm (`planner`, `implementer`, `verifier`, `documenter`).
+3. **Agents** (`agents/`) — Claude implementation arm (`planner`, `implementer`, `verifier`, `documenter`, `researcher`).
 4. **Hooks** (`hooks/`) — SessionStart reminder (workflow router + `.hyperclaude/` snapshot footer).
 
 When hyperclaude invokes `codex exec` (research, plan-review, docs-review), it always passes `--sandbox read-only`. When it invokes `codex exec review` (code review) or `codex exec resume` (`--resume` for plan-review / code-review / docs-review), neither subcommand exposes `--sandbox`, so the bridge passes `-c sandbox_mode=read-only` as a config override. In every mode, Codex's role in hyperclaude is *critic*, never *editor*. Every Codex invocation (all modes, fresh and resume) also runs with live web search enabled (`codex --search …`), so Codex may fetch external content while it reviews your code or docs — this does NOT relax the read-only sandbox.

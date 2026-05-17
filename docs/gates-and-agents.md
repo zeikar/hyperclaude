@@ -25,12 +25,14 @@ Commands are explicitly-invoked slash commands (`/hyperclaude:<name>`), distinct
 
 A gate skill mediates a step in the cycle that produces a canonical `.hyperclaude/` artifact (or, in the doc-sync case, the doc edits themselves). Four shell out to the Codex bridge directly; `hyper-plan` and `hyper-docs-sync` orchestrate Claude-side work — `hyper-plan` dispatches the `planner` agent, and `hyper-docs-sync` pairs with `hyper-docs-review` for the Codex critic step. `hyper-plan-loop` is a hybrid: it spawns a persistent `planner` teammate for Claude-side revision while calling the bridge directly for each Codex review turn.
 
-### `hyper-research` — Codex pre-implementation research
+### `hyper-research` — pre-implementation research
 
 - **Slash:** `/hyperclaude:hyper-research <task description>`
-- **Mode:** `research` (Codex `exec`, read-only sandbox).
+- **Paths:** two execution paths; selection is a plain-language rule — not a flag.
+  - **Codex path (default):** mode `research` (Codex `exec`, read-only sandbox). Used unless the user explicitly requests Claude-native research, mentions no Codex access, or asks for a second opinion against a prior Codex result.
+  - **Claude path:** dispatches the [`researcher`](#researcher) agent. Used only on an explicit Claude-native / no-Codex / second-opinion request; ask if ambiguous. The agent uses `WebFetch` on known URLs — it does NOT provide web-search parity with the Codex `--search` path.
 - **Reads:** the task text passed by the user (or read from a temp file).
-- **Writes:** `.hyperclaude/research/<timestamp>-<slug>.md` — frontmatter + Codex's Prior Art / Pitfalls / Recommendations.
+- **Writes:** `.hyperclaude/research/<timestamp>-<slug>.md` — same always-present frontmatter keys and section structure (`Prior Art`, `Pitfalls`, `Recommendations`) on both paths. The Claude path omits Codex-only conditional keys and records `codex-version: claude` in frontmatter to distinguish it from a Codex-authored artifact.
 - **Use when:** about to design a non-trivial change and you want prior art / failure modes before committing to an approach.
 - **Skip when:** the task is one-line / mechanical / well-trodden.
 - **`--resume`:** not supported (research is not iterative).
@@ -110,7 +112,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 
 | Skill | Who acts | What is reviewed |
 |---|---|---|
-| `hyper-research` | Codex | (a future) task description |
+| `hyper-research` | Codex (default) or Claude (`researcher` agent, on explicit request) | (a future) task description |
 | `hyper-plan` | Claude (via `planner` agent) | task → plan generation, no review |
 | `hyper-plan-review` | Codex | Claude's plan |
 | `hyper-plan-loop` | Claude (persistent planner teammate) + Codex (bridge) | autonomous plan-revise loop; reviewer is always Codex |
@@ -150,7 +152,7 @@ Helper skills shape Claude's behavior on tasks. They are not Codex gates themsel
 
 ---
 
-## Implementation-arm agents (4)
+## Implementation-arm agents (5)
 
 Agents are sub-Claude personas with restricted tool sets. They are dispatched by skills (or by Claude directly when the skill rules don't apply). Each `<name>.md` in [agents/](../agents/) carries the prompt and the allowed tool list.
 
@@ -177,6 +179,13 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 - **Tools:** `Read, Edit, Write, Glob, Grep, Bash`.
 - **Job:** edit a documentation file in-place to reflect code changes (UPDATE mode), or scaffold a new file from a code path (CREATE mode). Minimal edits, no scope creep, no prose polish. Receives target path, aggregated diff/excerpts, and mapping rationale from `hyper-docs-sync`.
 - **Source:** [agents/documenter.md](../agents/documenter.md).
+
+### `researcher`
+
+- **Tools:** `Read, Glob, Grep, Bash, WebFetch`.
+- **Job:** produce a Prior Art / Pitfalls / Recommendations research artifact for a task description, using `WebFetch` on known URLs. **Not** a web-search substitute — `WebFetch` fetches known URLs; it does not replicate the live crawl that Codex performs via `--search`. Writes the same always-present `.hyperclaude/research/` frontmatter keys and section structure as the Codex path, with `codex-version: claude` to mark it as Claude-authored.
+- **Dispatched by:** `hyper-research` — only on an explicit Claude-native / no-Codex / second-opinion request.
+- **Source:** [agents/researcher.md](../agents/researcher.md).
 
 ---
 

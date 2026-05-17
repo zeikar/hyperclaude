@@ -75,6 +75,18 @@ When to revisit: a specific error code shows up in a bug report.
 
 ## Design decisions
 
+### Claude research path is additive; `codex-version: claude` marks the artifact
+
+**Decision:** `hyper-research` has two execution paths — Codex (default) and Claude (`researcher` agent). Selection is a plain-language rule: use the Claude path only when the user explicitly requests Claude-native research, mentions no Codex access, or asks for a second opinion against a prior Codex result; otherwise use Codex; ask if ambiguous.
+
+**Why additive (not replacing Codex research):** the core thesis is "Claude builds, Codex critiques." Research is a Codex-critic step, not a Claude-build step. The Claude path is provided for cases where Codex is unavailable or a second perspective is explicitly wanted — it does not weaken the invariant because the Claude path is opt-in and the Codex path remains the default.
+
+**Why `codex-version: claude`:** both paths write the same always-present frontmatter keys and section structure so downstream consumers (plan, plan-review) can treat either artifact identically. The `codex-version: claude` key distinguishes a Claude-authored artifact from a Codex-authored one (which omits the key or records a version string). Codex-only conditional keys are omitted on the Claude path.
+
+**WebFetch ≠ web-search parity:** the `researcher` agent uses `WebFetch` on known URLs. This is not equivalent to Codex's live crawl via `--search`; Codex can discover and fetch arbitrary URLs. The Claude path is suited for known-reference lookups, not open-ended search.
+
+---
+
 ### Codex is always invoked with `--search`
 
 **Decision:** every Codex spawn unconditionally prepends the global `--search` flag (before the subcommand), enabling live web search. There is no opt-in, no per-mode toggle, and no user flag — `--search` is hardcoded in `runCodexExec` in `scripts/codex/codex.mjs` at the single spawn-finalization site.
