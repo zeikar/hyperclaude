@@ -30,7 +30,7 @@ This skill uses the experimental agent-teams tools. The per-run team name is pas
 - `SendMessage` — `{ to: <teammate name, e.g. "planner">, message: <string | {type:"shutdown_request"}>, summary? }`. No `team_name` field. `summary` is REQUIRED whenever `message` is a string; the shutdown object message takes no `summary`. Plain-text output is NOT visible to teammates; messaging requires this tool.
 - `TeamDelete` — `{}` (no args; team inferred from session). Fails if the team still has a live member, so shut members down first.
 - A teammate's `shutdown_response` or idle-termination notification is auto-delivered as a new turn — there is no poll/wait tool. **But the idle notification is a payload-less wake signal (`{type:"idle_notification",...}`) — it does NOT carry the teammate's reply text.** The `WROTE:` confirmation arrives ONLY if the planner explicitly `SendMessage`s it to the lead (Step 3 reply-transport rule); a planner that prints `WROTE:` as plain text and idles delivers an empty notification and the lead must fall back to the corrective round-trip. Idle teammates keep their process + context alive between turns; a later SendMessage wakes them with context intact — this is the property the revise loop depends on.
-- **Plan ownership:** the planner writes the canonical plan file itself via caller-directed write-file mode (its Step 3 prompt carries the exact resolved path). The lead never Writes or Reads the plan body on the normal path — it does a filesystem-level `cp` backup/restore plus a quiet `ok`/`bad` structure check, and only Reads the body for human-facing failure diagnostics. Every write-file-mode reply (initial, retry, revise redo) is gated to `WROTE: <path>`-only (Step 4 anchored gate). Unsolicited planner messages follow the lead-side protocol (`references/failure-protocol.md` §2) — prompt-only idle discipline is insufficient.
+- **Plan ownership:** the planner writes the canonical plan file itself via caller-directed write-file mode (its Step 3 prompt carries the exact resolved path). The lead never Writes or Reads the plan body on the normal path — it does only a quiet `ok`/`bad` structure check, and only Reads the body for human-facing failure diagnostics. Every write-file-mode reply (initial, retry, revise redo) is gated to `WROTE: <path>`-only (Step 4 anchored gate). Unsolicited planner messages follow the lead-side protocol (`references/failure-protocol.md` §2) — prompt-only idle discipline is insufficient.
 
 ## How to invoke
 
@@ -162,15 +162,9 @@ Read the artifact body and judge by **meaning**, not regex. The plan-review temp
 
 ### Step 7 — Revise via the live planner, then re-review
 
-The lead never Reads the plan body into its context here (that would reintroduce the token cost this skill is designed to avoid). Preservation and validation are filesystem-level only.
+The lead never Reads the plan body into its context here (that would reintroduce the token cost this skill is designed to avoid). Validation is filesystem-level only.
 
-**Before sending findings**, back up the canonical file via the Bash tool (the `.hyperclaude/` tree is gitignored, so the `.bak` sibling is harmless and untracked):
-
-```bash
-cp "<resolved plan path>" "<resolved plan path>.bak"
-```
-
-Then send the findings to the still-live planner:
+Send the findings to the still-live planner:
 
 ```
 SendMessage({
@@ -182,25 +176,13 @@ SendMessage({
 
 Do NOT re-send the task or research — the planner still holds that context.
 
-**Revise-validation pipeline** — every revise reply must pass this ordered sequence: (1) **anchored reply gate** (Step 4) → (2) **`cmp -s` no-op compare vs `.bak`** → (3) **structure `ok`/`bad` check**. Each failure branch, its single-redo budget, the corrective message wording, the no-op / malformed terminal STOPs, and the `.bak` restore + cleanup ordering are specified in `references/failure-protocol.md` §3 — follow it verbatim. The two bash checks themselves:
-
-No-op compare (step 2):
-
-```bash
-cmp -s "<resolved plan path>" "<resolved plan path>.bak"
-```
-
-Exit 0 = byte-identical = the planner replied `WROTE:` but applied NO revision → §3 no-op handling.
-
-Structure check (step 3, only when the file genuinely differs from `.bak`) — a one-liner that prints only `ok` or `bad`:
+**Revise-validation** — every revise reply must pass, in order: (1) **anchored reply gate** (Step 4) → (2) **structure `ok`/`bad` check**. The single-redo budget, corrective wording, and terminal STOP are specified in `references/failure-protocol.md` §3 — follow it verbatim. The structure check is a one-liner that prints only `ok` or `bad`:
 
 ```bash
 node -e 'try{process.stdout.write(/^##\s*Task\s/m.test(require("fs").readFileSync(process.argv[1],"utf8"))?"ok":"bad")}catch{process.stdout.write("bad")}' "<resolved plan path>"
 ```
 
-`bad` → §3 restore-from-`.bak` + corrective + terminal handling.
-
-On `ok`, delete the backup (`rm "<resolved plan path>.bak"`). Increment the iteration counter and re-invoke the bridge via the Bash tool with `timeout: 600000`:
+`bad` → §3 corrective + terminal handling. On `ok`, increment the iteration counter and re-invoke the bridge via the Bash tool with `timeout: 600000`:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<same path>" --resume auto
@@ -214,7 +196,7 @@ Cap at **5 total Codex reviews** (iter 1 fresh + at most 4 resumed revise rounds
 
 On cap-reached with Blocker/Major still open: FIRST capture the cap report details (iterations consumed, residual Blocker/Major findings, plan path left in its latest revised state), THEN run teardown, THEN emit the named-loop report (**"hyper-plan-loop revise loop"**).
 
-**Teardown is MANDATORY on EVERY exit path once the Step 3 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure (anchored gate / unsolicited-message protocol), planner-write failure, planner-format-after-restore, plus any other unexpected tool error while the planner teammate is live. Run teardown FIRST, then report/STOP — never before.
+**Teardown is MANDATORY on EVERY exit path once the Step 3 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure (anchored gate / unsolicited-message protocol), planner-write failure, planner-format failure, plus any other unexpected tool error while the planner teammate is live. Run teardown FIRST, then report/STOP — never before.
 
 Exact procedure:
 
@@ -241,7 +223,7 @@ Core invariants (full list in `references/failure-protocol.md` §5):
 
 - Making the reviewer a team agent. The Codex bridge IS the reviewer — this preserves the "Claude builds, Codex reviews" invariant.
 - Re-spawning the planner fresh each iteration. Context-reuse via the live teammate is the entire reason this skill exists.
-- Reading the plan body into lead context each revise round, or accepting any non-`WROTE:` reply / a byte-identical no-op revise as success.
+- Reading the plan body into lead context each revise round, or accepting any non-`WROTE:` reply as success.
 - Writing `<plan>-v2.md` (or any) sibling files. Always overwrite the same plan path; `--resume` keys on it.
 - Skipping `shutdown_request` + `TeamDelete`, or calling `TeamDelete` before the teammate is down; stopping silently at the cap.
 - Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.
