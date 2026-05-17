@@ -28,7 +28,7 @@ Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex   
 
 The `refine` / `fix` arcs are exactly what `hyper-plan-loop` and `hyper-implement-loop` automate — a Claude-side teammate (`planner` / `fixer`) revises while Codex stays the reviewer, looping until it converges.
 
-Each step has one trigger and one artifact under `.hyperclaude/` (research's parallel default writes a Codex + Claude pair sharing one slug). Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, and `--resume`.
+Most gates write trace artifacts under `.hyperclaude/` (research's parallel default writes a Codex + Claude pair sharing one slug). `hyper-docs-sync` edits docs directly, and `hyper-implement` changes the working tree while updating the plan checklist. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, and `--resume`.
 
 ## Architecture
 
@@ -61,7 +61,7 @@ Four layers:
 
 When hyperclaude invokes `codex exec` (research, plan-review, docs-review), it always passes `--sandbox read-only`. When it invokes `codex exec review` (code review) or `codex exec resume` (`--resume` for plan-review / code-review / docs-review), neither subcommand exposes `--sandbox`, so the bridge passes `-c sandbox_mode=read-only` as a config override. In every mode, Codex's role in hyperclaude is *critic*, never *editor*. Every Codex invocation (all modes, fresh and resume) also runs with live web search enabled (`codex --search …`), so Codex may fetch external content while it reviews your code or docs — this does NOT relax the read-only sandbox.
 
-External dependencies: Claude Code plugin runtime, `codex-cli >= 0.130.0`, Node 18+, and `git` (for diff-backed gates: code-review, docs-sync, docs-review with `--diff-base`). Nothing else (no npm bin, no tmux, no MCP servers).
+External dependencies: Claude Code plugin runtime, `codex-cli >= 0.130.0` with the global `--search` flag, Node 18+, and `git` (for diff-backed gates: code-review, docs-sync, docs-review with `--diff-base`). Nothing else (no npm bin, no tmux, no MCP servers).
 
 ## Conventions
 
@@ -94,13 +94,13 @@ Per-feature plans for later versions live in `.hyperclaude/plans/` (gitignored �
    /hyperclaude:hyper-setup
    ```
 
-   This checks Node 18+, codex-cli >= 0.130.0, git, and (optionally) the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var needed by `hyper-plan-loop` and `hyper-implement-loop`. Report-only; nothing is installed automatically.
+   This checks Node 18+, codex-cli >= 0.130.0, the `codex --search` global flag, git, and (optionally) the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var needed by `hyper-plan-loop` and `hyper-implement-loop`. Report-only; nothing is installed automatically.
 
-3. Run the cycle inside any project. Codex gates are explicit slash commands; Claude's planning and implementation happen between them:
+3. Run the cycle inside any project. Invoke the gates explicitly; Claude's planning and implementation happen between them:
 
    ```text
    /hyperclaude:hyper-research add OAuth login to the API   # Codex+Claude prior-art / pitfalls
-   #   → Claude writes a plan to .hyperclaude/plans/<slug>.md
+   /hyperclaude:hyper-plan                                  # Claude writes .hyperclaude/plans/<slug>.md
    /hyperclaude:hyper-plan-review                            # Codex critiques the plan
    #   → Claude implements
    /hyperclaude:hyper-code-review                            # Codex reviews the diff (branch vs main)
