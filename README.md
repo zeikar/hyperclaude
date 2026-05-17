@@ -1,7 +1,7 @@
 # HyperClaude
 
 > Push Claude Code beyond stock. Claude builds, Codex critiques.
-> A gated research → plan → review → ship pipeline.
+> A gated research → plan → review → ship pipeline, with autonomous multi-agent revise loops that self-converge.
 
 > 🚧 **Early alpha.** v0.12 is implemented and dogfooded daily. Layout, naming, and APIs may change between minor versions until v1.0.
 
@@ -23,10 +23,12 @@ Thesis: **Claude is the builder, Codex is the critic.** You get better software 
             ▼          │            ▼            │            ▼            │
 research → plan → plan-review → implement → code-review → docs-sync → docs-review → ship
    │         │         │            │            │            │            │           │
- Codex     Claude    Codex    Claude(+agents)  Codex      Claude       Codex        user
+Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex        user
 ```
 
-Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, and `--resume`.
+The `refine` / `fix` arcs are exactly what `hyper-plan-loop` and `hyper-implement-loop` automate — a Claude-side teammate (`planner` / `fixer`) revises while Codex stays the reviewer, looping until it converges.
+
+Each step has one trigger and one artifact under `.hyperclaude/` (research's parallel default writes a Codex + Claude pair sharing one slug). Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, and `--resume`.
 
 ## Architecture
 
