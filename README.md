@@ -31,45 +31,23 @@ Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step 
 ## Architecture (v0.12)
 
 ```
-                           User in Claude Code
-                                   │
-         ┌──────────────────────────┼───────────────────────────┐
-         │                          │                           │
-      Commands                   Skills                      Agents
-         │                          │                           │
-   hyper-setup            Codex gates                  Claude impl arm
-   (prerequisite          (research /                  (planner /
-   doctor; no             plan-review /                implementer /
-   Codex spawn)           code-review /                verifier /
-                          docs-review)                 documenter /
-                                                       researcher)
-                               +
-                          Claude orch
-                          (plan /
-                          docs-sync /
-                          implement /
-                          tdd / debug)
-                                   │
-                                 Hooks
-                                   │
-                            SessionStart
-                             reminder
-                            (workflow
-                            router +
-                            snapshot)
-                                   │
-                              codex-bridge.mjs
-                          (only Codex-spawning code;
-                           always read-only sandbox)
-                                   │
-                          ┌────────▼────────┐
-                          │  .hyperclaude/  │
-                          │   research/     │
-                          │   plans/        │
-                          │   plan-reviews/ │
-                          │   code-reviews/ │
-                          │   docs-reviews/ │
-                          └─────────────────┘
+            User in Claude Code
+                    │
+   ┌────────────────┼───────────────┐
+   │                │               │
+Commands          Skills ────────► Agents
+hyper-setup   gates + orchestr.   planner / implementer
+(no spawn)          │             verifier / documenter
+                    ▼             researcher
+              codex-bridge.mjs
+          (only Codex-spawning code;
+           always read-only sandbox)
+                    │
+                    ▼
+   .hyperclaude/{research,plans,plan-reviews,
+                 code-reviews,docs-reviews}/
+
+Hooks — SessionStart reminder, fires independently
 ```
 
 Four layers:
