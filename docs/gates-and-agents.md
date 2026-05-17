@@ -16,14 +16,14 @@ Commands are explicitly-invoked slash commands (`/hyperclaude:<name>`), distinct
 - **Mechanics:** a command (not a skill/gate) that runs one local Node probe (`scripts/setup-doctor.mjs`) via inline bash.
 - **Reads:** host environment (Node.js version, `codex` on PATH, `git` on PATH, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var).
 - **Writes:** nothing — report only, no `.hyperclaude/` artifact.
-- **Use when:** before first use to verify that Node 18+, codex-cli >= 0.130.0, and git are installed; also surfaces whether `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set (required only by `hyper-plan-loop`).
+- **Use when:** before first use to verify that Node 18+, codex-cli >= 0.130.0, and git are installed; also surfaces whether `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set (required by `hyper-plan-loop` and `hyper-implement-loop`).
 - **Source:** [commands/hyper-setup.md](../commands/hyper-setup.md).
 
 ---
 
-## Gate skills (7)
+## Gate skills (8)
 
-A gate skill mediates a step in the cycle that produces a canonical `.hyperclaude/` artifact (or, in the doc-sync case, the doc edits themselves). Four shell out to the Codex bridge directly; `hyper-plan` and `hyper-docs-sync` orchestrate Claude-side work — `hyper-plan` dispatches the `planner` agent, and `hyper-docs-sync` pairs with `hyper-docs-review` for the Codex critic step. `hyper-plan-loop` is a hybrid: it spawns a persistent `planner` teammate for Claude-side revision while calling the bridge directly for each Codex review turn.
+A gate skill mediates a step in the cycle that produces a canonical `.hyperclaude/` artifact (or, in the doc-sync case, the doc edits themselves). Four shell out to the Codex bridge directly; `hyper-plan` and `hyper-docs-sync` orchestrate Claude-side work — `hyper-plan` dispatches the `planner` agent, and `hyper-docs-sync` pairs with `hyper-docs-review` for the Codex critic step. `hyper-plan-loop` is a hybrid: it spawns a persistent `planner` teammate for Claude-side revision while calling the bridge directly for each Codex review turn. `hyper-implement-loop` is also a hybrid: it creates the team and spawns a persistent `fixer` teammate first (so an agent-teams-unavailable host stops as a clean no-op), then runs `hyper-implement` (with its optional final code-review suppressed), then spawns fix rounds to the live `fixer` while calling the bridge directly for each Codex code-review turn.
 
 ### `hyper-research` — pre-implementation research
 
@@ -72,6 +72,19 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 - **Skip when:** you prefer manual control over each revise turn (use `hyper-plan` + `hyper-plan-review` instead — both remain available and untouched).
 - **Source:** [skills/hyper-plan-loop/SKILL.md](../skills/hyper-plan-loop/SKILL.md).
 
+### `hyper-implement-loop` — autonomous implement-hardening loop
+
+- **Slash:** `/hyperclaude:hyper-implement-loop [path/to/plan.md]`
+- **Mechanics:** team-based implement-hardening loop. The skill creates the team and spawns the [`fixer`](#fixer) agent once as a persistent teammate FIRST (requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`; an unavailable host therefore stops as a clean no-op before any tree mutation). The lead then runs `hyper-implement` to completion (boundary A — full plan execution; hyper-implement's optional final code-review step is suppressed so the loop's first review is the single authoritative one), then invokes Codex `code-review --base main` directly via the bridge for that first review, sends blocking findings to the still-live fixer via SendMessage, and repeats until no blocking findings remain (judged semantically — correctness/data-loss/security/broken-build/regression/missing-behavior block; style/nits do not) or a 3-review cap is reached. The reviewer is always the Codex bridge — NOT a team agent — preserving the "Claude builds, Codex reviews" invariant.
+- **Writes:** implementation files (via `hyper-implement`); `.hyperclaude/code-reviews/<timestamp>-vs-main.md` per iteration (release-level slug derived from the diff target, not the plan).
+- **`--resume`:** `--resume auto` is passed to `code-review` from iteration 2 onward.
+- **Cap:** 3 total Codex reviews (1 fresh + at most 2 resumed fix rounds). On cap-reached with open findings, emits a named cap report and tears down.
+- **Fix-validation gate:** semantic finding-map check — every cited blocking finding must map to `status: fixed` OR `status: not-applicable` with a non-empty `notes:` reason. No git-state / no-op gate (a stuck fixer is bounded by the cap).
+- **Teardown:** mandatory on every exit path after teammate spawn — `SendMessage shutdown_request` → `TeamDelete`.
+- **Use when:** you want a fully autonomous implement → code-review → fix cycle in one gesture. Requires the experimental agent-teams Claude Code feature.
+- **Skip when:** you prefer manual control over each implement / review round (use `hyper-implement` + `hyper-code-review` instead — both remain available and untouched); or the task is one step (use `hyper-implement` directly); or the experimental agent-teams feature is unavailable.
+- **Source:** [skills/hyper-implement-loop/SKILL.md](../skills/hyper-implement-loop/SKILL.md).
+
 ### `hyper-code-review` — Codex code review
 
 - **Slash:** `/hyperclaude:hyper-code-review [target]`
@@ -116,6 +129,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 | `hyper-plan` | Claude (via `planner` agent) | task → plan generation, no review |
 | `hyper-plan-review` | Codex | Claude's plan |
 | `hyper-plan-loop` | Claude (persistent planner teammate) + Codex (bridge) | autonomous plan-revise loop; reviewer is always Codex |
+| `hyper-implement-loop` | Claude (`hyper-implement` + persistent fixer teammate) + Codex (bridge) | autonomous implement-hardening loop; reviewer is always Codex |
 | `hyper-code-review` | Codex | a code diff |
 | `hyper-docs-sync` | Claude (via `documenter` agent) | edits docs to match code |
 | `hyper-docs-review` | Codex | docs (optionally with code-diff context) |
@@ -152,7 +166,7 @@ Helper skills shape Claude's behavior on tasks. They are not Codex gates themsel
 
 ---
 
-## Implementation-arm agents (5)
+## Implementation-arm agents (6)
 
 Agents are sub-Claude personas with restricted tool sets. They are dispatched by skills (or by Claude directly when the skill rules don't apply). Each `<name>.md` in [agents/](../agents/) carries the prompt and the allowed tool list.
 
@@ -167,6 +181,14 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 - **Tools:** `Read, Edit, Write, Glob, Grep, Bash`.
 - **Job:** carry out one planned step. Returns a description of what was changed plus the diff. Used by `hyper-implement` once per task; can also be dispatched directly when the user already has a clear single step.
 - **Source:** [agents/implementer.md](../agents/implementer.md).
+
+### `fixer`
+
+- **Tools:** `Read, Edit, Write, Glob, Grep, Bash`.
+- **Job:** apply ONLY the Codex code-review findings explicitly cited in each `SendMessage` from the lead. Re-reads current diff/files each round (context may be stale across rounds), makes the minimum targeted fix per finding, runs relevant verification, and replies with the structured per-finding schema (`finding:` / `status:` / `files-changed:` / `verification:` / `notes:`); the spawning `hyper-implement-loop` skill directs that reply back to the lead via `SendMessage` (transport is skill-injected, not part of this agent definition). There is no canonical output file — the fixer edits in place.
+- **Constraints:** fix ONLY cited findings — no opportunistic refactors, no scope expansion; NEVER commit or push; NEVER invoke codex or `scripts/codex-bridge.mjs`; never act as reviewer. Spotting additional issues beyond the cited findings is noted in `notes:` only, not acted on.
+- **Dispatched by:** `hyper-implement-loop` — spawned once as a persistent team teammate; every fix round reuses its retained context via SendMessage.
+- **Source:** [agents/fixer.md](../agents/fixer.md).
 
 ### `verifier`
 
@@ -199,6 +221,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 | Plan written; want Codex to critique it | `/hyperclaude:hyper-plan-review` |
 | Want autonomous plan-revise loop in one gesture | `/hyperclaude:hyper-plan-loop` (requires experimental agent-teams) |
 | Multi-task plan ready; want disciplined execution | `/hyperclaude:hyper-implement` |
+| Want autonomous implement → review → fix loop in one gesture | `/hyperclaude:hyper-implement-loop` (requires experimental agent-teams) |
 | One concrete coded step, no plan needed | `implementer` agent directly |
 | Need to confirm tests / build pass | `verifier` agent |
 | Code change might affect docs | `/hyperclaude:hyper-docs-sync` |

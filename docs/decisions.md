@@ -233,6 +233,24 @@ The earlier "lead owns the plan file / planner returns body" design was supersed
 - Pro: no per-iteration context reload; single capped gesture replaces the manual plan → review → revise cycle.
 - Con: depends on experimental agent-teams (env-gated); the teammate lifecycle adds teardown burden; env-unavailable path requires the manual fallback; `hyper-plan` and `hyper-plan-review` remain the stable, unconditional path.
 
+### `hyper-implement-loop` keeps the fixer as a live teammate but the reviewer is always the bridge
+
+**Decision:** `hyper-implement-loop` spawns the `fixer` agent once as a persistent team teammate (retaining context across fix iterations), but the code reviewer is always a direct Codex bridge `code-review` call — not a team agent.
+
+**Why persistent fixer:** same reasoning as `hyper-plan-loop`'s persistent planner — re-spawning the fixer each iteration would re-upload the working-tree context from scratch on every round. Keeping the fixer live eliminates that overhead and preserves finding-context across rounds.
+
+**Why reviewer stays a direct bridge call:** identical to the `hyper-plan-loop` rationale — the "Claude builds, Codex reviews" invariant must hold; making the reviewer a Claude agent would collapse the role split and bypass the sandbox.
+
+**Cap 3, not 5:** code-review is costlier and noisier than plan-review — a failing loop that spins 5 code-review rounds wastes significantly more than a plan-loop equivalent. Three rounds (1 fresh + 2 resumed fix rounds) bound the cost while giving the fixer two chances to converge.
+
+**`--commit <sha>` forbidden as a loop target:** the loop always passes `--base main` and `--resume auto` from iteration 2 onward. A changing commit SHA would break `--resume` identity — the loop's fixed `--base main` target ensures `--resume auto` re-matches the same prior artifact each round by ref NAME; substituting `--commit <sha>` would switch to a different resume-identity class (a `commit`/SHA descriptor instead of the `base-ref` one), so `--resume auto` would fail to find the prior iteration's artifact and the loop would lose Codex thread continuity (resume-identity matching is in `scripts/codex/resume.mjs`).
+
+**No-op / git-state gate intentionally omitted:** a stuck or no-change fixer is bounded by the Step 8 cap (the loop re-reviews and re-issues findings until convergence or the cap, then STOPs with a cap report). Reasserting a separate git-diff / no-op detection path is an anti-pattern that adds complexity without bounding anything the cap doesn't already bound.
+
+**Fix-validation is a semantic finding-map check, not a diff check:** the lead reads the fixer's structured reply and verifies that every cited blocking finding maps to `status: fixed` OR `status: not-applicable` (with a non-empty `notes:` reason). It does NOT compare git diffs between rounds — whether the code actually changed is for the next Codex review to determine.
+
+**Fixer has no canonical output file:** unlike the planner in `hyper-plan-loop` (which writes the plan file at a lead-resolved path), the fixer applies edits in place and delivers its findings-map reply via `SendMessage` — there is no `WROTE: <path>` protocol. Caller-directed write-file behavior stays scoped to `hyper-plan-loop`.
+
 ---
 
 ## Pointers (decisions documented elsewhere)

@@ -2,7 +2,7 @@
 
 The end-to-end cycle hyperclaude is built around. This is the dogfooding loop the author actually runs to ship its own releases.
 
-Before running any gate for the first time, run `/hyperclaude:hyper-setup` to diagnose host prerequisites (Node 18+, codex-cli >= 0.130.0, git, and the optional `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var for `hyper-plan-loop`).
+Before running any gate for the first time, run `/hyperclaude:hyper-setup` to diagnose host prerequisites (Node 18+, codex-cli >= 0.130.0, git, and the optional `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var for `hyper-plan-loop` and `hyper-implement-loop`).
 
 For per-skill mechanics, see [gates-and-agents.md](gates-and-agents.md). For the bridge details, see [architecture.md](architecture.md).
 
@@ -75,6 +75,8 @@ For each `## Task N:` in the plan, this skill:
 Fix loops happen inline — reviewer ❌ → implementer fixes → re-review. The skill does not pause for user input between tasks; it executes the whole plan.
 
 When to skip the skill: one-step plans (just dispatch `implementer` directly), tightly-coupled tasks that benefit from shared context, or fast prototyping.
+
+**Autonomous alternative:** `/hyperclaude:hyper-implement-loop` combines steps 4–5 into a single gesture — it creates the team and spawns the `fixer` agent as a persistent teammate FIRST (so an agent-teams-unavailable host fails as a clean no-op before any tree mutation), then runs `hyper-implement` to completion (boundary A; hyper-implement's own optional final code-review is suppressed so the loop's first review is the single authoritative one), then invokes Codex `code-review --base main` via the bridge, sends blocking findings to the fixer via SendMessage, and repeats until no blocking findings remain (3-review cap). Both `hyper-implement` + `hyper-code-review` and `hyper-implement-loop` are available; use whichever fits your workflow. `hyper-implement-loop` requires Claude Code's experimental agent-teams feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`).
 
 ## 5. Code review — Codex critiques the diff
 
