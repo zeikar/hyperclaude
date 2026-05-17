@@ -201,10 +201,12 @@ for f in \
   skills/hyper-tdd/SKILL.md \
   skills/hyper-debug/SKILL.md \
   skills/hyper-implement/SKILL.md \
+  skills/hyper-implement-loop/SKILL.md \
   skills/hyper-code-review/SKILL.md \
   skills/hyper-docs-sync/SKILL.md \
   skills/hyper-docs-review/SKILL.md \
   agents/documenter.md \
+  agents/fixer.md \
   agents/implementer.md \
   agents/planner.md \
   agents/researcher.md \
@@ -405,18 +407,29 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      THE PLANNER itself at the lead-resolved path under
      .hyperclaude/plans/ (the lead never Writes it), that planner
      replies are `WROTE: <path>`-only with no plan body echoed and no
-     "RESEND:"/duplicate-body churn between revise rounds, that a
-     revise round where the planner replies `WROTE:` without changing
-     the file is detected as a no-op (compared vs the `.bak` backup)
-     and never silently re-reviews an unchanged plan, that at
+     "RESEND:"/duplicate-body churn between revise rounds, that at
      least one Codex plan-review runs, and the loop reaches a terminal
-     state (clean exit, iteration cap, or controlled failure) ending
-     in a successful TeamDelete.
+     state (clean exit, iteration cap, or controlled failure) bounded
+     by the review cap ending in a successful TeamDelete.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
 
-  9. Run (in a fresh Claude Code session):
+  9. Run:
+       /hyperclaude:hyper-implement-loop <path-to-plan>
+     If agent teams are available: verify that after `hyper-implement`
+     completes ALL plan tasks, the bridge is invoked once for a Codex
+     `code-review --base main`, then the fixer↔code-review loop runs,
+     that the fixer agent applies Codex findings via a semantic
+     finding-map (not a raw diff), that the loop is bounded by the
+     review cap (3 total Codex reviews maximum), and that the loop
+     reaches a terminal state (clean exit on no blocking findings, or
+     the 3-review cap reached, ending in a successful TeamDelete).
+     If agent teams are unavailable: verify it prints the documented
+     graceful-fallback message and leaves no team behind.
+     One branch always applies — this check is required either way.
+
+  10. Run (in a fresh Claude Code session):
        /hyperclaude:hyper-setup
      Verify it runs the doctor probe, renders a per-prerequisite
      pass/fail table with remediation lines for any non-PASS check,
