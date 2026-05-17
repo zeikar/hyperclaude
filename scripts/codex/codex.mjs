@@ -188,8 +188,14 @@ function injectJsonAndOutputFlags(semanticArgv, lastMessagePath) {
 export async function runCodexExec(argv, stdinPayload, timeoutSec, knownThreadId = null) {
   const lastMessagePath = path.join(os.tmpdir(), `hyperclaude-codex-${crypto.randomUUID()}.txt`);
   const fullArgv = injectJsonAndOutputFlags(argv, lastMessagePath);
-  // --search is a global codex flag (must precede the subcommand) enabling web search;
-  // it does NOT relax the read-only sandbox invariant (CLAUDE.md "Sandbox invariant").
+  // --search is a global codex flag (must precede the subcommand). It switches the
+  // web_search default cached -> live. Required, not optional: cached serves stale
+  // pre-indexed content (verified: a <24h-old README change was missed and the model
+  // self-reported "no actual results"), while live fetches current pages -- grounded
+  // and fewer tokens. The critic must see just-changed docs / fresh releases.
+  // Docs: https://developers.openai.com/codex/cli/features
+  //       https://developers.openai.com/codex/cli/reference
+  // It does NOT relax the read-only sandbox invariant (CLAUDE.md "Sandbox invariant").
   fullArgv.unshift('--search');
 
   let spawnResult;
