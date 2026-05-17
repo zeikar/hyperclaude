@@ -30,7 +30,7 @@ In priority order:
 
    1. Derive the canonical slug deterministically (rule below).
    2. Scan **all** research files under `.hyperclaude/research/*.md` — not just the newest. Read each file's frontmatter `slug:` field (the canonical key — do not match against the filename, which may have collision suffixes like `-2`).
-   3. If any file's frontmatter `slug:` equals the derived slug, treat it as the linked research artifact and read it in Step 3 for context.
+   3. If one OR MORE files' frontmatter `slug:` equals the derived slug (there may be a Codex `<ts>-<slug>.md` AND a Claude `<ts>-<slug>-claude.md` pair), treat ALL of them as the linked research artifacts and read ALL of them in Step 3 for context.
 
    This deterministic slug-equality scan is what preserves `research → plan → plan-review` traceability even when an unrelated newer research file exists.
 
@@ -58,7 +58,7 @@ Base path: `.hyperclaude/plans/<timestamp>-<slug>.md`. If it exists, append `-2`
 Use the Agent tool with `subagent_type: hyperclaude:planner`. Prompt MUST include:
 
 - **Task** — verbatim.
-- **Research context** — full contents of the research file inline, if one was used. Do not make the agent re-read it.
+- **Research context** — full contents of all matched research artifacts inline (there may be a Codex + Claude pair), if any were found in Step 1. Do not make the agent re-read them.
 - **Output format** — a multi-task plan with `## Task N: <title>` headings. Each task block contains:
   - **Files to create / modify** — exact paths.
   - **Steps** — `[ ]`-checkboxes, 2–5 minutes each.

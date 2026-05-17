@@ -28,11 +28,11 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 ### `hyper-research` — pre-implementation research
 
 - **Slash:** `/hyperclaude:hyper-research <task description>`
-- **Paths:** two execution paths; selection is a plain-language rule — not a flag.
-  - **Codex path (default):** mode `research` (Codex `exec`, read-only sandbox). Used unless the user explicitly requests Claude-native research, mentions no Codex access, or asks for a second opinion against a prior Codex result.
-  - **Claude path:** dispatches the [`researcher`](#researcher) agent. Used only on an explicit Claude-native / no-Codex / second-opinion request; ask if ambiguous. The agent uses `WebFetch` on known URLs — it does NOT provide web-search parity with the Codex `--search` path.
+- **Paths:** two execution paths (Codex + Claude); selection is a plain-language rule — **not** a flag/token parser.
+  - **Default — both in parallel:** a normal invocation runs the Codex `research` mode (Codex `exec`, read-only sandbox) AND dispatches the [`researcher`](#researcher) agent (backgrounded), producing two artifacts that share one frontmatter `slug:`.
+  - **Single path:** only on an explicit request — "Codex only / no Claude" → Codex alone; "Claude only / Claude-native / no-Codex / second opinion" → Claude alone. The Claude path uses `WebFetch` on known URLs — it does NOT provide web-search parity with the Codex `--search` path.
 - **Reads:** the task text passed by the user (or read from a temp file).
-- **Writes:** `.hyperclaude/research/<timestamp>-<slug>.md` — same always-present frontmatter keys and section structure (`Prior Art`, `Pitfalls`, `Recommendations`) on both paths. The Claude path omits Codex-only conditional keys and records `codex-version: claude` in frontmatter to distinguish it from a Codex-authored artifact.
+- **Writes:** by default a pair — `.hyperclaude/research/<timestamp>-<slug>.md` (Codex) + `.hyperclaude/research/<timestamp>-<slug>-claude.md` (Claude) — both with the same always-present frontmatter keys, the same `slug:`, and the same section structure (`Prior Art`, `Pitfalls`, `Recommendations`). The Claude artifact omits Codex-only conditional keys and records `codex-version: claude` to distinguish it from a Codex-authored artifact. A single-path run writes only the one corresponding file.
 - **Use when:** about to design a non-trivial change and you want prior art / failure modes before committing to an approach.
 - **Skip when:** the task is one-line / mechanical / well-trodden.
 - **`--resume`:** not supported (research is not iterative).
@@ -112,7 +112,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 
 | Skill | Who acts | What is reviewed |
 |---|---|---|
-| `hyper-research` | Codex (default) or Claude (`researcher` agent, on explicit request) | (a future) task description |
+| `hyper-research` | Codex + Claude (`researcher` agent) in parallel by default; single path on explicit request | (a future) task description |
 | `hyper-plan` | Claude (via `planner` agent) | task → plan generation, no review |
 | `hyper-plan-review` | Codex | Claude's plan |
 | `hyper-plan-loop` | Claude (persistent planner teammate) + Codex (bridge) | autonomous plan-revise loop; reviewer is always Codex |
@@ -184,7 +184,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 
 - **Tools:** `Read, Glob, Grep, Bash, WebFetch`.
 - **Job:** produce a Prior Art / Pitfalls / Recommendations research artifact for a task description, using `WebFetch` on known URLs. **Not** a web-search substitute — `WebFetch` fetches known URLs; it does not replicate the live crawl that Codex performs via `--search`. Writes the same always-present `.hyperclaude/research/` frontmatter keys and section structure as the Codex path, with `codex-version: claude` to mark it as Claude-authored.
-- **Dispatched by:** `hyper-research` — only on an explicit Claude-native / no-Codex / second-opinion request.
+- **Dispatched by:** `hyper-research` — on the default parallel run (backgrounded, alongside the Codex bridge) AND on an explicit Claude-only / no-Codex / second-opinion request.
 - **Source:** [agents/researcher.md](../agents/researcher.md).
 
 ---

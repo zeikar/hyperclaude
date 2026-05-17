@@ -4,11 +4,11 @@ description: |
   Produces a structured research report — Prior Art, Pitfalls, Recommendations, Open Questions — using in-repo reading and targeted WebFetch on known URLs. Dispatch before design or implementation when the task space is unfamiliar or when the Codex research bridge is unavailable.
 
   <example>
-  Context: User explicitly requests Claude-native research or a Claude second opinion on a task.
-  user: "/hyperclaude:hyper-research how should we implement distributed tracing — Claude-native, no Codex"
-  assistant: "I'll dispatch the researcher agent to produce a structured research report using Claude-native research."
+  Context: User runs a normal hyper-research invocation (the default).
+  user: "/hyperclaude:hyper-research how should we implement distributed tracing"
+  assistant: "I'll dispatch the researcher agent in the background as part of the default parallel Codex + Claude research."
   <commentary>
-  The hyper-research skill routes to this agent only when the user explicitly asks for Claude-native research, no-Codex, or a second opinion. A plain /hyperclaude:hyper-research invocation goes to the Codex path by default.
+  A plain /hyperclaude:hyper-research invocation defaults to running BOTH paths in parallel, so this agent is dispatched (backgrounded) alongside the Codex bridge — the two artifacts share one slug.
   </commentary>
   </example>
 

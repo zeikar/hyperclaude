@@ -122,7 +122,7 @@ Per-feature plans for later versions live in `.hyperclaude/plans/` (gitignored �
    /hyperclaude:hyper-research add OAuth login to the API
    ```
 
-   The first invocation creates `.hyperclaude/research/<timestamp>-add-oauth-login-to-the.md` with Codex's prior-art / pitfalls / recommendations. Read it; plan accordingly.
+   By default this runs parallel Codex + Claude research, creating a pair — `.hyperclaude/research/<timestamp>-add-oauth-login-to-the.md` (Codex) and `…-add-oauth-login-to-the-claude.md` (Claude) — sharing one slug, with prior-art / pitfalls / recommendations. Read them; plan accordingly.
 
 4. After Claude writes a plan to `.hyperclaude/plans/<slug>.md`, critique it:
 

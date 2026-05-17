@@ -1,16 +1,16 @@
 ---
 name: hyper-research
-description: Run Codex pre-implementation research on a task. Use when the user invokes /hyperclaude:hyper-research, or when starting a non-trivial implementation and you want Codex's prior-art / pitfalls / recommendations before designing. Skip for one-line fixes or when a recent research artifact already covers the task.
+description: Run pre-implementation research on a task — by default both Codex and Claude in parallel, producing two artifacts. Use when the user invokes /hyperclaude:hyper-research, or when starting a non-trivial implementation and you want prior-art / pitfalls / recommendations before designing. Skip for one-line fixes or when a recent research artifact already covers the task.
 ---
 
 # hyper-research
 
-Pre-implementation research gate. Calls Codex with a research prompt; saves the output to `.hyperclaude/research/<timestamp>-<slug>.md`; you read the file and integrate findings into your next planning step.
+Pre-implementation research gate. By default runs **both** the Codex research path and the Claude research path in parallel, producing two artifacts (`.hyperclaude/research/<timestamp>-<slug>.md` from Codex and `.hyperclaude/research/<timestamp>-<slug>-claude.md` from Claude) that share one frontmatter `slug:`; you read them and integrate findings into your next planning step. A single path runs only on explicit user request.
 
 ## When to use
 
 - User typed `/hyperclaude:hyper-research <task>`.
-- You're about to start substantial new work and want a second-opinion context dump.
+- You're about to start substantial new work and want a parallel Codex + Claude research context dump.
 
 Skip when:
 - The task is a small fix or rename.
@@ -24,18 +24,34 @@ Skip when:
 
 ### Path selection
 
-Two research paths exist. Pick by reading the user's intent — this is a plain-language rule, **not** a flag/token/`$ARGUMENTS` grammar:
+Two research paths exist (Codex and Claude). Pick by reading the user's intent — this is a plain-language rule, **not** a flag/token/`$ARGUMENTS` grammar:
 
-- If the user's request explicitly asks for **Claude-native research / no-Codex / a Claude second opinion** → **Claude path**.
-- Otherwise (a normal `/hyperclaude:hyper-research <task>`) → **Codex path** (default, preserves the builder/critic invariant).
-- If the intent is genuinely unclear → ask the user in chat and stop until they answer.
+- **Default** (a normal `/hyperclaude:hyper-research <task>`, or any case not explicitly single-path) → **both paths in parallel** (Codex + Claude), producing two artifacts that share one slug.
+- ONLY if the user EXPLICITLY asks for **Codex only / no Claude** → **Codex path** alone.
+- ONLY if the user EXPLICITLY asks for **Claude only / Claude-native / no-Codex / a Claude second opinion** → **Claude path** alone.
+- If the intent is genuinely unclear → treat it as the default (both paths in parallel). Only narrow to a single path on an unambiguous explicit request.
 
-Both paths first resolve the task description the same way:
+All cases first resolve the task description the same way:
 
 - If the invocation argument is non-empty, that is the task description.
 - If empty, fall back to the user's most recent build/implement intent in this conversation. If none exists, ask the user to describe the task and stop.
 
-### Codex path (default)
+### Default: both paths in parallel
+
+This is the default. Run the Codex and Claude research paths concurrently so the two multi-minute operations overlap:
+
+1. Resolve the task description (as in **Path selection**), derive `<slug>` (Claude-path rule, step 1 below), and get `<timestamp>` once — these are shared by both artifacts.
+
+2. **Dispatch the Claude researcher in the background FIRST.** Dispatch the `researcher` agent with the Agent tool, `subagent_type: hyperclaude:researcher`, **`run_in_background: true`**, in return-body mode, using the same prompt contract as the Claude path step 4 below (Task verbatim + required section structure). Do not wait for it yet.
+
+3. **Then run the Codex bridge** exactly as the Codex path describes (write the task to a temp file with the Write tool, run `node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task-file "<temp file path>"` with `timeout: 600000`, clean up the temp file, parse the JSON line). This Bash call blocks for ~minutes — while it runs, the backgrounded researcher is working in parallel. The bridge writes `.hyperclaude/research/<timestamp>-<slug>.md`.
+   - On `{"ok":false,"error":"..."}` — surface the Codex error to the user. Do NOT pretend the Codex artifact was produced. Then go to step 4 to collect the researcher; if it succeeded, write and report the Claude artifact as a **PARTIAL result** and continue using only it. If the researcher also failed or returned an empty body, report full failure to the user and stop.
+
+4. **After the bridge Bash call returns, collect the backgrounded researcher result.** When the `researcher` agent was dispatched with `run_in_background: true`, the Agent tool returns a task handle immediately; the result is delivered as a completion notification. After the blocking bridge call returns, wait for / collect that researcher completion. If the researcher returned an error or an empty body — SKIP writing the Claude artifact, tell the user only the Codex artifact is available (or report full failure if Codex also failed in step 3), and continue using only what succeeded. Otherwise write the Claude artifact with the Write tool to `.hyperclaude/research/<timestamp>-<slug>-claude.md` using the SAME frontmatter block + one-liner as in **Claude path (single — explicit request only)** steps 5–6. The ONLY difference from the single-Claude case is the filename's `-claude` suffix; the frontmatter `slug:` stays `<slug>` (identical to the Codex artifact — this is the canonical trace key).
+
+5. Report BOTH artifact paths to the user (Codex artifact + Claude artifact). Read both and integrate BOTH into your subsequent plan. When you write a plan, save it under `.hyperclaude/plans/<timestamp>-<slug>.md` so `/hyperclaude:hyper-plan-review` can find it later.
+
+### Codex path (single — explicit request only)
 
 1. Resolve the task description as described in **Path selection** above.
 
@@ -59,7 +75,7 @@ Both paths first resolve the task description the same way:
 
 6. Integrate the file's findings into your subsequent plan. When you write a plan, save it under `.hyperclaude/plans/<timestamp>-<slug>.md` so `/hyperclaude:hyper-plan-review` can find it later.
 
-### Claude path
+### Claude path (single — explicit request only)
 
 This path runs Claude-native research via the `researcher` agent. It uses `WebFetch` against KNOWN URLs only — it is **not** web-search parity with the Codex `--search` bridge mode. If the user needs broad live web search, route them to the Codex path instead.
 
@@ -77,8 +93,8 @@ This path runs Claude-native research via the `researcher` agent. It uses `WebFe
    mkdir -p .hyperclaude/research
    ```
 
-   Base path: `.hyperclaude/research/<timestamp>-<slug>.md`. If it exists, append `-2`, `-3`, … until free.
-   - **No-ASCII-slug fallback** (mirrors the bridge): if slug derivation yields no ASCII characters (e.g. an all-Korean topic), the filename is timestamp-only — `.hyperclaude/research/<timestamp>.md` (with the same `-2`/`-3` collision suffixing) — and the frontmatter `slug:` line is the bare key with an empty value: `slug: ` (key, colon, single space, nothing after — NOT `slug: ""`).
+   Base path: `.hyperclaude/research/<timestamp>-<slug>-claude.md` (the `-claude` suffix is how the Claude artifact coexists with the Codex one when both ran). If it exists, append `-2`, `-3`, … before the extension until free.
+   - **No-ASCII-slug fallback** (mirrors the bridge): if slug derivation yields no ASCII characters (e.g. an all-Korean topic), the filename is timestamp + `-claude` — `.hyperclaude/research/<timestamp>-claude.md` (with the same `-2`/`-3` collision suffixing) — and the frontmatter `slug:` line is the bare key with an empty value: `slug: ` (key, colon, single space, nothing after — NOT `slug: ""`).
 
 4. Dispatch the `researcher` agent with the Agent tool, `subagent_type: hyperclaude:researcher`, in return-body mode (the agent returns the report markdown; it does not write files). The prompt MUST include:
    - **Task** — the resolved task description, verbatim.
@@ -116,6 +132,8 @@ This path runs Claude-native research via the `researcher` agent. It uses `WebFe
 
 ## Output contract
 
-The research file has YAML frontmatter followed by markdown sections (Prior Art / Pitfalls / Recommendations / Open Questions). Do not modify the file.
+A research file has YAML frontmatter followed by markdown sections (Prior Art / Pitfalls / Recommendations / Open Questions). Do not modify the file.
 
-Both paths produce the same always-present frontmatter keys (mode, task, slug, generated, codex-version, template-version, cwd, git-head, codex-resume-status) and the same section structure. The Codex path's `codex-version` is the Codex CLI version and it may add Codex-only conditional keys (e.g. `codex-thread-id`); the Claude path's `codex-version` is `claude` and it omits those conditional keys.
+The default (parallel) run produces a **Codex + Claude pair**: `.hyperclaude/research/<timestamp>-<slug>.md` (Codex) and `.hyperclaude/research/<timestamp>-<slug>-claude.md` (Claude). Both files carry an **identical frontmatter `slug:`** — that shared slug is the canonical trace key, not the filename. A single-path run produces only the one corresponding file.
+
+Every research file has the same always-present frontmatter keys (mode, task, slug, generated, codex-version, template-version, cwd, git-head, codex-resume-status) and the same section structure. The Codex artifact's `codex-version` is the Codex CLI version and it may add Codex-only conditional keys (e.g. `codex-thread-id`); the Claude artifact's `codex-version` is `claude` and it omits those conditional keys. Downstream consumers match on frontmatter `slug:` and may find BOTH files of a pair.

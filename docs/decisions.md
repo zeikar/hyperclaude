@@ -75,11 +75,15 @@ When to revisit: a specific error code shows up in a bug report.
 
 ## Design decisions
 
-### Claude research path is additive; `codex-version: claude` marks the artifact
+### Research defaults to parallel Codex + Claude; `codex-version: claude` marks the Claude artifact
 
-**Decision:** `hyper-research` has two execution paths — Codex (default) and Claude (`researcher` agent). Selection is a plain-language rule: use the Claude path only when the user explicitly requests Claude-native research, mentions no Codex access, or asks for a second opinion against a prior Codex result; otherwise use Codex; ask if ambiguous.
+**Decision:** `hyper-research` defaults to running **both** the Codex path and the Claude (`researcher` agent) path in parallel, producing two artifacts. A single path runs only on an explicit user request ("Codex only" or "Claude only / no-Codex / second opinion"). Selection stays a plain-language intent rule — no flag/token/`$ARGUMENTS` parser.
 
-**Why additive (not replacing Codex research):** the core thesis is "Claude builds, Codex critiques." Research is a Codex-critic step, not a Claude-build step. The Claude path is provided for cases where Codex is unavailable or a second perspective is explicitly wanted — it does not weaken the invariant because the Claude path is opt-in and the Codex path remains the default.
+**Why default-parallel:** giving the planner both a Codex research lens (live web crawl via `--search`) and a Claude research lens (in-repo + known-URL `WebFetch`) by default surfaces more context for free; the user no longer has to choose up front. Per the user decision, the two lenses are kept as **two separate files**, not one merged artifact.
+
+**Why two files sharing one slug (bridge untouched):** the bridge is the project's design invariant, so it is intentionally not modified — the Codex artifact keeps the bridge's default filename `.hyperclaude/research/<ts>-<slug>.md`, and the Claude artifact takes a `-claude` suffix (`<ts>-<slug>-claude.md`) so the two coexist. Both artifacts carry an identical frontmatter `slug:`. Traceability is preserved by that shared frontmatter slug, not the filename, so the "one slug per research → plan → plan-review trace" convention is unchanged — a research slug may now resolve to a Codex + Claude pair.
+
+**Why still additive (not replacing Codex research):** the core thesis is "Claude builds, Codex critiques." Research is a Codex-critic step; the Codex path always runs by default, so the invariant holds. The Claude path is an additional lens running alongside it, not a replacement.
 
 **Why `codex-version: claude`:** both paths write the same always-present frontmatter keys and section structure so downstream consumers (plan, plan-review) can treat either artifact identically. The `codex-version: claude` key distinguishes a Claude-authored artifact from a Codex-authored one (which omits the key or records a version string). Codex-only conditional keys are omitted on the Claude path.
 

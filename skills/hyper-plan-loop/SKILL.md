@@ -51,7 +51,7 @@ Before any team creation, Read `references/failure-protocol.md` (sibling of this
 Reuse the stock `hyper-plan` logic — see `skills/hyper-plan/SKILL.md` Steps 1–2; do not duplicate the rule text. In brief:
 
 1. Derive the canonical slug deterministically (lowercase, ASCII, alphanumerics + hyphen, first 5 words of the task joined by `-`).
-2. Scan **all** `.hyperclaude/research/*.md` frontmatter `slug:` fields (the canonical key — not the filename). If one equals the derived slug, treat it as the linked research artifact and inline its full contents as context in Step 3.
+2. Scan **all** `.hyperclaude/research/*.md` frontmatter `slug:` fields (the canonical key — not the filename). If one OR MORE equals the derived slug (there may be a Codex + Claude pair), treat ALL matching files as the linked research artifacts and inline the full contents of ALL of them as context in Step 3.
 3. Resolve the plan path:
 
    ```bash
@@ -102,7 +102,7 @@ Agent({
 The `prompt` string MUST contain:
 
 - **Task** — verbatim.
-- **Research context** — full contents of the matched research artifact inline, if one was found in Step 1. Do not make the planner re-read it.
+- **Research context** — full contents of ALL matched research artifacts inline (there may be a Codex + Claude pair), if any were found in Step 1. Do not make the planner re-read them.
 - **Output format** — a multi-task plan with `## Task N: <title>` headings. Each task block: **Files to create / modify** (exact paths), **Steps** (`[ ]`-checkboxes, 2–5 min each), **Verification** (a command or observable change), **Commit message** (one line, conventional-commits). No frontmatter — plan body only; the skill owns the file name.
 - **Write-file mode** — the exact resolved plan path from Step 1, stated literally, with an explicit instruction: use the `Write` tool to write the full plan to THAT EXACT path yourself (never a different path, never a `-v2.md` sibling), then reply with exactly `WROTE: <that exact path>` and NOTHING else — no plan body, no summary of changes, no preamble.
 - **Idle / no-resend discipline** — after replying `WROTE: <path>`, go idle and wait; do NOT resend, re-announce, or nag. The lead will next contact you only via SendMessage carrying revise findings or a `shutdown_request`, and may take several minutes running Codex review between turns (this is normal). Never re-emit a prior reply.
@@ -228,7 +228,7 @@ If `TeamDelete` fails because a member is still live → apply the recovery in `
 After successful teardown, report:
 
 - The plan path.
-- Whether the slug was reused from a research artifact or freshly derived.
+- Whether the slug was reused from research artifact(s) or freshly derived.
 - Review iterations consumed.
 - The final Codex verdict.
 - Residual Minor findings (informational, non-blocking).

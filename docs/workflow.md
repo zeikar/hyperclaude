@@ -26,9 +26,9 @@ Each step has a single concrete trigger and a single concrete output. Slugs prop
 /hyperclaude:hyper-research add OAuth login to the API
 ```
 
-Writes `.hyperclaude/research/<timestamp>-add-oauth-login-to-the.md`. Read it. Don't skip the Pitfalls section.
+By default, research runs **both Codex and Claude in parallel**, producing a pair: `.hyperclaude/research/<timestamp>-add-oauth-login-to-the.md` (Codex, read-only sandbox, live web search via `--search`) and `.hyperclaude/research/<timestamp>-add-oauth-login-to-the-claude.md` (the `researcher` agent, dispatched in the background — `WebFetch` on known URLs, not a web-search substitute). Read both. Don't skip the Pitfalls section.
 
-By default, research is produced by Codex (read-only sandbox, live web search via `--search`). On an explicit Claude-native / no-Codex / second-opinion request, `hyper-research` dispatches the `researcher` agent instead (uses `WebFetch` on known URLs — not a web-search substitute). Either path writes the same always-present frontmatter keys and section structure; slug and trio traceability (`research → plan → plan-review`) are unaffected by which path ran.
+A single path runs only on an explicit "Codex only" / "Claude only / no-Codex / second-opinion" request — a plain-language intent rule, not a flag. Either way, every artifact carries the same always-present frontmatter keys and section structure, and a pair shares one `slug:`. Trio traceability (`research → plan → plan-review`) is preserved by that shared frontmatter slug — the downstream `hyper-plan` ingests both files of the pair.
 
 When to skip: the task is mechanical (rename, dep bump, one-file fix).
 
