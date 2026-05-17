@@ -5,7 +5,7 @@ description: Execute a plan task-by-task using fresh subagents, with spec compli
 
 # hyper-implement
 
-Plan execution gate. Reads a plan, dispatches a fresh subagent per task, runs two reviews (spec compliance, then code quality) before marking each task complete. The hyperclaude-native equivalent of superpowers' subagent-driven-development — but using our own agents (`implementer`, `verifier`) and our own gate skills.
+Plan execution gate. Reads a plan, dispatches a fresh subagent per task, runs two reviews (spec compliance, then code quality) before marking each task complete. Uses our own agents (`implementer`, `verifier`) and our own gate skills.
 
 ## When to use
 

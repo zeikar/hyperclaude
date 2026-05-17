@@ -138,14 +138,14 @@ Helper skills shape Claude's behavior on tasks. They are not Codex gates themsel
 
 ### `hyper-tdd` — test-driven discipline
 
-- **What it does:** enforces a tight TDD loop — fail first, minimal pass, refactor, repeat. Inspired by superpowers' `tdd` but tighter.
+- **What it does:** enforces a tight TDD loop — fail first, minimal pass, refactor, repeat.
 - **Use when:** about to write or modify behavior-bearing code (functions, modules, business logic).
 - **Skip when:** pure config edits, doc-only changes, one-shot scripts where tests would not outlive the change.
 - **Source:** [skills/hyper-tdd/SKILL.md](../skills/hyper-tdd/SKILL.md).
 
 ### `hyper-debug` — debugging discipline
 
-- **What it does:** systematic debugging — reproduce, isolate, instrument, root-cause. Inspired by superpowers' `systematic-debugging` but tighter.
+- **What it does:** systematic debugging — reproduce, isolate, instrument, root-cause.
 - **Use when:** something is unexpectedly broken and the cause is not obvious.
 - **Skip when:** "I know what's wrong" one-line fixes.
 - **Source:** [skills/hyper-debug/SKILL.md](../skills/hyper-debug/SKILL.md).
