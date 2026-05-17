@@ -188,6 +188,9 @@ function injectJsonAndOutputFlags(semanticArgv, lastMessagePath) {
 export async function runCodexExec(argv, stdinPayload, timeoutSec, knownThreadId = null) {
   const lastMessagePath = path.join(os.tmpdir(), `hyperclaude-codex-${crypto.randomUUID()}.txt`);
   const fullArgv = injectJsonAndOutputFlags(argv, lastMessagePath);
+  // --search is a global codex flag (must precede the subcommand) enabling web search;
+  // it does NOT relax the read-only sandbox invariant (CLAUDE.md "Sandbox invariant").
+  fullArgv.unshift('--search');
 
   let spawnResult;
   let lastMessageText = '';

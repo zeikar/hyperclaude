@@ -195,18 +195,19 @@ test('mock codex: bridge spawns codex exec with --json + --output-last-message i
     assert.ok(typeof json.path === 'string' && json.path.length > 0, 'json.path should be a non-empty string');
 
     // argv.log is one arg per line. The semantic argv is `exec --sandbox read-only -`,
-    // and runCodexExec MUST insert `--json --output-last-message <tmp>` immediately
-    // after `exec` (i.e. before `--sandbox`).
+    // and runCodexExec MUST unshift `--search` (global flag) then insert
+    // `--json --output-last-message <tmp>` immediately after `exec` (i.e. before `--sandbox`).
     const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
-    assert.equal(argv[0], 'exec', `first arg should be exec, got: ${argv[0]}`);
-    assert.equal(argv[1], '--json', `second arg should be --json, got: ${argv[1]}`);
-    assert.equal(argv[2], '--output-last-message', `third arg should be --output-last-message, got: ${argv[2]}`);
-    assert.ok(argv[3] && argv[3].length > 0, 'fourth arg (tempfile path) should be non-empty');
+    assert.equal(argv[0], '--search', `first arg should be --search, got: ${argv[0]}`);
+    assert.equal(argv[1], 'exec', `second arg should be exec, got: ${argv[1]}`);
+    assert.equal(argv[2], '--json', `third arg should be --json, got: ${argv[2]}`);
+    assert.equal(argv[3], '--output-last-message', `fourth arg should be --output-last-message, got: ${argv[3]}`);
+    assert.ok(argv[4] && argv[4].length > 0, 'fifth arg (tempfile path) should be non-empty');
     assert.deepEqual(
-      argv.slice(4),
+      argv.slice(5),
       ['--sandbox', 'read-only', '-'],
-      `tail after injected flags should be [--sandbox, read-only, -], got: ${JSON.stringify(argv.slice(4))}`,
+      `tail after injected flags should be [--sandbox, read-only, -], got: ${JSON.stringify(argv.slice(5))}`,
     );
 
     // stdin.log must contain the rendered prompt with TASK substituted.
@@ -306,19 +307,20 @@ test('mock codex: code-review --base main spawns exec review with --json injecte
 
     // argv.log is one arg per line.
     // Semantic argv: ['exec', 'review', '-c', 'sandbox_mode=read-only', '--base', 'main']
-    // runCodexExec inserts --json --output-last-message <tmp> after 'exec review'.
-    // Expected: exec review --json --output-last-message <tmp> -c sandbox_mode=read-only --base main
+    // runCodexExec unshifts --search (global flag) then inserts --json --output-last-message <tmp> after 'exec review'.
+    // Expected: --search exec review --json --output-last-message <tmp> -c sandbox_mode=read-only --base main
     const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
-    assert.equal(argv[0], 'exec', `argv[0] should be exec, got: ${argv[0]}`);
-    assert.equal(argv[1], 'review', `argv[1] should be review, got: ${argv[1]}`);
-    assert.equal(argv[2], '--json', `argv[2] should be --json, got: ${argv[2]}`);
-    assert.equal(argv[3], '--output-last-message', `argv[3] should be --output-last-message, got: ${argv[3]}`);
-    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.equal(argv[0], '--search', `argv[0] should be --search, got: ${argv[0]}`);
+    assert.equal(argv[1], 'exec', `argv[1] should be exec, got: ${argv[1]}`);
+    assert.equal(argv[2], 'review', `argv[2] should be review, got: ${argv[2]}`);
+    assert.equal(argv[3], '--json', `argv[3] should be --json, got: ${argv[3]}`);
+    assert.equal(argv[4], '--output-last-message', `argv[4] should be --output-last-message, got: ${argv[4]}`);
+    assert.ok(argv[5] && argv[5].length > 0, 'argv[5] should be the tempfile path');
     assert.deepEqual(
-      argv.slice(5),
+      argv.slice(6),
       ['-c', 'sandbox_mode=read-only', '--base', 'main'],
-      `tail should be [-c, sandbox_mode=read-only, --base, main], got: ${JSON.stringify(argv.slice(5))}`,
+      `tail should be [-c, sandbox_mode=read-only, --base, main], got: ${JSON.stringify(argv.slice(6))}`,
     );
 
     // stdin.log must be empty — exec review takes no stdin (stdio[0] = 'ignore').
@@ -366,12 +368,13 @@ test('mock codex: code-review --uncommitted spawns exec review -c sandbox_mode=r
 
     const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
-    assert.equal(argv[0], 'exec');
-    assert.equal(argv[1], 'review');
-    assert.equal(argv[2], '--json');
-    assert.equal(argv[3], '--output-last-message');
-    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
-    assert.deepEqual(argv.slice(5), ['-c', 'sandbox_mode=read-only', '--uncommitted']);
+    assert.equal(argv[0], '--search');
+    assert.equal(argv[1], 'exec');
+    assert.equal(argv[2], 'review');
+    assert.equal(argv[3], '--json');
+    assert.equal(argv[4], '--output-last-message');
+    assert.ok(argv[5] && argv[5].length > 0, 'argv[5] should be the tempfile path');
+    assert.deepEqual(argv.slice(6), ['-c', 'sandbox_mode=read-only', '--uncommitted']);
     assert.ok(!argv.includes('-'), 'argv must not contain a positional - token');
 
     assert.equal(json.slug, 'uncommitted', 'slug should be "uncommitted"');
@@ -402,12 +405,13 @@ test('mock codex: code-review --commit abc1234f spawns exec review -c sandbox_mo
 
     const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
-    assert.equal(argv[0], 'exec');
-    assert.equal(argv[1], 'review');
-    assert.equal(argv[2], '--json');
-    assert.equal(argv[3], '--output-last-message');
-    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
-    assert.deepEqual(argv.slice(5), ['-c', 'sandbox_mode=read-only', '--commit', 'abc1234f']);
+    assert.equal(argv[0], '--search');
+    assert.equal(argv[1], 'exec');
+    assert.equal(argv[2], 'review');
+    assert.equal(argv[3], '--json');
+    assert.equal(argv[4], '--output-last-message');
+    assert.ok(argv[5] && argv[5].length > 0, 'argv[5] should be the tempfile path');
+    assert.deepEqual(argv.slice(6), ['-c', 'sandbox_mode=read-only', '--commit', 'abc1234f']);
     assert.ok(!argv.includes('-'), 'argv must not contain a positional - token');
 
     const outputPath = json.path;
@@ -441,13 +445,14 @@ test('mock codex: code-review --title appended last (after target flags)', () =>
 
     const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
-    assert.equal(argv[0], 'exec');
-    assert.equal(argv[1], 'review');
-    assert.equal(argv[2], '--json');
-    assert.equal(argv[3], '--output-last-message');
-    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.equal(argv[0], '--search');
+    assert.equal(argv[1], 'exec');
+    assert.equal(argv[2], 'review');
+    assert.equal(argv[3], '--json');
+    assert.equal(argv[4], '--output-last-message');
+    assert.ok(argv[5] && argv[5].length > 0, 'argv[5] should be the tempfile path');
     assert.deepEqual(
-      argv.slice(5),
+      argv.slice(6),
       ['-c', 'sandbox_mode=read-only', '--base', 'main', '--title', 'My Review'],
     );
     assert.ok(!argv.includes('-'), 'argv must not contain a positional - token');
@@ -537,15 +542,16 @@ test('mock codex: docs-review --docs-path spawns codex exec --sandbox read-only 
       const json = JSON.parse(result.stdout);
       assert.equal(json.ok, true);
 
-      // argv.log is one-arg-per-line. Pinned ordering: `--json --output-last-message <tmp>`
-      // are inserted by runCodexExec right after `exec`, before `--sandbox`.
+      // argv.log is one-arg-per-line. Pinned ordering: `--search` is prepended (global flag),
+      // then `--json --output-last-message <tmp>` are inserted right after `exec`, before `--sandbox`.
       const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
       const argv = argvLog.split('\n').filter((l) => l.length > 0);
-      assert.equal(argv[0], 'exec');
-      assert.equal(argv[1], '--json');
-      assert.equal(argv[2], '--output-last-message');
-      assert.ok(argv[3] && argv[3].length > 0, 'tempfile path arg should be non-empty');
-      assert.deepEqual(argv.slice(4), ['--sandbox', 'read-only', '-']);
+      assert.equal(argv[0], '--search');
+      assert.equal(argv[1], 'exec');
+      assert.equal(argv[2], '--json');
+      assert.equal(argv[3], '--output-last-message');
+      assert.ok(argv[4] && argv[4].length > 0, 'tempfile path arg should be non-empty');
+      assert.deepEqual(argv.slice(5), ['--sandbox', 'read-only', '-']);
 
       // stdin.log must contain the doc content AND a file marker so Codex
       // can attribute findings to the path.
@@ -924,19 +930,20 @@ test('runCodexResume: argv shape — exec resume -c sandbox_mode=read-only <thre
     // argv.log is one arg per line.
     // Semantic argv passed to runCodexExec is:
     //   ['exec', 'resume', '-c', 'sandbox_mode=read-only', 'test-thread-id-123', '-']
-    // runCodexExec inserts --json --output-last-message <tmp> after 'exec resume' tokens.
-    // Expected final argv: exec resume --json --output-last-message <tmp> -c sandbox_mode=read-only test-thread-id-123 -
+    // runCodexExec unshifts --search (global flag) then inserts --json --output-last-message <tmp> after 'exec resume' tokens.
+    // Expected final argv: --search exec resume --json --output-last-message <tmp> -c sandbox_mode=read-only test-thread-id-123 -
     const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
-    assert.equal(argv[0], 'exec', `argv[0] should be exec, got: ${argv[0]}`);
-    assert.equal(argv[1], 'resume', `argv[1] should be resume, got: ${argv[1]}`);
-    assert.equal(argv[2], '--json', `argv[2] should be --json, got: ${argv[2]}`);
-    assert.equal(argv[3], '--output-last-message', `argv[3] should be --output-last-message, got: ${argv[3]}`);
-    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
-    assert.equal(argv[5], '-c', `argv[5] should be -c, got: ${argv[5]}`);
-    assert.equal(argv[6], 'sandbox_mode=read-only', `argv[6] should be sandbox_mode=read-only, got: ${argv[6]}`);
-    assert.equal(argv[7], 'test-thread-id-123', `argv[7] should be the thread id, got: ${argv[7]}`);
-    assert.equal(argv[8], '-', `argv[8] should be -, got: ${argv[8]}`);
+    assert.equal(argv[0], '--search', `argv[0] should be --search, got: ${argv[0]}`);
+    assert.equal(argv[1], 'exec', `argv[1] should be exec, got: ${argv[1]}`);
+    assert.equal(argv[2], 'resume', `argv[2] should be resume, got: ${argv[2]}`);
+    assert.equal(argv[3], '--json', `argv[3] should be --json, got: ${argv[3]}`);
+    assert.equal(argv[4], '--output-last-message', `argv[4] should be --output-last-message, got: ${argv[4]}`);
+    assert.ok(argv[5] && argv[5].length > 0, 'argv[5] should be the tempfile path');
+    assert.equal(argv[6], '-c', `argv[6] should be -c, got: ${argv[6]}`);
+    assert.equal(argv[7], 'sandbox_mode=read-only', `argv[7] should be sandbox_mode=read-only, got: ${argv[7]}`);
+    assert.equal(argv[8], 'test-thread-id-123', `argv[8] should be the thread id, got: ${argv[8]}`);
+    assert.equal(argv[9], '-', `argv[9] should be -, got: ${argv[9]}`);
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }
@@ -1027,14 +1034,15 @@ test('resume happy path: docs-review --resume <prev> spawns exec resume and writ
       assert.equal(json.resumeStatus, 'resumed');
       assert.ok(typeof json.threadId === 'string' && json.threadId.length > 0, 'threadId should be present');
 
-      // argv inserted after `exec resume`: --json --output-last-message <tmp> -c sandbox_mode=read-only <threadId> -
+      // argv: --search prepended (global flag), then exec resume --json --output-last-message <tmp> -c sandbox_mode=read-only <threadId> -
       const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
       const argv = argvLog.split('\n').filter((l) => l.length > 0);
-      assert.equal(argv[0], 'exec');
-      assert.equal(argv[1], 'resume');
-      assert.equal(argv[5], '-c');
-      assert.equal(argv[6], 'sandbox_mode=read-only');
-      assert.equal(argv[7], 'thread-resume-1');
+      assert.equal(argv[0], '--search');
+      assert.equal(argv[1], 'exec');
+      assert.equal(argv[2], 'resume');
+      assert.equal(argv[6], '-c');
+      assert.equal(argv[7], 'sandbox_mode=read-only');
+      assert.equal(argv[8], 'thread-resume-1');
 
       // Output frontmatter should reflect resume.
       const outputContent = readFileSync(json.path, 'utf8');
@@ -1281,7 +1289,7 @@ test('resume auto honors --out: discovers prior under custom dir, not the defaul
       // argv must include the discovered thread id (passed to codex resume).
       const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
       const argv = argvLog.split('\n').filter((l) => l.length > 0);
-      assert.equal(argv[7], 'thread-from-custom-dir', 'argv[7] should be the thread id discovered from custom --out dir');
+      assert.equal(argv[8], 'thread-from-custom-dir', 'argv[8] should be the thread id discovered from custom --out dir');
 
       // Frontmatter records resumed-from with the customDir path.
       const outputContent = readFileSync(json.path, 'utf8');
@@ -1334,13 +1342,14 @@ test('resume happy path: plan-review --resume <prev> spawns exec resume', () => 
       assert.equal(json.resumeStatus, 'resumed');
       assert.ok(typeof json.threadId === 'string' && json.threadId.length > 0, 'threadId should be present');
 
-      // argv shape: exec resume ... -c sandbox_mode=read-only <threadId> -
+      // argv shape: --search exec resume ... -c sandbox_mode=read-only <threadId> -
       // The threadId passed to codex must be the prior artifact's id (knownThreadId).
       const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
       const argv = argvLog.split('\n').filter((l) => l.length > 0);
-      assert.equal(argv[0], 'exec');
-      assert.equal(argv[1], 'resume');
-      assert.equal(argv[7], 'thread-rev-resume');
+      assert.equal(argv[0], '--search');
+      assert.equal(argv[1], 'exec');
+      assert.equal(argv[2], 'resume');
+      assert.equal(argv[8], 'thread-rev-resume');
 
       // Resumed prompt must mention the plan path.
       const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
@@ -1394,11 +1403,11 @@ test('resume happy path: code-review --resume <prev> spawns exec resume and writ
       assert.equal(json.ok, true);
       assert.equal(json.resumeStatus, 'resumed');
 
-      // argv shape: exec resume --json --output-last-message <tmp> -c sandbox_mode=read-only <threadId> -
+      // argv shape: --search exec resume --json --output-last-message <tmp> -c sandbox_mode=read-only <threadId> -
       const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
       const argv = argvLog.split('\n').filter((l) => l.length > 0);
-      assert.equal(argv[1], 'resume', `argv[1] should be resume, got: ${argv[1]}`);
-      assert.equal(argv[7], 'thread-cr-1', `argv[7] (thread-id) should be thread-cr-1, got: ${argv[7]}`);
+      assert.equal(argv[2], 'resume', `argv[2] should be resume, got: ${argv[2]}`);
+      assert.equal(argv[8], 'thread-cr-1', `argv[8] (thread-id) should be thread-cr-1, got: ${argv[8]}`);
 
       // Parse new artifact frontmatter via parseFrontmatter helper.
       const outputContent = readFileSync(json.path, 'utf8');

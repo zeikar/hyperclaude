@@ -172,6 +172,11 @@ if command -v codex >/dev/null 2>&1; then
   else
     miss "codex -c sandbox_mode=read-only rejected; codex too old?"
   fi
+  if codex --search exec --help > /dev/null 2>&1; then
+    ok "codex --search exec --help accepted (global --search flag + before-subcommand placement valid)"
+  else
+    miss "codex --search exec --help rejected — --search global flag unavailable or wrong placement"
+  fi
 else
   printf '  \033[33m-\033[0m codex not on PATH; skipping Codex 0.130 capability probes.\n'
 fi

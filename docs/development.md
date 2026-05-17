@@ -83,7 +83,7 @@ The unit tests cover argument parsing, slug derivation, frontmatter rendering, f
 - Verifies that required plugin files exist (manifests, marketplace listing, every `SKILL.md` and agent file, the bridge, the templates including all three resumed variants `plan-review-resumed.md` / `docs-review-resumed.md` / `code-review-resumed.md`, and the SessionStart hook).
 - Dry-runs the bridge for `research`, `code-review`, and `docs-review` and asserts each emits a JSON success line. (`plan-review` is not dry-run by the smoke script.)
 - Runs the `setup-doctor` probe directly and asserts it emits a parseable JSON line with a `checks[]` array.
-- When `codex` is on PATH, runs three Codex 0.130 surface probes: `codex exec review --help`, `codex exec resume --help`, and `codex exec review --base HEAD -c sandbox_mode=read-only --help` (verifies the `-c sandbox_mode=read-only` config key is accepted). Each probe failure prints an upgrade hint.
+- When `codex` is on PATH, runs four Codex 0.130 surface probes: `codex exec review --help`, `codex exec resume --help`, `codex exec review --base HEAD -c sandbox_mode=read-only --help` (verifies the `-c sandbox_mode=read-only` config key is accepted), and `codex --search exec --help` (verifies the global `--search` flag is accepted before the subcommand — required since every bridge spawn now includes `--search`). Each probe failure prints an upgrade hint.
 - When `claude` is on PATH, runs `claude plugin validate .` to catch manifest drift.
 
 After the automated checks it prints a manual acceptance checklist for running each slash command end-to-end inside Claude Code — those steps are not automated. The checklist includes `/hyperclaude:hyper-setup` as the first step (verify prerequisites before running gates).
