@@ -87,7 +87,7 @@ This path runs Claude-native research via the `researcher` agent. It uses `WebFe
 5. Collect the always-present frontmatter values with one short Node one-liner (keeps `cwd`/`git-head` JSON-quoted the same way the bridge's renderer does):
 
    ```bash
-   node -e 'const c=require("child_process");console.log(JSON.stringify({generated:new Date().toISOString(),cwd:process.cwd(),gitHead:c.execSync("git rev-parse HEAD").toString().trim()}))'
+   node -e 'const c=require("child_process");let h;try{h=c.execSync("git rev-parse HEAD").toString().trim();}catch(e){h="unknown";}console.log(JSON.stringify({generated:new Date().toISOString(),cwd:process.cwd(),gitHead:h}))'
    ```
 
 6. Write the artifact with the Write tool to the path from step 3. Frontmatter is ONLY the always-present keys, in this order (do NOT byte-match `renderFrontmatter()` and do NOT add Codex-only conditional keys like `codex-thread-id`):

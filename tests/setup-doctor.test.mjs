@@ -9,6 +9,7 @@ import {
   evalNode,
   evalCodex,
   evalGit,
+  evalCodexSearch,
   evalAgentTeams,
   aggregate,
 } from '../scripts/setup-doctor.mjs';
@@ -42,7 +43,7 @@ test('CLI: exits 0 and emits exactly one parseable JSON line with ok + 4-element
   const parsed = JSON.parse(lines[0]);
   assert.equal(typeof parsed.ok, 'boolean');
   assert.ok(Array.isArray(parsed.checks), 'checks should be an array');
-  assert.equal(parsed.checks.length, 4, `expected 4 checks, got ${parsed.checks.length}`);
+  assert.equal(parsed.checks.length, 5, `expected 5 checks, got ${parsed.checks.length}`);
 });
 
 // ---------- parseSemver ----------
@@ -208,6 +209,29 @@ test('evalGit: {kind:"ok",output:"git version 2.39.5"} → PASS', () => {
   assert.equal(r.detected, '2.39.5');
 });
 
+// ---------- evalCodexSearch ----------
+
+test('evalCodexSearch: {kind:"ok"} → PASS, hard, detected "accepted"', () => {
+  const r = evalCodexSearch({ kind: 'ok', output: '', status: 0 });
+  assert.equal(r.status, 'PASS');
+  assert.equal(r.severity, 'hard');
+  assert.equal(r.detected, 'accepted');
+});
+
+test('evalCodexSearch: {kind:"error-exit",status:1} → hard FAIL, detected "rejected"', () => {
+  const r = evalCodexSearch({ kind: 'error-exit', status: 1 });
+  assert.equal(r.status, 'FAIL');
+  assert.equal(r.severity, 'hard');
+  assert.equal(r.detected, 'rejected');
+});
+
+test('evalCodexSearch: {kind:"enoent"} → hard FAIL, detected "not found"', () => {
+  const r = evalCodexSearch({ kind: 'enoent' });
+  assert.equal(r.status, 'FAIL');
+  assert.equal(r.severity, 'hard');
+  assert.equal(r.detected, 'not found');
+});
+
 // ---------- evalAgentTeams ----------
 
 test('evalAgentTeams: "1" → PASS, severity NOT hard', () => {
@@ -238,6 +262,7 @@ test('aggregate: one hard FAIL → ok === false', () => {
     evalNode('16.0.0'),                                                       // hard FAIL
     evalCodex({ kind: 'ok', output: 'codex-cli 0.130.0', status: 0 }),        // PASS
     evalGit({ kind: 'ok', output: 'git version 2.39.5', status: 0 }),         // PASS
+    evalCodexSearch({ kind: 'ok', output: '', status: 0 }),                   // PASS
     evalAgentTeams('1'),                                                       // PASS
   ];
   const result = aggregate(checks);
@@ -250,9 +275,23 @@ test('aggregate: all hard checks PASS, agent-teams WARNs → ok === true', () =>
     evalNode('18.20.0'),                                                       // PASS
     evalCodex({ kind: 'ok', output: 'codex-cli 0.130.0', status: 0 }),        // PASS
     evalGit({ kind: 'ok', output: 'git version 2.39.5', status: 0 }),         // PASS
+    evalCodexSearch({ kind: 'ok', output: '', status: 0 }),                   // PASS
     evalAgentTeams(undefined),                                                 // WARN conditional
   ];
   const result = aggregate(checks);
   assert.equal(result.ok, true);
+  assert.deepEqual(result.checks, checks);
+});
+
+test('aggregate: codexSearch hard FAIL → ok === false', () => {
+  const checks = [
+    evalNode('18.20.0'),                                                       // PASS
+    evalCodex({ kind: 'ok', output: 'codex-cli 0.130.0', status: 0 }),        // PASS
+    evalGit({ kind: 'ok', output: 'git version 2.39.5', status: 0 }),         // PASS
+    evalCodexSearch({ kind: 'error-exit', status: 1 }),                       // hard FAIL
+    evalAgentTeams('1'),                                                       // PASS
+  ];
+  const result = aggregate(checks);
+  assert.equal(result.ok, false);
   assert.deepEqual(result.checks, checks);
 });

@@ -106,6 +106,7 @@ if out=$(node scripts/setup-doctor.mjs 2>&1); then
       "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1",
       "Node.js >= 18",
       "codex-cli >= 0.130.0 (version floor only)",
+      "codex --search (global flag, pre-subcommand)",
       "git on PATH"
     ].sort();
     const actualNames = j.checks.map(c => c.name).sort();
@@ -113,12 +114,12 @@ if out=$(node scripts/setup-doctor.mjs 2>&1); then
     const passed =
       typeof j.ok === "boolean" &&
       Array.isArray(j.checks) &&
-      j.checks.length === 4 &&
+      j.checks.length === 5 &&
       j.checks.every(c => c.detected) &&
       namesMatch;
     process.exit(passed ? 0 : 1);
   '; then
-    ok "setup-doctor probe: shape ok, 4 checks, all detected, names match"
+    ok "setup-doctor probe: shape ok, 5 checks, all detected, names match"
   else
     miss "setup-doctor probe: JSON shape unexpected: $out"
   fi

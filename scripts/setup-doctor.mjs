@@ -128,6 +128,35 @@ export function evalGit(sentinel) {
 }
 
 /**
+ * Evaluate the codex --search flag preflight check.
+ * Pure — performs no spawn.
+ * @param {{ kind: "ok"|"enoent"|"timeout"|"error-exit"|"error", output?: string, status?: number }} sentinel
+ * @returns check result object
+ */
+export function evalCodexSearch(sentinel) {
+  const name = 'codex --search (global flag, pre-subcommand)';
+  const required = 'codex --search exec --help exits 0';
+  const remediation =
+    'Upgrade codex-cli to a version that accepts --search as a global flag before the subcommand (run: codex --search exec --help).';
+  const base = { name, required, severity: 'hard', remediation };
+
+  switch (sentinel.kind) {
+    case 'enoent':
+      return { ...base, detected: 'not found', status: 'FAIL' };
+    case 'timeout':
+      return { ...base, detected: 'timeout', status: 'FAIL' };
+    case 'error':
+      return { ...base, detected: 'error', status: 'FAIL' };
+    case 'error-exit':
+      return { ...base, detected: 'rejected', status: 'FAIL' };
+    case 'ok':
+      return { ...base, detected: 'accepted', status: 'PASS' };
+    default:
+      return { ...base, detected: 'error', status: 'FAIL' };
+  }
+}
+
+/**
  * Evaluate the CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS env var check.
  * Pure — performs no env read (caller passes the value).
  * @param {string|undefined} envValue - process.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
@@ -209,10 +238,19 @@ function main() {
     const gitSentinel = buildSentinel(gitResult);
     const gitCheck = evalGit(gitSentinel);
 
-    // Check 4: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+    // Check 4: codex --search global flag (required by the bridge for every Codex spawn)
+    const codexSearchResult = spawnSync('codex', ['--search', 'exec', '--help'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      maxBuffer: 1 << 20,
+    });
+    const codexSearchSentinel = buildSentinel(codexSearchResult);
+    const codexSearchCheck = evalCodexSearch(codexSearchSentinel);
+
+    // Check 5: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
     const agentTeamsCheck = evalAgentTeams(process.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS);
 
-    const checks = [nodeCheck, codexCheck, gitCheck, agentTeamsCheck];
+    const checks = [nodeCheck, codexCheck, gitCheck, codexSearchCheck, agentTeamsCheck];
     const result = aggregate(checks);
 
     process.stdout.write(JSON.stringify({ ok: result.ok, checks: result.checks }) + '\n');
