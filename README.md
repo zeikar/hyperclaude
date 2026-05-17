@@ -75,7 +75,7 @@ Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step 
 Four layers:
 
 1. **Commands** (`commands/`) — explicitly-invoked slash commands, distinct from description-triggered skills. Auto-discovered; no manifest entry. Currently one: `hyper-setup` (`/hyperclaude:hyper-setup`) — a local prerequisite doctor that never spawns Codex or agents.
-2. **Skills** (`skills/`) — Codex gates (`hyper-research`, `hyper-plan-review`, `hyper-code-review`, `hyper-docs-review`) + Claude orchestrators (`hyper-plan`, `hyper-docs-sync`) + autonomous plan-revise loop (`hyper-plan-loop`, requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) + plan execution (`hyper-implement`) + implementation discipline (`hyper-tdd`, `hyper-debug`). All surface via Claude Code's description-triggered dispatch.
+2. **Skills** (`skills/`) — Codex gates (`hyper-research`, `hyper-plan-review`, `hyper-code-review`, `hyper-docs-review`) + Claude orchestrators (`hyper-plan`, `hyper-docs-sync`) + autonomous plan-revise loop (`hyper-plan-loop`) + plan execution (`hyper-implement`) + implementation discipline (`hyper-tdd`, `hyper-debug`). All surface via Claude Code's description-triggered dispatch.
 3. **Agents** (`agents/`) — Claude implementation arm (`planner`, `implementer`, `verifier`, `documenter`, `researcher`).
 4. **Hooks** (`hooks/`) — SessionStart reminder (workflow router + `.hyperclaude/` snapshot footer).
 
@@ -132,7 +132,7 @@ Per-feature plans for later versions live in `.hyperclaude/plans/` (gitignored �
 
    After fixing what step 4 flagged, re-run `/hyperclaude:hyper-plan-review --resume` to get an updated critique without re-uploading the plan (token-cheap iterative loop).
 
-   **Autonomous alternative:** `/hyperclaude:hyper-plan-loop` runs the full plan-write → review → revise cycle in one gesture (requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). `hyper-plan` + `hyper-plan-review` remain available for manual use.
+   **Autonomous alternative:** `/hyperclaude:hyper-plan-loop` runs the full plan-write → review → revise cycle in one gesture. `hyper-plan` + `hyper-plan-review` remain available for manual use.
 
 5. After implementing, review the code changes:
 
