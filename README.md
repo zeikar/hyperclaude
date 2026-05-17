@@ -28,7 +28,7 @@ research → plan → plan-review → implement → code-review → docs-sync �
 
 Each step has one trigger and one artifact under `.hyperclaude/`. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, and `--resume`.
 
-## Architecture (v0.12)
+## Architecture
 
 ```
             User in Claude Code
@@ -94,56 +94,19 @@ Per-feature plans for later versions live in `.hyperclaude/plans/` (gitignored �
 
    This checks Node 18+, codex-cli >= 0.130.0, git, and (optionally) the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var needed by `hyper-plan-loop`. Report-only; nothing is installed automatically.
 
-3. In a Claude Code session inside any project, try a gate:
+3. Run the cycle inside any project. Codex gates are explicit slash commands; Claude's planning and implementation happen between them:
 
    ```text
-   /hyperclaude:hyper-research add OAuth login to the API
+   /hyperclaude:hyper-research add OAuth login to the API   # Codex+Claude prior-art / pitfalls
+   #   → Claude writes a plan to .hyperclaude/plans/<slug>.md
+   /hyperclaude:hyper-plan-review                            # Codex critiques the plan
+   #   → Claude implements
+   /hyperclaude:hyper-code-review                            # Codex reviews the diff (branch vs main)
+   /hyperclaude:hyper-docs-sync uncommitted                  # Claude updates docs for the change
+   /hyperclaude:hyper-docs-review                            # Codex accuracy gate on docs
    ```
 
-   By default this runs parallel Codex + Claude research, creating a pair — `.hyperclaude/research/<timestamp>-add-oauth-login-to-the.md` (Codex) and `…-add-oauth-login-to-the-claude.md` (Claude) — sharing one slug, with prior-art / pitfalls / recommendations. Read them; plan accordingly.
-
-4. After Claude writes a plan to `.hyperclaude/plans/<slug>.md`, critique it:
-
-   ```text
-   /hyperclaude:hyper-plan-review
-   ```
-
-   After fixing what step 4 flagged, re-run `/hyperclaude:hyper-plan-review --resume` to get an updated critique without re-uploading the plan (token-cheap iterative loop).
-
-   **Autonomous alternative:** `/hyperclaude:hyper-plan-loop` runs the full plan-write → review → revise cycle in one gesture. `hyper-plan` + `hyper-plan-review` remain available for manual use.
-
-5. After implementing, review the code changes:
-
-   ```text
-   /hyperclaude:hyper-code-review
-   ```
-
-   - Default: reviews the current branch vs `main`.
-   - For working-tree changes (staged + unstaged + untracked): `/hyperclaude:hyper-code-review uncommitted`
-   - For a specific commit: `/hyperclaude:hyper-code-review <commit-sha>`
-
-6. After coding, sync docs to reflect your changes:
-
-   ```text
-   /hyperclaude:hyper-docs-sync uncommitted
-   ```
-
-   The skill reads a `Code | Docs` mapping table from your `CLAUDE.md` or `AGENTS.md` (falls back to heuristic if no table is present), identifies which docs need updating, and dispatches targeted doc updates. A summary is reported on completion.
-
-7. Gate the updated docs with a Codex accuracy review:
-
-   ```text
-   /hyperclaude:hyper-docs-review
-   ```
-
-   - Default: reviews top-level `.md` files in `docs/` (the commentarium convention).
-   - For a single file: `/hyperclaude:hyper-docs-review README.md`
-   - For a specific subdir: `/hyperclaude:hyper-docs-review docs/api/`
-   - With code-diff context: `/hyperclaude:hyper-docs-review README.md --diff-base main`
-
-   Writes a review file under `.hyperclaude/docs-reviews/` with valid frontmatter and a Codex-generated accuracy assessment. Fix any accuracy issues before merging.
-
-   After fixing documentation issues, re-run `/hyperclaude:hyper-docs-review --resume` to get an updated assessment without re-uploading (token-cheap iterative loop).
+   Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. Per-step targets (`uncommitted`, `<commit-sha>`, a docs subdir), `--resume` for token-cheap re-runs, and the autonomous `hyper-plan-loop` (plan → review → revise in one gesture) are all covered in [docs/workflow.md](docs/workflow.md).
 
 ## Development
 
@@ -156,7 +119,7 @@ Zero npm dependencies. Node 18+ stdlib only.
 
 ## Status
 
-**v0.12 (alpha).** Use at your own risk; expect breaking changes between minor versions until v1.0.
+**Alpha.** Use at your own risk; expect breaking changes between minor versions until v1.0.
 
 ## Acknowledgements
 
