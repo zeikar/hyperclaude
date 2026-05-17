@@ -75,6 +75,18 @@ When to revisit: a specific error code shows up in a bug report.
 
 ## Design decisions
 
+### Codex is always invoked with `--search`
+
+**Decision:** every Codex spawn unconditionally prepends the global `--search` flag (before the subcommand), enabling live web search. There is no opt-in, no per-mode toggle, and no user flag — `--search` is hardcoded in `runCodexExec` in `scripts/codex/codex.mjs` at the single spawn-finalization site.
+
+**Why:** `--search` is a global codex-cli flag (verified via `codex --help`; position must be before the subcommand). Always-on is simpler than conditional logic or an opt-in flag — it lets Codex pull official docs, changelogs, and live API references during research, plan critique, and code / docs review without any extra user gesture.
+
+**Sandbox note:** `--search` does not relax `--sandbox read-only`. The filesystem write invariant (Codex never mutates the workspace) is preserved in all modes and across resume.
+
+**Rejected alternatives:**
+- Per-mode opt-in (`--search` flag on the bridge CLI): adds parsing, tests, and a decision users shouldn't need to make.
+- Default-off: reduces Codex's usefulness without a concrete tradeoff benefit.
+
 ### Codex is `--sandbox read-only`, always
 
 **Decision:** every Codex spawn enforces read-only, but the mechanism varies by subcommand:

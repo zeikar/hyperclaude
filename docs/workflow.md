@@ -220,4 +220,6 @@ The only step that should never be skipped on a behavioral change is `code-revie
 
 Each Codex gate is one `codex` invocation. The bridge passes `--sandbox read-only` for `exec` modes and uses `codex exec review` for code review — Codex never writes to your workspace.
 
+Every invocation (all modes, fresh and resume) runs with live web search enabled via the global `--search` flag, so Codex may fetch external content (official docs, changelogs, live references) while it has your task or code context. This is intentional and does NOT relax the read-only filesystem sandbox.
+
 Default per-call timeout is 300s. Default per-mode size guards: docs-review docs payload ≤ 200KB, docs-review diff ≤ 500KB. See [architecture.md](architecture.md) for the rest.

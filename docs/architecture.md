@@ -103,10 +103,10 @@ CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modu
 
 | Mode          | Codex invocation                                  | Template                           | Output dir                       |
 |---------------|---------------------------------------------------|------------------------------------|----------------------------------|
-| `research`    | `codex exec --sandbox read-only -` (stdin prompt) | [templates/codex/research.md](../templates/codex/research.md)       | `.hyperclaude/research/`         |
-| `plan-review` | `codex exec --sandbox read-only -` (stdin prompt) | [templates/codex/plan-review.md](../templates/codex/plan-review.md)         | `.hyperclaude/plan-reviews/`     |
-| `code-review` | `codex exec review -c sandbox_mode=read-only [--base \| --uncommitted \| --commit]` | fresh: none — `codex exec review` owns its prompt; resume: [templates/codex/code-review-resumed.md](../templates/codex/code-review-resumed.md) | `.hyperclaude/code-reviews/`     |
-| `docs-review` | `codex exec --sandbox read-only -` (stdin prompt) | [templates/codex/docs-review.md](../templates/codex/docs-review.md)    | `.hyperclaude/docs-reviews/`     |
+| `research`    | `codex --search exec --sandbox read-only -` (stdin prompt) | [templates/codex/research.md](../templates/codex/research.md)       | `.hyperclaude/research/`         |
+| `plan-review` | `codex --search exec --sandbox read-only -` (stdin prompt) | [templates/codex/plan-review.md](../templates/codex/plan-review.md)         | `.hyperclaude/plan-reviews/`     |
+| `code-review` | `codex --search exec review -c sandbox_mode=read-only [--base \| --uncommitted \| --commit]` | fresh: none — `codex exec review` owns its prompt; resume: [templates/codex/code-review-resumed.md](../templates/codex/code-review-resumed.md) | `.hyperclaude/code-reviews/`     |
+| `docs-review` | `codex --search exec --sandbox read-only -` (stdin prompt) | [templates/codex/docs-review.md](../templates/codex/docs-review.md)    | `.hyperclaude/docs-reviews/`     |
 
 ### SessionStart hook
 
@@ -121,6 +121,8 @@ Three cases, all read-only:
 - **`codex exec review`** (fresh `code-review`): no `--sandbox` flag; passes `-c sandbox_mode=read-only` as a config override. `codex exec review` is a review-only subcommand and does not author patches.
 
 Net result: Codex is a *critic*, never an *editor*, in every mode.
+
+Every spawn also prepends the global `--search` flag (before the subcommand): `codex --search exec …`. This enables live web search unconditionally across all modes, fresh and resume. `--search` does not relax `--sandbox read-only`; the filesystem invariant is unchanged.
 
 ### CLI surface
 
