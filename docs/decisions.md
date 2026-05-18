@@ -133,7 +133,7 @@ Node 18+ stdlib only; no `package.json`, no `node_modules`. A `/plugin install` 
 
 ### Plan-loop applies one Minor-cleanup pass, then hard-stops (Option B)
 
-The old two-branch gate dropped actionable Minor cleanup — Codex Verdicts naming a concrete small fix went unhandled (dogfooded: building-placement-tool, simulation-tick-loop in cimulity). When only an actionable Minor remains, the loop now runs exactly one planner revision + one resumed re-review then hard-stops to teardown — a third branch, not a recursive tracker. No recursion on Minor: bounded cost (one extra review, clean-exit path only, separate from the 5 severity-gated reviews) and a termination guarantee outweigh chasing Minor to zero; a vague "ship after small fixes" with no identifiable change stays branch (b) (no planner round). Accepted risk: the cleanup re-review may surface a new Blocker/Major (revise regression); the loop still hard-stops but Step 9 reports it loudly and withholds the implement recommendation rather than silently shipping.
+The old two-branch gate dropped Minor cleanup that Codex Verdicts explicitly prescribed (dogfooded: building-placement-tool, simulation-tick-loop), so an *actionable* Minor now triggers exactly one planner revision + one resumed re-review then hard-stop — a third branch, not a recursive tracker; a vague "ship after small fixes" with no identifiable change stays branch (b). No recursion: one extra review (outside the 5 severity-gated cap) plus a guaranteed stop beat chasing Minor to zero. Accepted risk: the cleanup re-review may regress to a new Blocker/Major — the loop still hard-stops but Step 9 flags it and withholds the implement recommendation rather than ship silently.
 
 ---
 

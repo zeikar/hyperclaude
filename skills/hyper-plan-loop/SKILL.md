@@ -139,7 +139,7 @@ While the planner is live and BEFORE Step 8 teardown, the only planner message t
 
 ### Step 5 — Plan-review iteration 1 (fresh)
 
-**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **5 severity-gated reviews, plus at most ONE final Minor-cleanup re-review** (the severity-gated portion is iter 1 fresh + at most **4 revise rounds**; the cleanup re-review is the separate non-gated one run only on branch-(c) in Step 7a).
+**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **5 severity-gated reviews** (iter 1 fresh + at most **4 revise rounds**), plus at most ONE final Minor-cleanup re-review (the separate non-gated Step 7a one).
 
 Invoke via the Bash tool with `timeout: 600000`:
 
@@ -199,7 +199,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<
 
 Entered only on Step 6 branch (c): zero Blocker/Major, concrete actionable Minor remains. Runs exactly once, then hard-stops at Step 8 teardown → Step 9. **Never loops back to Step 6 or Step 7.**
 
-**Cap accounting:** this cleanup re-review is a SEPARATE single review that does NOT count against the 5 severity-gated reviews and occurs ONLY on the branch-(c) clean-exit path. The Step 8 Blocker/Major cap-exhaust report is unrelated and unchanged.
+**Cap accounting:** this cleanup re-review is the single non-gated review outside the 5-review cap (Step 8); it never affects the Blocker/Major cap-exhaust path.
 
 1. **SendMessage the Minor findings to the still-live planner.** Send verbatim concrete Minor `### Issues` findings PLUS the relevant actionable `### Verdict` directive text. Do NOT re-send the task or research (planner holds context). Use the SAME reply-transport, anchored reply gate (Step 4), structure `ok`/`bad` check, and single-redo pipeline as Step 7 — reuse the `references/failure-protocol.md` §3 pipeline exactly — do not restate it. (A §3 terminal outcome here proceeds to Step 8 teardown → STOP — Step 8 is mandatory on every post-spawn stop; do not fall through to the passing-reply path below.) SendMessage shape:
 
@@ -217,7 +217,7 @@ Entered only on Step 6 branch (c): zero Blocker/Major, concrete actionable Minor
    node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<same path>" --resume auto
    ```
 
-   `--plan-path` is REQUIRED; `--resume auto` always (this is iteration ≥2). Re-parse per Step 5's JSON rules; on `ok:true`, Read the artifact at `path` with the Read tool (required input for the Step 7a.3 classification). On any non-`ok:true`, Bash timeout, or parse failure → Step 8 teardown, then STOP with a named-loop report (**"hyper-plan-loop bridge failure, iter N"**) — same as Step 5's bridge-failure path (surface `error` verbatim or a parser/timeout diagnostic, plus the artifact path if present — as in Step 5).
+   `--plan-path` is REQUIRED; `--resume auto` always (this is iteration ≥2). Re-parse per Step 5's JSON rules; on `ok:true`, Read the artifact at `path` with the Read tool (required input for the Step 7a.3 classification). On any non-`ok:true`, Bash timeout, or parse failure → Step 8 teardown, then STOP with a named-loop report (**"hyper-plan-loop bridge failure, iter N"**) — same as Step 5's bridge-failure path.
 
 3. **Final-review classification (REPORTING ONLY — never re-revise).** Read the cleanup re-review artifact by meaning and extract, for Step 9's report ONLY: the final Codex verdict, and whether it introduced a NEW Blocker/Major (revise regression) or left only residual Minor. This is a read for reporting — it does NOT route back to Step 6 or Step 7 and never triggers another revision. If the cleanup artifact's structure is unparseable (no recognizable `### Issues` / `### Verdict`, truncated body), do NOT treat it as success — carry an explicit **"final cleanup re-review unparseable"** flag into Step 9 and report it loudly there (still hard-stop; never re-revise).
 
@@ -253,23 +253,9 @@ After successful teardown, report:
   - Branch (c) with the "final cleanup re-review unparseable" flag set: the one-shot Minor-cleanup pass was applied but the final cleanup re-review could not be classified — report this loudly.
   - Branch (c) with a NEW Blocker/Major from the cleanup re-review: **WARNING — revise regression detected.** The one-shot Minor-cleanup pass was applied but the cleanup re-review surfaced a new Blocker/Major. Do NOT duplicate the Codex verdict here — state only that a regression was found and see the terminal-state next-step below.
 
-> **Note:** Do NOT restate the Codex verdict in this bullet — the existing 'The final Codex verdict' bullet stays the single verdict source.
 - **Next step** — conditional on branch and final cleanup re-review outcome:
   - If branch (b), OR branch (c) with the final cleanup re-review reporting NO Blocker/Major → recommend: `Next step: /hyperclaude:hyper-implement <plan path>`.
   - If branch (c) and the final cleanup re-review surfaced a NEW Blocker/Major, OR the "final cleanup re-review unparseable" flag is set → **terminal revise-regression state**: the plan is left in its last revised form at the reported plan path. Do NOT recommend implementation. Direct the user to inspect that plan path and restart the plan/review flow from the original task context using `/hyperclaude:hyper-plan` + `/hyperclaude:hyper-plan-review` manually (do NOT tell them to re-run `/hyperclaude:hyper-plan-loop` with the plan path — that skill takes a task description, not an existing plan path).
-
-**Compact illustrative examples (shape only — not the full rule text above):**
-
-1. Branch (b) — no cleanup applied:
-   > Cleanup: skipped (Minor was non-actionable / ambiguous — not sent to planner). Residual: none.
-   > Next step: `/hyperclaude:hyper-implement .hyperclaude/plans/20260518-1430-add-auth-api.md`
-
-2. Branch (c) — cleanup applied, re-review clean:
-   > Cleanup: one-shot Minor-cleanup pass applied (3 reviews total, including cleanup re-review). Residual: none.
-   > Next step: `/hyperclaude:hyper-implement .hyperclaude/plans/20260518-1430-add-auth-api.md`
-
-3. Branch (c) — revise regression after cleanup:
-   > **WARNING — revise regression detected.** One-shot Minor-cleanup pass applied, but the cleanup re-review surfaced a new Blocker/Major. Plan left at `.hyperclaude/plans/20260518-1430-add-auth-api.md`. Inspect that path and restart the plan/review flow from the original task context using `/hyperclaude:hyper-plan` + `/hyperclaude:hyper-plan-review` manually.
 
 ## Anti-patterns
 
