@@ -188,7 +188,7 @@ git tag -a v0.X.Y -m "v0.X.Y: <one-line summary>"
 git push origin main v0.X.Y
 ```
 
-Driven by an explicit release request — when the user asks to release, run the flow end to end (see Release flow in [CLAUDE.md](../CLAUDE.md)). The autonomous `hyper-implement` executor is the exception: during plan execution it creates a local tag only if the plan's final task says to, and never pushes it.
+Driven by an explicit release request — when the user asks to release, run the flow end to end (see Release flow in [CLAUDE.md](../CLAUDE.md)). The autonomous `hyper-implement` executor is the exception: during plan execution it commits each task on a feature branch (`hyper/<slug>`, created when started from `main`/`master`) and creates a local tag only if the plan's final task says to — it never pushes the branch or the tag.
 
 ---
 

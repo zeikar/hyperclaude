@@ -144,6 +144,7 @@ Helper skills shape Claude's behavior on tasks. They are not Codex gates themsel
 
 - **Slash:** `/hyperclaude:hyper-implement [path/to/plan.md]`
 - **What it does:** reads a plan, dispatches a fresh subagent per task, runs two reviews (spec compliance via a general-purpose subagent, then code quality via another), and only marks the task complete when both pass.
+- **Feature branch + per-task commits:** before the task loop it creates/switches to `hyper/<slug>` when on `main`/`master` (the protected default branch; an already-checked-out non-default branch is respected as-is). After both reviews pass, the **lead** (never the implementer) commits the task with the plan's per-task conventional-commit message. A task with no file changes is skipped (no empty commit). Everything is local — the skill never pushes the branch or a tag.
 - **Agents used:** [`implementer`](#implementer), [`verifier`](#verifier) (for tests / acceptance), and ad-hoc general-purpose subagents for the two reviews.
 - **Why fresh subagents:** v0.1 dogfooding (the 11-task plan that built v0.1, ~33 subagent dispatches) showed that reusing a single subagent across tasks pollutes context and degrades focus. The skill enforces fresh dispatch per task.
 - **Final pass:** runs whatever the plan defines as final acceptance (e.g. `bash scripts/test/smoke.sh` for hyperclaude itself) and, if available, `/hyperclaude:hyper-code-review` after the last task.

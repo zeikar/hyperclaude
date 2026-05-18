@@ -160,6 +160,20 @@ When to revisit: a specific error code shows up in a bug report.
 - Code quality review (also general-purpose) catches clarity / YAGNI / test-quality issues with severity tagging.
 - Skipping either lets bugs through. The v0.1 cycle caught two real bugs that the implementer's self-review missed.
 
+### Per-task commits on an auto-created feature branch in `hyper-implement`
+
+**Decision:** `hyper-implement` commits once per task (after both reviews pass), and the commits land on a feature branch — `hyper/<slug>` created/switched-to when the run starts on `main`/`master`, or the user's already-checked-out non-default branch left as-is. The **lead** does the commit, never the `implementer` subagent. Always on, not opt-in. Nothing is ever pushed.
+
+**Why:** dogfooding the "superpower" workflow showed per-task commits give granular, bisectable history and a natural rollback point per task — far better than one monolithic end-of-run diff. It also normalizes `hyper-implement-loop`'s `code-review --base main`: before this, a full run left everything uncommitted, so a `--base main` diff could be empty/ambiguous; now committed tasks make the branch-vs-main diff well-defined (the fixer's fix-round edits sit uncommitted on top and still diff against `main`).
+
+**Why a feature branch (not the default branch):** protects `main`/`master` from a half-finished plan's intermediate commits. The user chose branch-isolation explicitly. The skill creates the branch but never pushes — push/PR stays a human decision.
+
+**Why a clean-tree preflight gates the loop:** per-task commits use `git add -A`. A feature branch alone does NOT make that safe — a dirty starting tree or pre-existing untracked files (e.g. local secrets) would be swept into the first task's commit. So Step 2.5 hard-stops if `git status --porcelain` is non-empty (`.hyperclaude/` is gitignored and exempt). With a clean start, each task begins from a clean tree, so `git add -A` is provably scoped to exactly that task's work and the commit returns the tree to clean for the next task. (Caught by Codex review during this feature's own dogfooding.)
+
+**Why the lead commits, not the implementer:** [agents/implementer.md](../agents/implementer.md) is commit-free by invariant (it makes the change and reports; it does not decide when work is acceptable). "Acceptable" is defined by the spec + quality reviews, which only the lead orchestrates — so the commit boundary belongs to the lead.
+
+**Rejected alternative:** opt-in via a skill argument. Adds argv-grammar surface and a second code path for marginal benefit; granular history is a strict improvement, so it is unconditional.
+
 ### Slug propagation via filename suffix
 
 **Decision:** plan files are named `<YYYYMMDD-HHMM>-<slug>.md`. The bridge's `extractSlugFromPlanFilename()` strips the timestamp and reuses the `<slug>` for the plan-review file.

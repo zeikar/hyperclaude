@@ -201,7 +201,7 @@ After successful teardown, report:
 - The final Codex verdict.
 - Residual non-blocking findings (informational, never gating).
 - Any `resume-failed` / `fallback` rounds noted.
-- Working-tree state: the fixer left changes uncommitted — next step: review the diff and commit, or run `/hyperclaude:hyper-code-review` again.
+- Branch / working-tree state: `hyper-implement` committed each task on the feature branch it created/used (`hyper/<slug>` when started from `main`/`master`); the fixer's fix-round edits are left **uncommitted** on top of those commits. Nothing was pushed. Next step: review the fixer's uncommitted diff and commit it (or run `/hyperclaude:hyper-code-review` again), then push the branch when ready.
 
 ## Anti-patterns
 

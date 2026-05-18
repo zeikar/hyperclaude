@@ -40,6 +40,37 @@ Read the plan with the Read tool. Extract every `## Task N: <title>` section wit
 
 Use TodoWrite to create a todo per task. Mark the first as `in_progress`.
 
+### Step 2.5 — Clean-tree preflight, then create / switch to the feature branch
+
+**Clean-tree preflight (do this FIRST).** Per-task commits use `git add -A` (step 3.6), so the working tree MUST be clean before the loop starts — otherwise pre-existing unrelated edits or untracked files (including local secrets) get swept into the first task's commit. Check:
+
+```bash
+git status --porcelain
+```
+
+If the output is non-empty (any tracked modification or non-ignored untracked file — `.hyperclaude/` is gitignored and never appears, so it's exempt), **STOP** and tell the user: "Working tree is not clean. hyper-implement commits per task with `git add -A`; commit, stash, or clean the unrelated changes first, then re-run." Do not branch, do not start the loop. This preflight is what makes per-task `git add -A` provably scoped: each task starts from a clean tree, so everything added during the task (implementer output + spec/quality fix-loop edits) is exactly that task's work, and the task commit returns the tree to clean for the next task.
+
+Per-task commits never land on the default branch — `hyper-implement` always commits on a feature branch.
+
+Derive the slug from the plan filename: strip the `<YYYYMMDD-HHMM>-` timestamp prefix and the `.md` suffix (e.g. `20260517-1946-hyper-implement-code-review-reviser.md` → `hyper-implement-code-review-reviser`). If the filename has no timestamp prefix, use the basename without `.md`.
+
+Find the current branch and act on it:
+
+```bash
+git rev-parse --abbrev-ref HEAD
+```
+
+- Current branch is `main` or `master` (the default branch — protected) → create or switch to `hyper/<slug>`:
+
+  ```bash
+  git switch -c "hyper/<slug>" 2>/dev/null || git switch "hyper/<slug>"
+  ```
+
+  (`-c` creates it from the current HEAD; the `||` fallback switches to it if it already exists — a resumed run reuses the same branch.)
+- Already on a non-default branch → **stay on it**; the user pre-selected a working branch and per-task commits land there. Do NOT create a nested branch.
+
+Tell the user which branch per-task commits will land on. Never push the branch — push stays a user action (see Step 4 / Rules).
+
 ### Step 3 — Per-task loop
 
 For EACH task in order:
@@ -49,7 +80,7 @@ For EACH task in order:
    - Project context: where this fits, recent commits, base SHA before this task.
    - Global constraints from the plan's preamble (zero deps, sandbox invariant, naming traps, etc.).
    - A self-review checklist before reporting back.
-   - Expected report format: status (DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT), files changed, test counts, commit SHA.
+   - Expected report format: status (DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT), files changed, test counts. (No commit SHA — the implementer never commits; the lead commits in step 6 after both reviews pass and records the SHA.)
 
 2. **Spec compliance review.** Once implementer reports DONE, dispatch a fresh **general-purpose** subagent (NOT the verifier — verifier runs tests, doesn't compare to spec). Prompt:
    - The full task text.
@@ -71,17 +102,33 @@ For EACH task in order:
 
 4. **Verifier — when tests or build steps changed.** If the task added or modified test files (`tests/**`, `*.test.*`, `*.spec.*`) or build/CI configuration (`package.json` scripts, smoke script, CI workflow), dispatch `subagent_type: hyperclaude:verifier`. Verifier runs `node --test`, `bash scripts/test/smoke.sh`, lint, etc. and reports PASS / PARTIAL / FAIL with verbatim output. Verifier never modifies files. Skip the verifier when the task didn't touch tests or build inputs — the spec/quality reviews above already cover code correctness.
 
-5. **Mark the task's step checkboxes as `- [x]` in the plan file.** After both reviews approve, use the Edit tool to convert every `- [ ]` inside the current `## Task N: <title>` block to `- [x]`. Scope is the task block only — leave other tasks' boxes alone. This keeps the plan file's checkbox state the durable source of "what's done" — survives context loss and lets a resumed session see exactly which tasks remain. Do this BEFORE the TodoWrite update so the durable artifact lands first.
+5. **Mark the task's step checkboxes as `- [x]` in the plan file.** After both reviews approve, use the Edit tool to convert every `- [ ]` inside the current `## Task N: <title>` block to `- [x]`. Scope is the task block only — leave other tasks' boxes alone. This keeps the plan file's checkbox state the durable source of "what's done" — survives context loss and lets a resumed session see exactly which tasks remain. Do this BEFORE the commit/TodoWrite updates so the durable artifact lands first.
 
-6. **Mark task complete in TodoWrite.** Move on.
+6. **Commit the task (the lead commits — never the implementer).** Only after spec ✅ + quality ✅ (+ verifier PASS when it ran):
+
+   Stage, then check whether anything was staged, then commit only if so:
+
+   ```bash
+   git add -A
+   git diff --cached --quiet && echo "SKIP: nothing staged" || git commit -m "<task commit message>"
+   ```
+
+   - **Message:** the task block's **Commit message** line (one-line conventional-commits, emitted by the planner). If the block has none, synthesize a conventional subject from the task title (defensive only — the planner always emits one).
+   - **`git add -A` is intentional and safe here** *because* Step 2.5's clean-tree preflight guaranteed the tree held no unrelated work when the loop started: each task begins from a clean tree, so the entire current diff is exactly this task's work (implementer + fix-loop edits). `.hyperclaude/` is gitignored, so plan-file checkbox edits and run artifacts never sweep in. (This is the documented exception to CLAUDE.md's "don't blanket `git add -A`", which is scoped to the release commit on `main`.)
+   - **Nothing staged** (`git diff --cached --quiet` exits 0 → no diff, e.g. a pure-verification task) → skip the commit, note "Task N: no file changes — no commit" in the run summary, continue.
+   - Record the resulting commit SHA (`git rev-parse HEAD`) for the final summary.
+   - Never push. Never tag here (tags only per Step 4, still user-pushed).
+
+7. **Mark task complete in TodoWrite.** Move on.
 
 ### Step 4 — Final pass
 
 After all tasks:
 
-- Run `bash scripts/test/smoke.sh` (or whatever the plan defines as final acceptance) and confirm 0 failures.
+- All tasks are now committed on the feature branch (one commit per task, minus skipped no-change tasks). Run `bash scripts/test/smoke.sh` (or whatever the plan defines as final acceptance) and confirm 0 failures.
 - If `/hyperclaude:hyper-code-review` is available, run it for a Codex-side review of the entire diff. Useful catch for cross-task issues.
 - If the plan's final task includes a tag step (`git tag -a vX.Y.Z`), do NOT push it; leave that to the user.
+- Report the feature branch name and the per-task commit SHAs (and any "no file changes" skips). Do NOT push the branch — pushing stays a user action.
 
 ## Rules
 
@@ -90,7 +137,9 @@ After all tasks:
 - **Don't trust implementer self-reports.** Reviewers must read the actual code.
 - **Fix loops are mandatory.** Reviewer ❌ → implementer fixes → re-review. No "close enough."
 - **Continuous execution.** Don't pause to ask the user between tasks — execute the whole plan. Stop only on BLOCKED, genuine ambiguity, or all tasks done.
-- **Never push.** Tags and pushes are user actions. The skill creates them locally only if the plan says to.
+- **The lead commits, not the implementer.** Per-task commit happens in Step 3.6 after both reviews pass — never inside the implementer subagent (it stays commit-free per [agents/implementer.md](../../agents/implementer.md)).
+- **Feature branch, never the default branch.** Step 2.5 creates/uses `hyper/<slug>` when on `main`/`master`; per-task commits never land on the protected default branch.
+- **Never push.** Branch creation, per-task commits, and any tag are all LOCAL. Pushes are user actions. The skill creates a tag locally only if the plan says to.
 
 ## Anti-patterns
 
@@ -98,6 +147,8 @@ After all tasks:
 - Skipping spec compliance review because "the plan was clear." It never is.
 - Single subagent handling multiple tasks (the whole reason we don't do manual orchestration).
 - Marking a task complete with reviewer issues still open.
+- Committing a task before both reviews pass, letting the implementer commit, or committing on the default branch.
+- Pushing the feature branch or pushing a tag. Everything this skill does is local.
 - Following the implementer's own model selection. Pick model per task complexity at dispatch time:
   - Mechanical (1-2 files, exact spec): haiku
   - Standard (multi-file, integration): sonnet
