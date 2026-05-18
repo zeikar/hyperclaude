@@ -245,10 +245,31 @@ After successful teardown, report:
 
 - The plan path.
 - Whether the slug was reused from research artifact(s) or freshly derived.
-- Review iterations consumed.
-- The final Codex verdict.
-- Residual Minor findings (informational, non-blocking).
-- Next step: `/hyperclaude:hyper-implement <plan path>`.
+- Review iterations consumed (on branch (c), this count INCLUDES the final cleanup re-review — it is the one non-severity-gated review that sits OUTSIDE the 5-review cap (it does not count against it)).
+- The final Codex verdict (this bullet is the SINGLE source of the latest Codex verdict; do NOT restate it in the cleanup bullet below).
+- **Cleanup outcome and residuals:** report ONE of the following:
+  - Branch (b) path: the one-shot Minor-cleanup pass was skipped (either zero actionable Minor existed, or the Minor was non-actionable / ambiguous and not sent to the planner); state any residual Minor findings from the last review as informational.
+  - Branch (c) clean path: the one-shot Minor-cleanup pass was applied; state any residual Minor findings from the cleanup re-review as informational.
+  - Branch (c) with the "final cleanup re-review unparseable" flag set: the one-shot Minor-cleanup pass was applied but the final cleanup re-review could not be classified — report this loudly.
+  - Branch (c) with a NEW Blocker/Major from the cleanup re-review: **WARNING — revise regression detected.** The one-shot Minor-cleanup pass was applied but the cleanup re-review surfaced a new Blocker/Major. Do NOT duplicate the Codex verdict here — state only that a regression was found and see the terminal-state next-step below.
+
+> **Note:** Do NOT restate the Codex verdict in this bullet — the existing 'The final Codex verdict' bullet stays the single verdict source.
+- **Next step** — conditional on branch and final cleanup re-review outcome:
+  - If branch (b), OR branch (c) with the final cleanup re-review reporting NO Blocker/Major → recommend: `Next step: /hyperclaude:hyper-implement <plan path>`.
+  - If branch (c) and the final cleanup re-review surfaced a NEW Blocker/Major, OR the "final cleanup re-review unparseable" flag is set → **terminal revise-regression state**: the plan is left in its last revised form at the reported plan path. Do NOT recommend implementation. Direct the user to inspect that plan path and restart the plan/review flow from the original task context using `/hyperclaude:hyper-plan` + `/hyperclaude:hyper-plan-review` manually (do NOT tell them to re-run `/hyperclaude:hyper-plan-loop` with the plan path — that skill takes a task description, not an existing plan path).
+
+**Compact illustrative examples (shape only — not the full rule text above):**
+
+1. Branch (b) — no cleanup applied:
+   > Cleanup: skipped (Minor was non-actionable / ambiguous — not sent to planner). Residual: none.
+   > Next step: `/hyperclaude:hyper-implement .hyperclaude/plans/20260518-1430-add-auth-api.md`
+
+2. Branch (c) — cleanup applied, re-review clean:
+   > Cleanup: one-shot Minor-cleanup pass applied (3 reviews total, including cleanup re-review). Residual: none.
+   > Next step: `/hyperclaude:hyper-implement .hyperclaude/plans/20260518-1430-add-auth-api.md`
+
+3. Branch (c) — revise regression after cleanup:
+   > **WARNING — revise regression detected.** One-shot Minor-cleanup pass applied, but the cleanup re-review surfaced a new Blocker/Major. Plan left at `.hyperclaude/plans/20260518-1430-add-auth-api.md`. Inspect that path and restart the plan/review flow from the original task context using `/hyperclaude:hyper-plan` + `/hyperclaude:hyper-plan-review` manually.
 
 ## Anti-patterns
 
