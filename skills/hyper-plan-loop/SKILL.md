@@ -115,7 +115,7 @@ The `prompt` string MUST contain:
 
 The lead no longer Writes the plan — the planner writes the canonical file itself (caller-directed write-file mode, Step 3). The lead only verifies.
 
-**Anchored reply gate** — applies to EVERY planner reply in write-file mode (the initial write, any retry, and every Step 7 revise redo alike). Accept the reply only if, after trimming trailing whitespace, it matches exactly:
+**Anchored reply gate** — applies to EVERY planner reply in write-file mode (the initial write, any retry, every Step 7 revise redo, and every Step 7a cleanup reply and redo alike). Accept the reply only if, after trimming trailing whitespace, it matches exactly:
 
 ```
 ^WROTE: <the exact resolved plan path from Step 1>\s*$
@@ -259,4 +259,5 @@ Core invariants (full list in `references/failure-protocol.md` §5):
 - Reading the plan body into lead context each revise round, or accepting any non-`WROTE:` reply as success.
 - Writing `<plan>-v2.md` (or any) sibling files. Always overwrite the same plan path; `--resume` keys on it.
 - Skipping `shutdown_request` + `TeamDelete`, or calling `TeamDelete` before the teammate is down; stopping silently at the cap.
+- Treating an actionable Minor as a recursive revise target. Under Step 6 branch (c) an actionable Minor triggers the one-shot Step 7a cleanup exactly once (then hard-stop); recursing on Minor — re-entering revise after the 7a re-review, or looping 7a back to Step 6/7 — is forbidden.
 - Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.

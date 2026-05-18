@@ -4,7 +4,7 @@ Operational backstops for `hyper-plan-loop`. SKILL.md carries the happy path and
 
 ## §1 — Anchored reply gate: corrective + escalation
 
-The anchored reply gate (SKILL.md Step 4) is the accept condition for EVERY planner reply in write-file mode (initial write, any retry, every Step 7 revise redo). The gate definition stays in SKILL.md; this section is the failure handling.
+The anchored reply gate (SKILL.md Step 4) is the accept condition for EVERY planner reply in write-file mode (initial write, any retry, every Step 7 revise redo, every Step 7a cleanup reply and redo). The gate definition stays in SKILL.md; this section is the failure handling.
 
 On any body echo, added prose, preamble, or a different path, send ONE corrective message:
 
@@ -54,6 +54,8 @@ If `bad` (the planner clobbered the canonical path with malformed content, OR th
 
 On `ok`: continue Step 7's happy path (increment iteration, re-invoke the bridge with `--resume auto`).
 
+Step 7a has exactly one planner round, which invokes this same redo pipeline (anchored gate → structure check → single redo) — no separate pipeline, no duplicated rules.
+
 ## §4 — Teardown recovery (Step 8 `TeamDelete` failure)
 
 If `TeamDelete` fails because a member is still live: send `shutdown_request` once more, then retry `TeamDelete` a single time. If it STILL fails, STOP with a named-loop report (**"hyper-plan-loop teardown"**) surfacing the verbatim `TeamDelete` error and the run's team name, stating the team may still be live. Do NOT instruct manual deletion of internal team state (`~/.claude/teams/<team-name>/` is internal — unsupported, and deleting it does not terminate a live teammate).
@@ -69,7 +71,7 @@ If `TeamDelete` fails because a member is still live: send `shutdown_request` on
 - Treating prompt-only idle discipline as sufficient. The lead-side unsolicited-message rule (§2) is mandatory.
 - Proceeding to Codex review on a `bad` (malformed) just-written file instead of running the §3 corrective + terminal STOP first.
 - Writing the wrong base path. The resolved plan path is a Step 1 concept; Step 2 is team creation only — never derive the path from Step 2.
-- Treating Minor findings as blocking. Only Blocker/Major gate the loop.
+- Treating an actionable Minor as a recursive revise target. Under Step 6 branch (c) an actionable Minor triggers the one-shot Step 7a cleanup **exactly once** (then hard-stop); recursing on Minor — re-entering revise after the 7a re-review, or looping 7a back to Step 6/7 — is forbidden.
 - Omitting `--plan-path` or `--resume auto` on iteration 2+. `--plan-path` is required every iteration; `--resume auto` from iteration 2 onward.
 - Stopping silently at the cap. Always emit the named cap report (after teardown).
 - Skipping `shutdown_request` + `TeamDelete`, or calling `TeamDelete` before the teammate is down. Shutdown first; `TeamDelete` fails while a member is live.
