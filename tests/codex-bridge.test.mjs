@@ -1745,9 +1745,11 @@ test('template code-review-resumed.md: loads and substitutes {{TARGET_INSTRUCTIO
     'rendered text should include the substituted TARGET_INSTRUCTION block'
   );
 
-  // Must reference the code-review structure expected by the spec
-  assert.ok(rendered.includes('Issues'), 'template should reference Issues section');
-  assert.ok(rendered.includes('Improvements'), 'template should reference Improvements section');
+  // Must reference the code-review structure expected by the spec (Findings/Verdict contract)
+  assert.ok(rendered.includes('Findings'), 'template should reference Findings section');
+  assert.ok(rendered.includes('Blocker'), 'template should reference Blocker severity');
+  assert.ok(rendered.includes('Major'), 'template should reference Major severity');
+  assert.ok(rendered.includes('Minor'), 'template should reference Minor severity');
   assert.ok(rendered.includes('Verdict'), 'template should reference Verdict section');
 
   // Regression: target-instruction block must be separated from "Then provide..." by a blank line

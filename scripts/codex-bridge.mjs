@@ -40,7 +40,69 @@ export {
   renderFailureBody,
   getCodexVersion, parseCodexJsonl, runCodexExec, runCodexResume,
   defaultModeDir, loadResumeContext, discoverResumeArtifact,
+  buildTargetInstruction,
 };
+
+// ---------- code-review target instruction ----------
+
+// Builds the git-command block that tells Codex what to review and how to read
+// it. Dispatch-local (not a pure leaf): shared by both the fresh and resumed
+// code-review spawn paths so the command set has a single source of truth.
+function buildTargetInstruction(args) {
+  if (args.reviewTarget === 'base') {
+    return [
+      `Re-read the change via:`,
+      ``,
+      `  git diff ${args.baseRef}...HEAD --name-status   # changed paths since base (R=rename, D=delete)`,
+      `  git diff ${args.baseRef}...HEAD                  # committed diff vs base`,
+      `  git diff                                         # unstaged local fixes`,
+      `  git diff --cached                                # staged local fixes`,
+      `  git ls-files --others --exclude-standard         # untracked files — read each listed file's content directly (no diff)`,
+      ``,
+      `Review the EFFECTIVE worktree state vs base: the changes committed since ` +
+        `${args.baseRef} PLUS any uncommitted local fixes (unstaged, staged, untracked). ` +
+        `Read changed files from the WORKING TREE, not HEAD. ` +
+        `Rationale: hyper-implement-loop re-runs \`code-review --base ${args.baseRef} --resume auto\` ` +
+        `after the fixer leaves edits UNCOMMITTED, so a HEAD-only base review would skip ` +
+        `the fix-round changes it must validate.`,
+      ``,
+      `Quote paths that contain spaces or special characters. A failed git read ` +
+        `MUST NOT be treated as a review blocker — note it and continue.`,
+    ].join('\n');
+  }
+  if (args.reviewTarget === 'commit') {
+    return [
+      `Re-read the commit via:`,
+      ``,
+      `  git show --name-status ${args.commit}        # changed paths (R=rename, D=delete)`,
+      `  git show --format= --patch ${args.commit}    # the patch`,
+      ``,
+      `Read each changed path's post-image at this commit with ` +
+        `\`git show ${args.commit}:'<path>'\` (NOT the working tree). ` +
+        `Quote paths — they may contain spaces or special characters. ` +
+        `For deleted/renamed/binary/space-containing paths, use ` +
+        `\`git show --name-status ${args.commit}\` for discovery and ` +
+        `\`git show ${args.commit}:'<path>'\` for the post-image, falling back to ` +
+        `the parent/preimage \`git show ${args.commit}^:'<path>'\` for deletions. ` +
+        `For binary files, note "binary, content not shown" and review by path/metadata. ` +
+        `A failed \`git show\` read MUST NOT be treated as a review blocker — note it and continue.`,
+    ].join('\n');
+  }
+  // uncommitted
+  return [
+    `Re-read the working tree via:`,
+    ``,
+    `  git status --short --untracked-files=all   # changed + untracked paths`,
+    `  git diff                                   # unstaged`,
+    `  git diff --cached                          # staged`,
+    `  git ls-files --others --exclude-standard   # untracked files — read each file's content directly (no diff)`,
+    ``,
+    `Quote paths — they may contain spaces or special characters. ` +
+      `For deleted paths, review by status/metadata; for binary files, note ` +
+      `"binary, content not shown" and review by path/metadata. ` +
+      `A failed git read MUST NOT be treated as a review blocker — note it and continue.`,
+  ].join('\n');
+}
 
 // ---------- CLI entry ----------
 
@@ -72,18 +134,15 @@ async function main(argv) {
   }
   const inv = buildInvocation({ args });
   if (args.dryRun) {
-    // code-review has no prompt template and does not require codex on PATH for dry-run.
-    if (args.mode !== 'code-review') {
-      // Fail fast if the prompt template is missing — better to find out now.
-      try {
-        await readTemplateFile(args.mode);
-      } catch (err) {
-        process.stdout.write(JSON.stringify({
-          ok: false,
-          error: `failed to read prompt template: ${err.message}`,
-        }) + '\n');
-        process.exit(1);
-      }
+    // Fail fast if the prompt template is missing — better to find out now.
+    try {
+      await readTemplateFile(args.mode);
+    } catch (err) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: `failed to read prompt template: ${err.message}`,
+      }) + '\n');
+      process.exit(1);
     }
     process.stdout.write(JSON.stringify({
       ok: true,
@@ -316,7 +375,8 @@ async function main(argv) {
     return;
   }
 
-  // code-review path: uses `codex exec review` subcommand, no prompt template.
+  // code-review path: fresh uses `codex exec --sandbox read-only -` with the
+  // code-review prompt template; resumed uses runCodexResume.
   if (args.mode === 'code-review') {
     const v = getCodexVersion();
     if (!v.ok) {
@@ -354,30 +414,13 @@ async function main(argv) {
       }
     }
 
-    const targetFlags = [];
-    if (args.reviewTarget === 'base') {
-      targetFlags.push('--base', args.baseRef);
-    } else if (args.reviewTarget === 'uncommitted') {
-      targetFlags.push('--uncommitted');
-    } else {
-      targetFlags.push('--commit', args.commit);
-    }
-    const titleFlag = args.title ? ['--title', args.title] : [];
-
     const gitHead = getGitHead();
+
+    const targetInstruction = buildTargetInstruction(args);
 
     // Spawn: resume path uses runCodexResume; fresh path uses runCodexExec.
     let result;
     if (resumeContext) {
-      // Build TARGET_INSTRUCTION block for the resume template.
-      let targetInstruction;
-      if (args.reviewTarget === 'base') {
-        targetInstruction = `Re-read the diff via:\n\n  git diff ${args.baseRef}...HEAD --name-status\n  git diff ${args.baseRef}...HEAD -- <file>   # per changed path`;
-      } else if (args.reviewTarget === 'commit') {
-        targetInstruction = `Re-read the commit via:\n\n  git show --format= --patch ${args.commit}`;
-      } else {
-        targetInstruction = `Re-read the working tree via:\n\n  git status --short\n  git diff           # unstaged\n  git diff --cached  # staged\n\nFor untracked files (paths starting with "??" in git status output), read their content directly — they have no diff.`;
-      }
       let resumeTemplateText;
       try {
         resumeTemplateText = await readTemplateFile('code-review-resumed');
@@ -391,8 +434,19 @@ async function main(argv) {
       const prompt = loadTemplate(resumeTemplateText, { TARGET_INSTRUCTION: targetInstruction });
       result = await runCodexResume(resumeContext.threadId, prompt, args.timeout);
     } else {
-      const argv = ['exec', 'review', '-c', 'sandbox_mode=read-only', ...targetFlags, ...titleFlag];
-      result = await runCodexExec(argv, null, args.timeout);
+      let templateText;
+      try {
+        templateText = await readTemplateFile('code-review');
+      } catch (err) {
+        process.stdout.write(JSON.stringify({
+          ok: false,
+          error: `failed to read prompt template: ${err.message}`,
+        }) + '\n');
+        process.exit(1);
+      }
+      const prompt = loadTemplate(templateText, { TARGET_INSTRUCTION: targetInstruction });
+      const argv = ['exec', '--sandbox', 'read-only', '-'];
+      result = await runCodexExec(argv, prompt, args.timeout);
     }
 
     // Pick final resume status.

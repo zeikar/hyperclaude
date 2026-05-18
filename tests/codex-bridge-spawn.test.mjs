@@ -285,7 +285,7 @@ test('mock codex: bridge handles failed codex (exit 7) — writes file and repor
   }
 });
 
-test('mock codex: code-review --base main spawns exec review with --json injected after exec review, no stdin', () => {
+test('mock codex: code-review --base main spawns codex exec --sandbox read-only - with the rendered prompt on stdin', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-base-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -306,29 +306,38 @@ test('mock codex: code-review --base main spawns exec review with --json injecte
     assert.equal(json.ok, true);
 
     // argv.log is one arg per line.
-    // Semantic argv: ['exec', 'review', '-c', 'sandbox_mode=read-only', '--base', 'main']
-    // runCodexExec unshifts --search (global flag) then inserts --json --output-last-message <tmp> after 'exec review'.
-    // Expected: --search exec review --json --output-last-message <tmp> -c sandbox_mode=read-only --base main
+    // Semantic argv: ['exec', '--sandbox', 'read-only', '-']
+    // runCodexExec unshifts --search (global flag) then inserts --json --output-last-message <tmp> after 'exec'.
+    // Expected: --search exec --json --output-last-message <tmp> --sandbox read-only -
     const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
     assert.equal(argv[0], '--search', `argv[0] should be --search, got: ${argv[0]}`);
     assert.equal(argv[1], 'exec', `argv[1] should be exec, got: ${argv[1]}`);
-    assert.equal(argv[2], 'review', `argv[2] should be review, got: ${argv[2]}`);
-    assert.equal(argv[3], '--json', `argv[3] should be --json, got: ${argv[3]}`);
-    assert.equal(argv[4], '--output-last-message', `argv[4] should be --output-last-message, got: ${argv[4]}`);
-    assert.ok(argv[5] && argv[5].length > 0, 'argv[5] should be the tempfile path');
+    assert.equal(argv[2], '--json', `argv[2] should be --json, got: ${argv[2]}`);
+    assert.equal(argv[3], '--output-last-message', `argv[3] should be --output-last-message, got: ${argv[3]}`);
+    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
     assert.deepEqual(
-      argv.slice(6),
-      ['-c', 'sandbox_mode=read-only', '--base', 'main'],
-      `tail should be [-c, sandbox_mode=read-only, --base, main], got: ${JSON.stringify(argv.slice(6))}`,
+      argv.slice(5),
+      ['--sandbox', 'read-only', '-'],
+      `tail should be [--sandbox, read-only, -], got: ${JSON.stringify(argv.slice(5))}`,
     );
+    assert.ok(!argv.includes('review'), 'fresh code-review must not contain the native review subcommand token');
 
-    // stdin.log must be empty — exec review takes no stdin (stdio[0] = 'ignore').
+    // stdin.log must carry the rendered prompt with the target git commands.
     const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
-    assert.equal(stdinLog.length, 0, 'stdin.log should be empty (bridge must not pipe stdin to exec review)');
+    assert.ok(stdinLog.length > 0, 'stdin must carry the rendered prompt');
+    assert.ok(!/\{\{[A-Z_]+\}\}/.test(stdinLog), 'no unreplaced placeholders');
+    assert.ok(stdinLog.includes('git diff main...HEAD'), 'stdin should include the base diff command');
+    assert.ok(/git diff\b/.test(stdinLog), 'stdin should include `git diff` (unstaged)');
+    assert.ok(stdinLog.includes('git diff --cached'), 'stdin should include `git diff --cached` (staged)');
+    assert.ok(
+      stdinLog.includes('git ls-files --others --exclude-standard'),
+      'stdin should include the untracked overlay command (proves base covers uncommitted fixes, not HEAD-only)',
+    );
+    assert.ok(stdinLog.includes('### Findings'), 'stdin should include the Findings section contract');
 
-    // No positional '-' token.
-    assert.ok(!argv.includes('-'), 'argv must not contain a positional - token');
+    // Positional '-' token (stdin prompt) must be present and last.
+    assert.equal(argv[argv.length - 1], '-', 'argv ends with positional - (stdin prompt)');
 
     // Output file checks.
     const outputPath = json.path;
@@ -346,7 +355,7 @@ test('mock codex: code-review --base main spawns exec review with --json injecte
   }
 });
 
-test('mock codex: code-review --uncommitted spawns exec review -c sandbox_mode=read-only --uncommitted', () => {
+test('mock codex: code-review --uncommitted spawns codex exec --sandbox read-only - with the uncommitted prompt on stdin', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-uncommitted-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -370,12 +379,21 @@ test('mock codex: code-review --uncommitted spawns exec review -c sandbox_mode=r
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
     assert.equal(argv[0], '--search');
     assert.equal(argv[1], 'exec');
-    assert.equal(argv[2], 'review');
-    assert.equal(argv[3], '--json');
-    assert.equal(argv[4], '--output-last-message');
-    assert.ok(argv[5] && argv[5].length > 0, 'argv[5] should be the tempfile path');
-    assert.deepEqual(argv.slice(6), ['-c', 'sandbox_mode=read-only', '--uncommitted']);
-    assert.ok(!argv.includes('-'), 'argv must not contain a positional - token');
+    assert.equal(argv[2], '--json');
+    assert.equal(argv[3], '--output-last-message');
+    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.deepEqual(argv.slice(5), ['--sandbox', 'read-only', '-']);
+    assert.ok(!argv.includes('review'), 'fresh code-review must not contain the native review subcommand token');
+    assert.equal(argv[argv.length - 1], '-', 'argv ends with positional - (stdin prompt)');
+
+    const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
+    assert.ok(stdinLog.length > 0, 'stdin must carry the rendered prompt');
+    assert.ok(!/\{\{[A-Z_]+\}\}/.test(stdinLog), 'no unreplaced placeholders');
+    assert.ok(
+      stdinLog.includes('git status --short --untracked-files=all'),
+      'stdin should include the uncommitted status command',
+    );
+    assert.ok(stdinLog.includes('### Findings'), 'stdin should include the Findings section contract');
 
     assert.equal(json.slug, 'uncommitted', 'slug should be "uncommitted"');
   } finally {
@@ -383,7 +401,7 @@ test('mock codex: code-review --uncommitted spawns exec review -c sandbox_mode=r
   }
 });
 
-test('mock codex: code-review --commit abc1234f spawns exec review -c sandbox_mode=read-only --commit abc1234f', () => {
+test('mock codex: code-review --commit abc1234f spawns codex exec --sandbox read-only - with the commit prompt on stdin', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-commit-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -407,12 +425,20 @@ test('mock codex: code-review --commit abc1234f spawns exec review -c sandbox_mo
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
     assert.equal(argv[0], '--search');
     assert.equal(argv[1], 'exec');
-    assert.equal(argv[2], 'review');
-    assert.equal(argv[3], '--json');
-    assert.equal(argv[4], '--output-last-message');
-    assert.ok(argv[5] && argv[5].length > 0, 'argv[5] should be the tempfile path');
-    assert.deepEqual(argv.slice(6), ['-c', 'sandbox_mode=read-only', '--commit', 'abc1234f']);
-    assert.ok(!argv.includes('-'), 'argv must not contain a positional - token');
+    assert.equal(argv[2], '--json');
+    assert.equal(argv[3], '--output-last-message');
+    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.deepEqual(argv.slice(5), ['--sandbox', 'read-only', '-']);
+    assert.ok(!argv.includes('review'), 'fresh code-review must not contain the native review subcommand token');
+    assert.equal(argv[argv.length - 1], '-', 'argv ends with positional - (stdin prompt)');
+
+    const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
+    assert.ok(stdinLog.length > 0, 'stdin must carry the rendered prompt');
+    assert.ok(!/\{\{[A-Z_]+\}\}/.test(stdinLog), 'no unreplaced placeholders');
+    assert.ok(stdinLog.includes('git show'), 'stdin should include git show for the commit');
+    assert.ok(stdinLog.includes('abc1234f'), 'stdin should reference the commit sha');
+    assert.ok(stdinLog.includes('abc1234f:'), 'stdin should include the commit-version read (git show <commit>:<path>)');
+    assert.ok(stdinLog.includes('### Findings'), 'stdin should include the Findings section contract');
 
     const outputPath = json.path;
     const outputContent = readFileSync(outputPath, 'utf8');
@@ -423,7 +449,7 @@ test('mock codex: code-review --commit abc1234f spawns exec review -c sandbox_mo
   }
 });
 
-test('mock codex: code-review --title appended last (after target flags)', () => {
+test('mock codex: code-review --title is not passed to codex argv but still drives frontmatter and heading', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-title-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
@@ -447,15 +473,13 @@ test('mock codex: code-review --title appended last (after target flags)', () =>
     const argv = argvLog.split('\n').filter((l) => l.length > 0);
     assert.equal(argv[0], '--search');
     assert.equal(argv[1], 'exec');
-    assert.equal(argv[2], 'review');
-    assert.equal(argv[3], '--json');
-    assert.equal(argv[4], '--output-last-message');
-    assert.ok(argv[5] && argv[5].length > 0, 'argv[5] should be the tempfile path');
-    assert.deepEqual(
-      argv.slice(6),
-      ['-c', 'sandbox_mode=read-only', '--base', 'main', '--title', 'My Review'],
-    );
-    assert.ok(!argv.includes('-'), 'argv must not contain a positional - token');
+    assert.equal(argv[2], '--json');
+    assert.equal(argv[3], '--output-last-message');
+    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.deepEqual(argv.slice(5), ['--sandbox', 'read-only', '-']);
+    assert.ok(!argv.includes('review'), 'fresh code-review must not contain the native review subcommand token');
+    assert.ok(!argv.includes('--title'), 'title no longer passed to codex argv');
+    assert.equal(argv[argv.length - 1], '-', 'argv ends with positional - (stdin prompt)');
 
     const outputPath = json.path;
     const outputContent = readFileSync(outputPath, 'utf8');
