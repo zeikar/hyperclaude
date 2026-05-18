@@ -29,7 +29,7 @@ If the next reply still fails the anchored gate → Step 8 teardown, then STOP (
 
 ## §2 — Lead-side unsolicited-message protocol
 
-This is an operational backstop for the Step 3 idle/no-resend prompt instruction. Prompt-only discipline is **insufficient**; this lead-side rule is **mandatory**.
+This is an operational backstop for the Step 4 idle/no-resend prompt instruction. Prompt-only discipline is **insufficient**; this lead-side rule is **mandatory**.
 
 **Scope:** applies ONLY while the fixer is active and BEFORE Step 8 teardown has begun. It EXEMPTS the teardown exchange — once the lead has sent `shutdown_request`, the fixer's `shutdown_response` / idle-termination notification is EXPECTED, not unsolicited, and is never a violation.
 

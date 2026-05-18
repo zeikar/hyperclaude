@@ -5,7 +5,7 @@ description: Autonomous implement → Codex code-review → fix loop in one gest
 
 # hyper-implement-loop
 
-Autonomous implement-hardening gate. Creates a per-run team, spawns the `fixer` agent as a persistent teammate **once**, runs hyper-implement to completion first, then invokes Codex `code-review --base main` through the bridge, and fixes via the still-live fixer until no blocking findings remain (judged semantically — see Step 6) or the cap is hit. The fixer is spawned **once**; every fix round reuses its retained context via SendMessage. The reviewer is always the Codex bridge, never a teammate — this preserves the "Claude builds, Codex reviews" invariant.
+Autonomous implement-hardening gate. Creates a per-run team, runs hyper-implement to completion first, then spawns the `fixer` agent as a persistent teammate **once** (only after implementation finishes), invokes Codex `code-review --base main` through the bridge, and fixes via the still-live fixer until no blocking findings remain (judged semantically — see Step 6) or the cap is hit. The fixer is spawned **once**; every fix round reuses its retained context via SendMessage. The reviewer is always the Codex bridge, never a teammate — this preserves the "Claude builds, Codex reviews" invariant.
 
 ## When to use
 
@@ -62,7 +62,7 @@ Reuse the stock `hyper-implement` plan-path resolution — see `skills/hyper-imp
 
 Do not add an env-probe shell check — let `TeamCreate` itself surface agent-teams unavailability.
 
-Compute a per-run unique team name (the nonce defeats same-second collisions) and record this exact literal as the run's team name (also used in Step 3's `Agent` call and reports):
+Compute a per-run unique team name (the nonce defeats same-second collisions) and record this exact literal as the run's team name (also used in Step 4's `Agent` call and reports):
 
 ```bash
 echo "hyper-implement-loop-$(date +%Y%m%d-%H%M%S)-$RANDOM"
@@ -77,15 +77,27 @@ TeamCreate({ team_name: "<the run-unique name computed above>", description: "im
 Failure handling:
 
 - **`TeamCreate` fails** → STOP with the message below + the raw error verbatim. No teardown (nothing was created).
-- **`TeamCreate` succeeds but the Step 3 spawn fails** → `TeamDelete` FIRST (no orphaned empty team), then STOP with the same message.
+- **`TeamCreate` succeeds but the Step 4 spawn fails** (note: the fixer is now spawned in Step 4, *after* `hyper-implement` completes) → `TeamDelete` FIRST (no orphaned empty team), then STOP with the same message. The implementation output is already in the working tree and is preserved — the user can run `/hyperclaude:hyper-code-review` manually.
 
 Documented stop message:
 
 > agent teams unavailable (or TeamCreate failed — see error below) — this skill requires the experimental agent-teams feature; run /hyperclaude:hyper-setup to diagnose prerequisites. Use /hyperclaude:hyper-implement + /hyperclaude:hyper-code-review manually instead.
 
-### Step 3 — Spawn the fixer teammate
+### Step 3 — Run hyper-implement to completion (boundary A)
 
-Use the Agent tool. The full contract text below goes in the `prompt:` string (a populated `prompt` field — not a separate message):
+The fixer is **not** spawned yet — it is spawned in Step 4, only *after* implementation completes. Spawning it earlier buys no context: `hyper-implement` builds with its own fresh subagents that the fixer teammate never observes, and the single-spawn / context-reuse guarantee only needs the fixer alive from iteration 1's fix round onward. Deferring the spawn also keeps the unsolicited-message guard window (Step 4a / `references/failure-protocol.md` §2) off the long implementation phase.
+
+Invoke the existing `hyper-implement` skill on the resolved plan path.
+
+**Nested-review boundary:** `skills/hyper-implement/SKILL.md` Step 4 ends with an optional final step: run `/hyperclaude:hyper-code-review`. Under `hyper-implement-loop`, the lead **MUST NOT perform** that optional `/hyperclaude:hyper-code-review` bullet — it is suppressed for this run. Step 5 below is the single authoritative first Codex review of the full diff.
+
+**If `hyper-implement` fails or aborts** (no usable implementation): the fixer was never spawned, so no teardown is owed — `TeamDelete({})` the empty team and STOP, surfacing the `hyper-implement` failure verbatim. The partial working tree is left as-is for manual triage.
+
+The loop begins AFTER `hyper-implement` finishes its task loop + final acceptance (smoke/tests), with the optional code-review bullet suppressed.
+
+### Step 4 — Spawn the fixer teammate
+
+Implementation is complete; spawn the fixer **once** here, before iteration 1. Use the Agent tool. The full contract text below goes in the `prompt:` string (a populated `prompt` field — not a separate message):
 
 ```
 Agent({
@@ -107,17 +119,9 @@ The `prompt` string MUST contain:
 
 (Spawn-failure handling is in Step 2.)
 
-### Step 4 — Run hyper-implement to completion (boundary A)
-
-Invoke the existing `hyper-implement` skill on the resolved plan path. The fixer spawned in Step 3 simply idles through the implementation — exactly as plan-loop's planner idles until contacted; it will receive Codex findings only after implementation completes.
-
-**Nested-review boundary:** `skills/hyper-implement/SKILL.md` Step 4 ends with an optional final step: run `/hyperclaude:hyper-code-review`. Under `hyper-implement-loop`, the lead **MUST NOT perform** that optional `/hyperclaude:hyper-code-review` bullet — it is suppressed for this run. Step 5 below is the single authoritative first Codex review of the full diff.
-
-The loop begins AFTER `hyper-implement` finishes its task loop + final acceptance (smoke/tests), with the optional code-review bullet suppressed.
-
 ### Step 4a — Unsolicited fixer messages
 
-While the fixer is live and BEFORE Step 8 teardown, the only fixer message the lead expects is the anchored structured-schema reply to the lead's most recent SendMessage (spawn, fix, or corrective). Any other inbound fixer message — duplicate body, `RESEND:`-style re-emit, nag, or anything arriving when the lead solicited nothing (including a message auto-delivered after a long Codex-review turn) — is **unsolicited**. Handle it per `references/failure-protocol.md` §2. This lead-side rule is **mandatory** — prompt-only idle discipline (Step 3) is insufficient. The teardown exchange is exempt (a `shutdown_response` after `shutdown_request` is expected, never a violation).
+While the fixer is live and BEFORE Step 8 teardown, the only fixer message the lead expects is the anchored structured-schema reply to the lead's most recent SendMessage (spawn, fix, or corrective). Any other inbound fixer message — duplicate body, `RESEND:`-style re-emit, nag, or anything arriving when the lead solicited nothing (including a message auto-delivered after a long Codex-review turn) — is **unsolicited**. Handle it per `references/failure-protocol.md` §2. This lead-side rule is **mandatory** — prompt-only idle discipline (Step 4) is insufficient. The teardown exchange is exempt (a `shutdown_response` after `shutdown_request` is expected, never a violation).
 
 ### Step 5 — Code-review iteration 1 (fresh)
 
@@ -178,7 +182,7 @@ Cap at **3 total Codex reviews** (iter 1 fresh + at most 2 resumed fix rounds).
 
 On cap-reached with blocking findings still open: FIRST capture the cap report details (iterations consumed, residual blocking findings, working tree left in fixer's latest state, all `reviewArtifacts[]` paths), THEN run teardown, THEN emit the named-loop report (**"hyper-implement-loop fix loop"**).
 
-**Teardown is MANDATORY on EVERY exit path once the Step 3 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure, fixer format failure, unparseable review, plus any other unexpected tool error while the fixer teammate is live. Run teardown FIRST, then report/STOP — never before.
+**Teardown is MANDATORY on EVERY exit path once the Step 4 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure, fixer format failure, unparseable review, plus any other unexpected tool error while the fixer teammate is live. Run teardown FIRST, then report/STOP — never before. (A failure *before* the Step 4 spawn — e.g. `hyper-implement` aborting in Step 3 — owes no teardown: only an empty team exists; `TeamDelete({})` it and STOP.)
 
 Exact procedure:
 
