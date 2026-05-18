@@ -15,3 +15,5 @@ Thumbs.db
 
 # Local-only state from running hyperclaude in self-test
 .hyperclaude/
+# Local Claude runtime state (scheduled-task locks, etc.)
+.claude/

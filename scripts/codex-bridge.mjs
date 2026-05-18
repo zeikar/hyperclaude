@@ -16,7 +16,7 @@ import {
   fmString, renderFrontmatter, renderCodeReviewFrontmatter,
   renderDocsReviewFrontmatter, parseFrontmatter,
 } from './codex/frontmatter.mjs';
-import { getGitHead } from './codex/git.mjs';
+import { getGitHead, verifyReviewTarget } from './codex/git.mjs';
 import {
   loadTemplate, readTemplateFile, renderFileListBlock, renderDiffBaseBlock,
 } from './codex/templates.mjs';
@@ -34,7 +34,7 @@ export {
   slugify, slugifyRef, extractSlugFromPlanFilename,
   fmString, renderFrontmatter, renderCodeReviewFrontmatter,
   renderDocsReviewFrontmatter, parseFrontmatter,
-  getGitHead,
+  getGitHead, verifyReviewTarget,
   loadTemplate, readTemplateFile, renderFileListBlock, renderDiffBaseBlock,
   parseArgs, buildInvocation,
   renderFailureBody,
@@ -415,6 +415,21 @@ async function main(argv) {
     }
 
     const gitHead = getGitHead();
+
+    // Preflight the review target BEFORE spawning Codex. Runs for BOTH the
+    // resumed and fresh spawn paths. Dry-run never reaches here — the
+    // `if (args.dryRun)` block (~line 136) returns earlier in the file.
+    const tgt = verifyReviewTarget(args);
+    if (!tgt.ok) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: `code-review target not resolvable: ${tgt.reason}`,
+        path: null,
+        resumeStatus,
+        threadId: resumeContext ? resumeContext.threadId : null,
+      }) + '\n');
+      process.exit(1);
+    }
 
     const targetInstruction = buildTargetInstruction(args);
 

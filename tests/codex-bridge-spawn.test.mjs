@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, execFileSync } from 'node:child_process';
 import {
   mkdtempSync,
   writeFileSync,
@@ -401,16 +401,21 @@ test('mock codex: code-review --uncommitted spawns codex exec --sandbox read-onl
   }
 });
 
-test('mock codex: code-review --commit abc1234f spawns codex exec --sandbox read-only - with the commit prompt on stdin', () => {
+test('mock codex: code-review --commit <real sha> spawns codex exec --sandbox read-only - with the commit prompt on stdin', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-commit-'));
   try {
     const mockCodexPath = path.join(tmpdir, 'codex');
     writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
     chmodSync(mockCodexPath, 0o755);
 
+    // The new target preflight resolves --commit in git; use the real repo HEAD
+    // (the test process cwd is this repo) so the target is resolvable.
+    const realSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+    const shortSha = realSha.slice(0, 7);
+
     const result = spawnSync(
       process.execPath,
-      [BRIDGE, 'code-review', '--commit', 'abc1234f', '--out', tmpdir],
+      [BRIDGE, 'code-review', '--commit', realSha, '--out', tmpdir],
       {
         encoding: 'utf8',
         env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
@@ -436,14 +441,14 @@ test('mock codex: code-review --commit abc1234f spawns codex exec --sandbox read
     assert.ok(stdinLog.length > 0, 'stdin must carry the rendered prompt');
     assert.ok(!/\{\{[A-Z_]+\}\}/.test(stdinLog), 'no unreplaced placeholders');
     assert.ok(stdinLog.includes('git show'), 'stdin should include git show for the commit');
-    assert.ok(stdinLog.includes('abc1234f'), 'stdin should reference the commit sha');
-    assert.ok(stdinLog.includes('abc1234f:'), 'stdin should include the commit-version read (git show <commit>:<path>)');
+    assert.ok(stdinLog.includes(realSha), 'stdin should reference the commit sha');
+    assert.ok(stdinLog.includes(`${realSha}:`), 'stdin should include the commit-version read (git show <commit>:<path>)');
     assert.ok(stdinLog.includes('### Findings'), 'stdin should include the Findings section contract');
 
     const outputPath = json.path;
     const outputContent = readFileSync(outputPath, 'utf8');
-    assert.ok(outputContent.includes('commit: "abc1234f"'), 'frontmatter should contain commit: "abc1234f"');
-    assert.equal(json.slug, 'commit-abc1234', 'slug should be "commit-abc1234"');
+    assert.ok(outputContent.includes(`commit: "${realSha}"`), `frontmatter should contain commit: "${realSha}"`);
+    assert.equal(json.slug, `commit-${shortSha}`, `slug should be "commit-${shortSha}"`);
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }
@@ -532,6 +537,68 @@ test('mock codex: code-review failure (exit 7) writes structured failure body an
     assert.ok(outputContent.includes('## stderr'), 'stderr section present');
     assert.ok(outputContent.includes('mock review failure'), 'stderr verbatim');
     assert.ok(/status=7,\s*signal=(?:null|SIG[A-Z]+),\s*timed-out=false/.test(outputContent), 'exit line with status=7');
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('mock codex: code-review --base <nonexistent ref> fails the target preflight (no spawn, no artifact)', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-badbase-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const result = spawnSync(
+      process.execPath,
+      [BRIDGE, 'code-review', '--base', 'no-such-ref-zzz', '--out', tmpdir],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+      }
+    );
+
+    assert.equal(result.status, 1, `expected exit 1, got ${result.status}; stderr: ${result.stderr}`);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.ok, false);
+    assert.match(json.error, /code-review target not resolvable: base ref not found/);
+    assert.equal(json.path, null, 'no artifact path on preflight failure');
+
+    // Codex must NOT have been spawned (mock writes argv.log only when run).
+    assert.ok(!existsSync(path.join(tmpdir, 'argv.log')), 'codex must not be spawned when preflight fails');
+    // No .md artifact written under the out dir.
+    const mdFiles = readdirSync(tmpdir).filter((f) => f.endsWith('.md'));
+    assert.equal(mdFiles.length, 0, 'no review artifact should be written on preflight failure');
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('mock codex: code-review --commit <nonexistent sha> fails the target preflight (no spawn, no artifact)', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-badcommit-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const result = spawnSync(
+      process.execPath,
+      [BRIDGE, 'code-review', '--commit', 'deadbeefdeadbeef', '--out', tmpdir],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+      }
+    );
+
+    assert.equal(result.status, 1, `expected exit 1, got ${result.status}; stderr: ${result.stderr}`);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.ok, false);
+    assert.match(json.error, /code-review target not resolvable: commit not found/);
+    assert.equal(json.path, null, 'no artifact path on preflight failure');
+
+    assert.ok(!existsSync(path.join(tmpdir, 'argv.log')), 'codex must not be spawned when preflight fails');
+    const mdFiles = readdirSync(tmpdir).filter((f) => f.endsWith('.md'));
+    assert.equal(mdFiles.length, 0, 'no review artifact should be written on preflight failure');
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }
