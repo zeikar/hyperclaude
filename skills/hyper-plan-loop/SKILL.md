@@ -5,7 +5,7 @@ description: Autonomous plan → Codex-review → revise loop in one gesture. Us
 
 # hyper-plan-loop
 
-Autonomous plan-hardening gate. Creates a per-run team, spawns the `planner` agent as a persistent teammate, writes its plan to `.hyperclaude/plans/<YYYYMMDD-HHMM>-<slug>.md`, runs Codex `plan-review` through the bridge, and revises via the still-live planner until Codex returns no Blocker/Major or the cap is hit. The planner is spawned **once**; every revise round reuses its retained context via SendMessage. The reviewer is always the Codex bridge, never a teammate — this preserves the "Claude builds, Codex reviews" invariant.
+Autonomous plan-hardening gate. Creates a per-run team, spawns the `planner` agent as a persistent teammate, writes its plan to `.hyperclaude/plans/<YYYYMMDD-HHMM>-<slug>.md`, runs Codex `plan-review` through the bridge, and revises via the still-live planner until Codex returns no Blocker/Major or the cap is hit; when only a concrete actionable Minor remains, the loop runs a one-shot Minor-cleanup pass before teardown. The planner is spawned **once**; every revise round reuses its retained context via SendMessage. The reviewer is always the Codex bridge, never a teammate — this preserves the "Claude builds, Codex reviews" invariant.
 
 ## When to use
 
@@ -155,8 +155,13 @@ On any non-`ok:true`, Bash timeout, or JSON parse failure → Step 8 teardown, t
 
 Read the artifact body and judge by **meaning**, not regex. The plan-review template emits `### Issues` with `- **Blocker** — …` / `- **Major** — …` / `- **Minor** — …` bullets plus `### Verdict`.
 
-- Any Blocker or Major → revise (Step 7).
-- Zero Blocker and zero Major (Minor-only, or a Verdict that approves / says proceed) → exit loop (Step 8 teardown → Step 9). Minor findings are reported, never blocking.
+Three successful severity outcomes; the conservative failure branch below is unchanged:
+
+- **(a)** Any Blocker or Major → revise (Step 7).
+- **(b)** Zero Blocker/Major AND no concrete actionable Minor cleanup (pure approve, OR Minor mentioned only vaguely with no identifiable executable change) → exit loop now (Step 8 teardown → Step 9).
+- **(c)** Zero Blocker/Major AND a concrete, executable Minor-grade cleanup remains → run the new Step 7a final-cleanup pass exactly once, then unconditionally Step 8 teardown → Step 9. Never return to Step 6. (See Step 7a — runs exactly once, then hard-stops; the loop never recurses on Minor.)
+
+**Branch (b)-vs-(c) detection:** judge by meaning (not a regex count) by reading BOTH the `### Issues` Minor bullets AND the `### Verdict` text. Branch (c) fires ONLY if either names a **concrete**, executable Minor-grade change the planner can act on without guessing. If the Verdict only says "ship after small fixes" (or similar) but neither Issues nor Verdict identifies a specific actionable change, this is branch (b) — exit and report the residual as "non-actionable / ambiguous Minor (not sent to planner)" in Step 9; do NOT send a vague directive to the planner.
 
 **Conservative branch:** if severity cannot be confidently judged by meaning (no recognizable `### Issues` / `### Verdict` structure, truncated body, etc.), do NOT assume "no Blocker/Major" — instead Step 8 teardown, then STOP with a named-loop report (**"hyper-plan-loop unparseable review, iter N"**) surfacing the artifact path for manual triage.
 
