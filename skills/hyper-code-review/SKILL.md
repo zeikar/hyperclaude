@@ -1,11 +1,11 @@
 ---
 name: hyper-code-review
-description: Run Codex's native code-review on the current branch, working tree, or a specific commit. Use when the user invokes /hyperclaude:hyper-code-review, or after producing code changes and you want a Codex critique. Distinct from /hyperclaude:hyper-plan-review (which critiques plans, not code).
+description: Run a Codex code review on the current branch, working tree, or a specific commit. Use when the user invokes /hyperclaude:hyper-code-review, or after producing code changes and you want a Codex critique. Distinct from /hyperclaude:hyper-plan-review (which critiques plans, not code).
 ---
 
 # hyper-code-review
 
-Code review gate. Calls Codex via `codex exec review` against a branch diff, uncommitted working-tree changes, or a specific commit; saves the output to `.hyperclaude/code-reviews/<timestamp>-<slug>.md`; you read the file and surface the findings.
+Code review gate. Calls Codex via `codex exec --sandbox read-only -` with a code-review prompt template ([templates/codex/code-review.md](../../templates/codex/code-review.md)) against a branch diff, uncommitted working-tree changes, or a specific commit; the prompt instructs Codex to run the target git commands itself (read-only sandbox) and review with broadened blast-radius context — not only the literal changed lines. Saves the output to `.hyperclaude/code-reviews/<timestamp>-<slug>.md`; you read the file and surface the findings.
 
 ## When to use
 
@@ -72,7 +72,9 @@ The bridge prints a single JSON line to stdout:
 - On `{"ok":true,"path":"...","slug":"...","threadId":"...","resumeStatus":"..."}` — read the review file with the Read tool and present the findings.
 - On `{"ok":false,"error":"...","path":"...","resumeStatus":"...","threadId":"..."}` — surface the error verbatim to the user; do not pretend a review happened. When `resumeStatus` is `resume-failed`, note that the prior context could not be used.
 
-Code-review files have YAML frontmatter (`mode: code-review`, `slug`, `generated`, `codex-version`, `git-head`, `cwd`, `codex-thread-id` (when available), `codex-resume-status` (one of `fresh | resumed | fallback | resume-failed`), `codex-resumed-from` (path when resumed successfully), plus either `base-ref` or `commit`, and an optional `title`) followed by a Codex review body. Do not modify the file.
+Code-review files have YAML frontmatter (`mode: code-review`, `slug`, `generated`, `codex-version`, `template-version`, `git-head`, `cwd`, `codex-thread-id` (when available), `codex-resume-status` (one of `fresh | resumed | fallback | resume-failed`), `codex-resumed-from` (path when resumed successfully), plus either `base-ref` or `commit`, and an optional `title`) followed by a Codex review body (`### Findings` with Blocker/Major/Minor + `### Verdict`). Do not modify the file.
+
+**Legacy-artifact resume:** code-review `--resume` requires the prior artifact to carry a `template-version` matching the current code-review prompt. A legacy artifact from the old native `codex exec review` path lacks it and is not resumable: `--resume auto` falls back to a fresh run (`codex-resume-status: fallback`, stderr note); an explicit `--resume <legacy-path>` returns `{"ok":false,...}` with a `resume rejected` error — surface it verbatim and do not pretend a review happened.
 
 ## Distinction note
 

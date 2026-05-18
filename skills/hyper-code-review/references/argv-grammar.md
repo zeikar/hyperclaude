@@ -43,6 +43,7 @@ If the first whitespace-delimited token equals `uncommitted` case-insensitively,
 - `--resume <path>` (explicit): if validation fails, bridge returns `ok:false`, no fresh run, stderr note. Surface the error verbatim.
 - `--resume` / `--resume auto`: if validation fails, bridge falls back to fresh run, writes artifact with `codex-resume-status: fallback`, stderr note.
 - Identity check (fresh vs resumed): same `cwd`, same target (base-ref NAME match for `--base`, exact SHA match for `--commit`, symmetric absence of both for `--uncommitted`), prior thread present, prior status ∈ {fresh, resumed}.
+- `template-version` precondition (code-review only): the prior artifact must carry a `template-version` matching the current code-review prompt. A legacy artifact from the old native `codex exec review` path has none and is not resumable — `--resume auto` falls back to fresh (`codex-resume-status: fallback`); explicit `--resume <legacy-path>` returns `ok:false` with `resume rejected` (surface verbatim, no fresh fallback).
 
 ## Bridge invocation cookbook
 

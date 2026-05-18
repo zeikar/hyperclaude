@@ -47,6 +47,7 @@ hyperclaude/
 │   ├── plan-review-resumed.md
 │   ├── docs-review.md
 │   ├── docs-review-resumed.md
+│   ├── code-review.md
 │   └── code-review-resumed.md
 ├── templates/hooks/             hook prompt templates (SessionStart hook reads session-start-reminder.md)
 ├── tests/                       node --test unit tests for the bridge
@@ -83,11 +84,11 @@ Functional runtime surface stops at the directory above. Zero npm dependencies; 
               ▼
    ┌──────────────────────────────────┐
    │ Bridge — scripts/codex-bridge.mjs│  ← Node 18+ stdlib script,
-   └──────────┬───────────────────────┘    spawns `codex exec` / `codex exec review`
+   └──────────┬───────────────────────┘    spawns `codex exec` / `codex exec resume`
               │
               ▼
    ┌──────────────────────────────────┐
-   │ Codex CLI (>= 0.130.0)           │  ← read-only sandbox; exec review subcommand
+   │ Codex CLI (>= 0.130.0)           │  ← read-only sandbox; critic, never editor
    └──────────────────────────────────┘
               │
               ▼
@@ -109,7 +110,7 @@ CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modu
 |---------------|---------------------------------------------------|------------------------------------|----------------------------------|
 | `research`    | `codex --search exec --sandbox read-only -` (stdin prompt) | [templates/codex/research.md](../templates/codex/research.md)       | `.hyperclaude/research/`         |
 | `plan-review` | `codex --search exec --sandbox read-only -` (stdin prompt) | [templates/codex/plan-review.md](../templates/codex/plan-review.md)         | `.hyperclaude/plan-reviews/`     |
-| `code-review` | `codex --search exec review -c sandbox_mode=read-only [--base \| --uncommitted \| --commit]` | fresh: none — `codex exec review` owns its prompt; resume: [templates/codex/code-review-resumed.md](../templates/codex/code-review-resumed.md) | `.hyperclaude/code-reviews/`     |
+| `code-review` | `codex --search exec --sandbox read-only -` (stdin prompt; Codex runs the target git commands itself) | fresh: [templates/codex/code-review.md](../templates/codex/code-review.md); resume: [templates/codex/code-review-resumed.md](../templates/codex/code-review-resumed.md) | `.hyperclaude/code-reviews/`     |
 | `docs-review` | `codex --search exec --sandbox read-only -` (stdin prompt) | [templates/codex/docs-review.md](../templates/codex/docs-review.md)    | `.hyperclaude/docs-reviews/`     |
 
 ### SessionStart hook
@@ -120,9 +121,8 @@ The [SessionStart hook](../hooks/session-start-reminder.mjs) is template-driven:
 
 Three cases, all read-only:
 
-- **Fresh `codex exec`** (`research`, `plan-review`, `docs-review`): passes `--sandbox read-only` flag. Codex cannot write to the workspace regardless of the user's `~/.codex/config.toml` defaults.
+- **Fresh `codex exec`** (`research`, `plan-review`, `docs-review`, `code-review`): passes `--sandbox read-only` flag. Codex cannot write to the workspace regardless of the user's `~/.codex/config.toml` defaults. Fresh `code-review` is no longer the native `codex exec review` subcommand — it is a regular `codex exec --sandbox read-only -` spawn with a rendered prompt ([templates/codex/code-review.md](../templates/codex/code-review.md)); the prompt instructs Codex to run the target git commands itself to collect the diff (read-only sandbox permits running git).
 - **`codex exec resume`** (`plan-review`, `docs-review`, `code-review` with `--resume`): no `--sandbox` flag; instead passes `-c sandbox_mode=read-only` as a config override (resume does not inherit the original session's sandbox).
-- **`codex exec review`** (fresh `code-review`): no `--sandbox` flag; passes `-c sandbox_mode=read-only` as a config override. `codex exec review` is a review-only subcommand and does not author patches.
 
 Net result: Codex is a *critic*, never an *editor*, in every mode.
 
@@ -146,7 +146,7 @@ Defaults:
 - `--timeout` 600s. Validated as a positive finite number. (Large code-review diffs can exceed 5 min on a fresh Codex thread; 600s default avoids token waste from premature timeouts. Pass an explicit `--timeout` for niche cases.)
 - `--out` defaults to the mode-specific output directory listed in the table above (`.hyperclaude/research/`, `.hyperclaude/plan-reviews/`, `.hyperclaude/code-reviews/`, `.hyperclaude/docs-reviews/`).
 - `--slug` is auto-derived: from the task text (`research`), the plan filename's slug suffix (`plan-review`), the base ref / commit short SHA / `uncommitted` (`code-review`), or the docs target's basename (`docs-review`). User-provided slugs must match `^[a-z0-9]+(?:-[a-z0-9]+){0,4}$`.
-- `--dry-run` for `research` / `plan-review` / `docs-review` validates the template loads but skips the codex spawn; `code-review` dry-run is a pure plan emission and does not require codex on PATH.
+- `--dry-run` validates argv and that the mode's prompt template loads (uniformly for all four modes, including `code-review`), then skips the codex spawn. It does not require codex on PATH.
 
 ### Output contract
 
@@ -160,7 +160,7 @@ mode: research | plan-review | code-review | docs-review
 slug: <kebab-case>
 generated: <ISO-8601 timestamp>
 codex-version: <semver from `codex --version`>
-template-version: 1                    # research / plan-review / docs-review
+template-version: 1                    # research / plan-review / docs-review / code-review
 task: |-                               # research / plan-review only — block scalar
   <task text or plan path>
 cwd: "<absolute path>"                 # always

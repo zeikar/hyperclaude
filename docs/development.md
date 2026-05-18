@@ -61,8 +61,7 @@ node scripts/codex-bridge.mjs code-review --base main --resume .hyperclaude/code
 # Docs review
 node scripts/codex-bridge.mjs docs-review --docs-path README.md
 
-# Dry-run any mode (validates argv; for templated modes also loads the template; skips the codex spawn).
-# code-review dry-run skips the template check (the codex review subcommand owns its own prompt).
+# Dry-run any mode (validates argv and loads the mode's prompt template; skips the codex spawn).
 node scripts/codex-bridge.mjs research --task "test" --dry-run
 ```
 
@@ -80,10 +79,10 @@ Both must pass cleanly before shipping a release. Zero npm dependencies; nothing
 The unit tests cover argument parsing, slug derivation, frontmatter rendering, file-collision handling, and per-mode invocation planning; `tests/setup-doctor.test.mjs` covers the prerequisite probe (Node, codex, git, agent-teams checks). The smoke script:
 
 - Runs the unit test suite (`node --test tests/*.mjs`).
-- Verifies that required plugin files exist (manifests, marketplace listing, every `SKILL.md` and agent file, the bridge, the templates including all three resumed variants `plan-review-resumed.md` / `docs-review-resumed.md` / `code-review-resumed.md`, and the SessionStart hook).
+- Verifies that required plugin files exist (manifests, marketplace listing, every `SKILL.md` and agent file, the bridge, the templates including the fresh `code-review.md` and all three resumed variants `plan-review-resumed.md` / `docs-review-resumed.md` / `code-review-resumed.md`, and the SessionStart hook).
 - Dry-runs the bridge for `research`, `code-review`, and `docs-review` and asserts each emits a JSON success line. (`plan-review` is not dry-run by the smoke script.)
 - Runs the `setup-doctor` probe directly and asserts it emits a parseable JSON line with a `checks[]` array.
-- When `codex` is on PATH, runs four Codex 0.130 surface probes: `codex exec review --help`, `codex exec resume --help`, `codex exec review --base HEAD -c sandbox_mode=read-only --help` (verifies the `-c sandbox_mode=read-only` config key is accepted), and `codex --search exec --help` (verifies the global `--search` flag is accepted before the subcommand — required since every bridge spawn now includes `--search`). Each probe failure prints an upgrade hint.
+- When `codex` is on PATH, runs three Codex 0.130 surface probes: `codex exec resume --help`, `codex exec resume --help -c sandbox_mode=read-only` (verifies the `-c sandbox_mode=read-only` config key is accepted on the resume path), and `codex --search exec --help` (verifies the global `--search` flag is accepted before the subcommand — required since every bridge spawn now includes `--search`; this probe also covers the fresh code-review surface, which is `codex --search exec --sandbox read-only -` like the other fresh modes). Each probe failure prints an upgrade hint.
 - When `claude` is on PATH, runs `claude plugin validate .` to catch manifest drift.
 
 After the automated checks it prints a manual acceptance checklist for running each slash command end-to-end inside Claude Code — those steps are not automated. The checklist includes `/hyperclaude:hyper-setup` as the first step (verify prerequisites before running gates).
@@ -133,20 +132,21 @@ Conventions:
 
 ## Templates
 
-Codex prompts live in [templates/codex/](../templates/codex/) — `research.md`, `plan-review.md`, `plan-review-resumed.md`, `docs-review.md`, `docs-review-resumed.md`, `code-review-resumed.md`. Variables are `{{UPPERCASE_KEY}}` (e.g. `{{TASK}}`, `{{PLAN}}`, `{{DOCS}}`, `{{DIFF}}`). Unknown placeholders are left literal.
+Codex prompts live in [templates/codex/](../templates/codex/) — `research.md`, `plan-review.md`, `plan-review-resumed.md`, `docs-review.md`, `docs-review-resumed.md`, `code-review.md`, `code-review-resumed.md`. Variables are `{{UPPERCASE_KEY}}` (e.g. `{{TASK}}`, `{{PLAN}}`, `{{DOCS}}`, `{{DIFF}}`, `{{TARGET_INSTRUCTION}}`). Unknown placeholders are left literal.
 
 - `plan-review-resumed.md` — continuation prompt used when `--resume` is passed to `plan-review`; substitutes `{{PLAN_PATH}}`.
 - `docs-review-resumed.md` — continuation prompt used when `--resume` is passed to `docs-review`; substitutes `{{DOCS_TARGET}}`, `{{FILE_LIST_BLOCK}}` (rendered via `renderFileListBlock`), and `{{DIFF_BASE_BLOCK}}` (rendered via `renderDiffBaseBlock`).
-- `code-review-resumed.md` — continuation prompt used when `--resume` is passed to `code-review`; substitutes `{{TARGET_INSTRUCTION}}` (the exact git command to re-fetch the diff, since `codex exec resume` does not re-trigger native diff capture).
+- `code-review.md` — fresh `code-review` prompt. Substitutes `{{TARGET_INSTRUCTION}}` (the per-target git-command block). Codex runs those git commands itself under the read-only sandbox to collect the diff — there is no native diff capture; the bridge spawns `codex --search exec --sandbox read-only -` with this rendered prompt, exactly like the other fresh modes.
+- `code-review-resumed.md` — continuation prompt used when `--resume` is passed to `code-review`; substitutes `{{TARGET_INSTRUCTION}}` (the exact git command to re-fetch the diff, since `codex exec resume` does not re-trigger diff capture).
 
-Fresh `code-review` has no template — `codex exec review` owns its own prompt and captures the diff natively.
+When changing a template, bump `template-version` in lock-step. Most templates have two locations to update:
 
-When changing a template, bump `template-version` in [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs). There are currently two locations to update in lock-step:
-
-1. The `templateVersion: 1` argument passed to `renderFrontmatter()` (research / review path).
+1. The `templateVersion: 1` argument passed to `renderFrontmatter()` (research / plan-review path).
 2. The hardcoded `template-version: 1` line in `renderDocsReviewFrontmatter()` (docs-review path).
 
-The version is recorded in research / plan-review / docs-review output frontmatter so consumers can detect prompt drift. `code-review` frontmatter omits `template-version`: fresh runs use Codex's built-in review prompt (no template), and the resumed variant `code-review-resumed.md` is currently unversioned. Tracking versions for code-review-resumed is a deferred design choice — bump the file freely; consumers cannot detect drift via frontmatter today.
+`code-review` now also carries `template-version` and has **three** lock-step points: the prompt body `templates/codex/code-review.md`, the hardcoded `template-version: 1` line in `renderCodeReviewFrontmatter()`, and the `CODE_REVIEW_TEMPLATE_VERSION` constant in [scripts/codex/resume.mjs](../scripts/codex/resume.mjs) (the resume gate). Bump all three together when changing the code-review prompt.
+
+The version is recorded in research / plan-review / docs-review / code-review output frontmatter so consumers can detect prompt drift. `code-review` frontmatter now emits `template-version: 1`, and `--resume` enforces it: a prior code-review artifact lacking a matching `template-version` (e.g. a legacy artifact from the old native `codex exec review` path) is not resumable. With `--resume auto` the bridge silently falls back to a fresh run (stderr note); with an explicit `--resume <legacy-path>` it exits non-zero with `resume rejected`. The resumed variant `code-review-resumed.md` is itself unversioned in frontmatter — bump it freely; the gate keys on the prior artifact's `template-version`, not the resumed template's.
 
 ## Release flow
 

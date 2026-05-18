@@ -158,18 +158,13 @@ fi
 echo
 echo "==> Codex 0.130 capability probes"
 if command -v codex >/dev/null 2>&1; then
-  if codex exec review --help > /dev/null 2>&1; then
-    ok "codex exec review available"
-  else
-    miss "codex exec review missing — upgrade codex-cli >= 0.130"
-  fi
   if codex exec resume --help > /dev/null 2>&1; then
     ok "codex exec resume available"
   else
     miss "codex exec resume missing — upgrade codex-cli >= 0.130"
   fi
-  if codex exec review --base HEAD -c sandbox_mode=read-only --help > /dev/null 2>&1; then
-    ok "codex exec review --base HEAD -c sandbox_mode=read-only accepted"
+  if codex exec resume --help -c sandbox_mode=read-only > /dev/null 2>&1; then
+    ok "codex exec resume -c sandbox_mode=read-only accepted"
   else
     miss "codex -c sandbox_mode=read-only rejected; codex too old?"
   fi
@@ -192,6 +187,7 @@ for f in \
   templates/codex/plan-review.md \
   templates/codex/plan-review-resumed.md \
   templates/codex/docs-review-resumed.md \
+  templates/codex/code-review.md \
   templates/codex/code-review-resumed.md \
   templates/hooks/session-start-reminder.md \
   skills/hyper-research/SKILL.md \

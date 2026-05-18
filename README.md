@@ -3,7 +3,7 @@
 > Push Claude Code beyond stock. Claude builds, Codex critiques.
 > A gated research → plan → review → ship pipeline, with autonomous multi-agent revise loops that self-converge.
 
-> 🚧 **Early alpha.** v0.12 is implemented and dogfooded daily. Layout, naming, and APIs may change between minor versions until v1.0.
+> 🚧 **Early alpha.** v0.13 is implemented and dogfooded daily. Layout, naming, and APIs may change between minor versions until v1.0.
 
 ![Claude builds, Codex critiques](assets/hero.png)
 
@@ -59,7 +59,7 @@ Four layers:
 3. **Agents** (`agents/`) — Claude implementation arm (`planner`, `implementer`, `verifier`, `documenter`, `researcher`, `fixer`).
 4. **Hooks** (`hooks/`) — SessionStart reminder (workflow router + `.hyperclaude/` snapshot footer).
 
-When hyperclaude invokes `codex exec` (research, plan-review, docs-review), it always passes `--sandbox read-only`. When it invokes `codex exec review` (code review) or `codex exec resume` (`--resume` for plan-review / code-review / docs-review), neither subcommand exposes `--sandbox`, so the bridge passes `-c sandbox_mode=read-only` as a config override. In every mode, Codex's role in hyperclaude is *critic*, never *editor*. Every Codex invocation (all modes, fresh and resume) also runs with live web search enabled (`codex --search …`), so Codex may fetch external content while it reviews your code or docs — this does NOT relax the read-only sandbox.
+When hyperclaude invokes a fresh `codex exec` (research, plan-review, docs-review, **and code review**), it always passes `--sandbox read-only`. Code review is a regular `codex exec --sandbox read-only -` spawn with a code-review prompt template — Codex runs the target git commands itself to collect the diff but cannot write the workspace. When it invokes `codex exec resume` (`--resume` for plan-review / code-review / docs-review), the resume subcommand does not expose `--sandbox`, so the bridge passes `-c sandbox_mode=read-only` as a config override instead. In every mode, Codex's role in hyperclaude is *critic*, never *editor*. Every Codex invocation (all modes, fresh and resume) also runs with live web search enabled (`codex --search …`), so Codex may fetch external content while it reviews your code or docs — this does NOT relax the read-only sandbox.
 
 External dependencies: Claude Code plugin runtime, `codex-cli >= 0.130.0` with the global `--search` flag, Node 18+, and `git` (for diff-backed gates: code-review, docs-sync, docs-review with `--diff-base`). Nothing else (no npm bin, no tmux, no MCP servers).
 

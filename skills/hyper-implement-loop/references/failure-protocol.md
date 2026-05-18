@@ -69,7 +69,7 @@ If `TeamDelete` fails because a member is still live: send `shutdown_request` on
 - Letting the fixer invoke codex or `scripts/codex-bridge.mjs`. The fixer never acts as reviewer.
 - Varying the diff target across rounds — substituting `--commit <sha>`, or omitting/changing `--base main`. `--base main` is the fixed, invariant loop target every iteration (a changing `--commit` SHA breaks `--resume` identity).
 - Reasserting a git-state / no-op gate. A stuck or no-change fixer is bounded by the Step 8 cap — a separate no-op detection path is an anti-pattern.
-- Gating on label vocabulary instead of meaning. Fresh `code-review` is native Codex output using `[P1]/[P2]/[P3]` priority labels, not Blocker/Major/Minor. Classify by MEANING per Step 6 — a finding blocks if it concerns correctness, data loss, security, a broken build/tests, a regression, or missing required behavior, regardless of its label; pure style/nits do not block.
+- Gating on label vocabulary instead of meaning. Fresh `code-review` is now templated and emits `### Findings` Blocker/Major/Minor bullets + `### Verdict`. Classify by MEANING regardless of label: a finding blocks if it concerns correctness, data loss, security, a broken build/tests, a regression, or missing required behavior, regardless of the severity label Codex assigned; pure style/nits do not block.
 - Skipping `shutdown_request` + `TeamDelete`, or calling `TeamDelete` before the fixer is down. Shutdown first; `TeamDelete` fails while a member is live.
 - Stopping silently at the cap. Always emit the named cap report (after teardown).
 - Editing `hyper-implement` or `hyper-plan-loop`. This skill is purely additive.

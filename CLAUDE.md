@@ -47,20 +47,19 @@ Four modes, exposed as positional subcommands. The mode name maps 1:1 to the art
 |-------------------|------------------------------|----------------------------------------------------|
 | `research`        | `.hyperclaude/research/`     | `codex exec --sandbox read-only -` (stdin prompt)  |
 | `plan-review`     | `.hyperclaude/plan-reviews/` | `codex exec --sandbox read-only -` (stdin prompt)  |
-| `code-review`     | `.hyperclaude/code-reviews/` | `codex exec review -c sandbox_mode=read-only ...`  |
+| `code-review`     | `.hyperclaude/code-reviews/` | `codex exec --sandbox read-only -` (stdin prompt)  |
 | `docs-review`     | `.hyperclaude/docs-reviews/` | `codex exec --sandbox read-only -` (stdin prompt)  |
 
 `--resume` is supported by `plan-review`, `docs-review`, and `code-review` — not `research` (deferred; would re-upload context resume is meant to avoid).
 
-**Naming trap:** the `review` string appears in two unrelated places. Inside the bridge, `args.mode === 'plan-review'` is the bridge's *plan-review* mode. The `'review'` token in `scripts/codex/codex.mjs:167` and `scripts/codex-bridge.mjs:394` (`['exec', 'review', ...]`) is Codex CLI's **native `exec review` subcommand** used internally by `code-review` mode. Don't conflate them when renaming.
+**Naming note:** the bridge's `code-review` mode (`args.mode === 'code-review'`) is unrelated to the bridge's `plan-review` mode (`args.mode === 'plan-review'`). The native `codex exec review` subcommand is **no longer used** — fresh `code-review` is a plain `codex exec --sandbox read-only -` spawn with the `templates/codex/code-review.md` prompt, identical in shape to the other fresh modes. (Historical context: `code-review` used the native `exec review` subcommand from v0.4 until the 2026-05-18 reversal to a custom prompt — see `docs/decisions.md`.)
 
 ## Sandbox invariant
 
 Every Codex spawn must be read-only:
 
-- Fresh `codex exec` (`research` / `plan-review` / `docs-review`) → `--sandbox read-only` flag.
+- Fresh `codex exec` (`research` / `plan-review` / `docs-review` / `code-review`) → `--sandbox read-only` flag. Fresh `code-review` is a regular `codex exec --sandbox read-only -` spawn (NOT the native `exec review` subcommand); the read-only sandbox still lets Codex run the target git commands the prompt instructs it to.
 - `codex exec resume` (any mode with `--resume`) → `-c sandbox_mode=read-only` config override (resume doesn't inherit the original session's sandbox; this was empirically verified).
-- `codex exec review` (`code-review`) → `-c sandbox_mode=read-only` config override (the subcommand doesn't accept `--sandbox`).
 
 If you add a new spawn path, re-check both argv shapes. New flags must be added to `ALLOWED_FLAGS_PER_MODE` in `scripts/codex/args.mjs`; the parser rejects unknown flags per mode and tests cover this.
 
@@ -72,9 +71,9 @@ If you add a new spawn path, re-check both argv shapes. New flags must be added 
 - **Hooks** (`hooks/*.mjs`, registered in `hooks/hooks.json`) — currently one: SessionStart reminder that injects `templates/hooks/session-start-reminder.md` plus an optional `.hyperclaude/` snapshot footer.
 - **Templates** (`templates/codex/*.md`, `templates/hooks/*.md`) — prompt bodies loaded at runtime with `{{UPPERCASE_KEY}}` substitution.
 
-`code-review` has no template — `codex exec review` owns its own prompt. The other three modes use templates and bump `template-version` when changing them.
+All four modes use a fresh prompt template (`code-review` uses `templates/codex/code-review.md`) and bump `template-version` when changing them; the resumed variants (`*-resumed.md`) are unversioned in frontmatter.
 
-**Template-version pitfall:** when changing any `templates/codex/*.md`, bump `template-version` in **two** lock-step locations in `scripts/codex-bridge.mjs`: the `templateVersion: 1` argument passed to `renderFrontmatter()`, AND the hardcoded `template-version: 1` line in `renderDocsReviewFrontmatter()`.
+**Template-version pitfall:** when changing a `templates/codex/*.md` prompt, bump `template-version` in lock-step. For research / plan-review / docs-review there are **two** locations in `scripts/codex-bridge.mjs`: the `templateVersion: 1` argument passed to `renderFrontmatter()`, AND the hardcoded `template-version: 1` line in `renderDocsReviewFrontmatter()`. For `code-review` there are **three**: the prompt body `templates/codex/code-review.md`, the hardcoded `template-version: 1` in `renderCodeReviewFrontmatter()`, and the `CODE_REVIEW_TEMPLATE_VERSION` constant in `scripts/codex/resume.mjs` (the code-review resume gate that rejects legacy native artifacts).
 
 ## Code | Docs mapping (for hyper-docs-sync)
 
@@ -86,7 +85,7 @@ If you add a new spawn path, re-check both argv shapes. New flags must be added 
 | `skills/<any>/SKILL.md` | `docs/gates-and-agents.md`, `docs/workflow.md` |
 | `agents/<any>.md` | `docs/gates-and-agents.md` |
 | `hooks/*.mjs`, `templates/hooks/*.md` | `docs/architecture.md` (SessionStart hook section) |
-| `templates/codex/*.md` | `docs/architecture.md`, `docs/development.md` (template-version section) |
+| `templates/codex/*.md` (incl. `code-review.md`) | `docs/architecture.md`, `docs/development.md` (template-version section); a code-review prompt/spawn change also touches `docs/decisions.md`, `docs/workflow.md`, `docs/gates-and-agents.md`, `README.md`, and `skills/hyper-implement-loop/*` (the loop parses the code-review contract) |
 | `scripts/test/smoke.sh`, `tests/*.mjs` | `docs/development.md` |
 | `.claude-plugin/plugin.json` | `README.md`, `docs/development.md` (release flow) |
 

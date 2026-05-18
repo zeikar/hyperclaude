@@ -127,6 +127,8 @@ While the fixer is live and BEFORE Step 8 teardown, the only fixer message the l
 
 **Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **3 total Codex reviews**, i.e. at most **2 fix rounds**.
 
+**Why `--base main` is the right target across rounds:** the bridge's `--base` target reviews the *effective worktree vs main* — committed-since-main PLUS the uncommitted overlay — so the fixer's uncommitted fix-round edits are always in scope on every resumed `--base main` review. This is exactly why Step 7 keeps `--base main` (never `--commit <sha>`) and why no per-round commit is needed for the next review to see the fix.
+
 Invoke via the Bash tool with `timeout: 600000`:
 
 ```bash
@@ -141,7 +143,7 @@ On any non-`ok:true`, Bash timeout, or JSON parse failure → Step 8 teardown, t
 
 ### Step 6 — Severity gate
 
-Read the artifact body and judge by **meaning**, not regex. The fresh `code-review` body is NOT templated — judge findings semantically. A finding **blocks** if it concerns **correctness, data loss, security, a broken build/tests, a regression, or missing required behavior** (regardless of Codex's wording). Pure **style / nits / opinions do NOT block**.
+Read the artifact body and judge by **meaning**, not regex. The fresh `code-review` body IS templated — it emits `### Findings` (Blocker/Major/Minor bullets) then `### Verdict` — but still classify by meaning, not by the severity label Codex assigned: a finding **blocks** if it concerns **correctness, data loss, security, a broken build/tests, a regression, or missing required behavior** (regardless of which severity word the template attached). Pure **style / nits / opinions do NOT block**.
 
 - Any blocking finding → revise (Step 7).
 - No blocking findings (style/nits only, or an approving verdict) → exit loop (Step 8 teardown → Step 9). Non-blocking findings are reported, never gating.

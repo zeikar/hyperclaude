@@ -159,7 +159,7 @@ Code review also supports resume:
 /hyperclaude:hyper-code-review --resume .hyperclaude/code-reviews/20260510-1430-vs-main.md
 ```
 
-Resume reuses the prior Codex thread. The bridge sends a small follow-up — plan/docs modes say "the file has been revised; re-read it"; code-review embeds the exact git command (`{{TARGET_INSTRUCTION}}`) so the resumed `UserTurn` re-fetches the diff, since `codex exec resume` does not re-trigger native diff capture. In every mode Codex re-reads from disk via read-only sandbox. The original context + critique stay in conversation cache, so token cost drops dramatically.
+Resume reuses the prior Codex thread. The bridge sends a small follow-up — plan/docs modes say "the file has been revised; re-read it"; code-review embeds the exact git command (`{{TARGET_INSTRUCTION}}`) so the resumed `UserTurn` re-fetches the diff, since `codex exec resume` does not re-run the fresh prompt's git-collection step. In every mode Codex re-reads from disk via read-only sandbox. The original context + critique stay in conversation cache, so token cost drops dramatically.
 
 Validation: bridge re-checks same mode, same cwd, same plan-path / docs-target / diff-base (for code-review: same base ref, commit, or uncommitted state), prior thread-id present, prior `codex-resume-status` ∈ {fresh, resumed}. Mismatch behavior:
 
@@ -222,7 +222,7 @@ The only step that should never be skipped on a behavioral change is `code-revie
 
 ## What it costs
 
-Each Codex gate is one `codex` invocation. The bridge passes `--sandbox read-only` for `exec` modes and uses `codex exec review` for code review — Codex never writes to your workspace.
+Each Codex gate is one `codex` invocation. The bridge passes `--sandbox read-only` for every fresh `exec` mode — including code review, which uses `codex exec --sandbox read-only -` with a code-review prompt template (Codex runs the target git commands itself but never writes to your workspace).
 
 Every invocation (all modes, fresh and resume) runs with live web search enabled via the global `--search` flag, so Codex may fetch external content (official docs, changelogs, live references) while it has your task or code context. This is intentional and does NOT relax the read-only filesystem sandbox.
 

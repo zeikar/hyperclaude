@@ -107,18 +107,17 @@ When to revisit: a specific error code shows up in a bug report.
 
 **Decision:** every Codex spawn enforces read-only, but the mechanism varies by subcommand:
 
-- **Fresh `codex exec`** (research / plan-review / docs-review): passes the `--sandbox read-only` flag.
+- **Fresh `codex exec`** (research / plan-review / docs-review / code-review): passes the `--sandbox read-only` flag.
 - **`codex exec resume`** (plan-review / docs-review / code-review with `--resume`): no `--sandbox` flag is exposed; passes `-c sandbox_mode=read-only` as a config override.
-- **`codex exec review`** (fresh code-review): no `--sandbox` flag; passes `-c sandbox_mode=read-only` as a config override.
 
-`code-review` was migrated from the bare `codex review` subcommand to `codex exec review` in v0.4. Same review-only behavior, but gains JSONL stream, thread-id capture, structured failure body, and shared spawn helper. Native review prompt is preserved (no positional prompt, no stdin pipe).
+**History (v0.4, superseded):** `code-review` was migrated from the bare `codex review` subcommand to `codex exec review` in v0.4 — same review-only behavior, but gaining the JSONL stream, thread-id capture, structured failure body, and shared spawn helper. That `codex exec review` step was itself later reverted (2026-05-18) back to a regular `codex exec --sandbox read-only -` spawn with a custom prompt template; see "Fresh `code-review` reverted from native `codex exec review` to a custom prompt + template" below. The JSONL / thread-id / failure-body gains carried forward; only the native-subcommand framing was dropped.
 
 **Rejected alternative:** allow Codex to write patches in some modes. Lets Codex propose concrete edits.
 
 **Why rejected:**
 - The thesis is "Claude builds, Codex critiques." Allowing Codex to author patches collapses the role split.
 - User trust depends on knowing Codex never mutates the workspace.
-- The two argv shapes (`--sandbox read-only` for fresh exec; `-c sandbox_mode=read-only` for resume / exec review) are both explicit in argv and auditable; user-side `~/.codex/config.toml` defaults can't override either.
+- The two argv shapes (`--sandbox read-only` for every fresh exec; `-c sandbox_mode=read-only` for resume) are both explicit in argv and auditable; user-side `~/.codex/config.toml` defaults can't override either.
 
 ### Resume requires `-c sandbox_mode=read-only`
 
@@ -126,20 +125,20 @@ When to revisit: a specific error code shows up in a bug report.
 
 **Why:** `codex exec resume` does NOT inherit the original session's `--sandbox` flag. Verified empirically: a session originally spawned with `--sandbox read-only` then resumed without sandbox config wrote files freely (both `/tmp` and the workspace). Adding `-c sandbox_mode=read-only` to the resume argv enforces read-only correctly and preserves the bridge's hard contract — Codex never writes the workspace — across resume.
 
-### Code-review resume: native framing preserved + ref-name validation
+### Code-review resume: review framing carried in-thread + ref-name validation
 
-**Decision:** `code-review --resume` is supported with the same validation and fallback semantics as `plan-review --resume` and `docs-review --resume`.
+**Decision:** `code-review --resume` is supported with the same validation and fallback semantics as `plan-review --resume` and `docs-review --resume`, plus a `template-version` precondition (see sub-decision (b) in the 2026-05-18 reversal entry below).
 
 **Implementation:**
-- Native `exec review` framing is preserved across resume because the original thread carries review base instructions. The resumed `UserTurn` is generic, but the thread context maintains the review subagent persona.
-- The resumed prompt is target-explicit: it includes the exact git command to re-fetch the diff (the `{{TARGET_INSTRUCTION}}` block from the template). This is mandatory because `codex exec resume` does not re-trigger native diff capture.
-- Identity matching by target type: `--base <ref>` by ref NAME (not resolved SHA; pinning SHA would force resume to review a stale diff), `--commit <sha>` by exact SHA, `--uncommitted` by symmetric absence of both `base-ref` and `commit` keys in the prior artifact's frontmatter.
+- The review framing is preserved across resume because the original fresh thread already carries the full code-review prompt ([templates/codex/code-review.md](../templates/codex/code-review.md)). The resumed `UserTurn` is a minimal follow-up; the thread context maintains the reviewer persona and severity contract.
+- The resumed prompt is target-explicit: it includes the exact git command to re-fetch the diff (the `{{TARGET_INSTRUCTION}}` block from `code-review-resumed.md`). This is mandatory because `codex exec resume` does not re-run the fresh prompt's git-collection step.
+- Identity matching by target type: `--base <ref>` by ref NAME (not resolved SHA; pinning SHA would force resume to review a stale diff), `--commit <sha>` by exact SHA, `--uncommitted` by symmetric absence of both `base-ref` and `commit` keys in the prior artifact's frontmatter. A prior artifact whose `template-version` does not match the current code-review template is rejected (auto → fresh fallback; explicit → `resume rejected`).
 
-**Why:** `codex exec review` (fresh) internally captures the diff and uses a native review prompt. `codex exec resume` is generic exec continuation, so the bridge must provide the target command explicitly in the resumed prompt. Using ref NAME rather than SHA allows the review to track the logical target (e.g., the latest `main`) across the resume, not lock to the SHA at the original review's time.
+**Why:** the fresh thread holds the custom prompt; `codex exec resume` is generic exec continuation, so the bridge must re-state the target command explicitly in the resumed prompt. Using ref NAME rather than SHA allows the review to track the logical target (e.g., the latest `main`) across the resume, not lock to the SHA at the original review's time.
 
 ### Resumed prompts are minimal follow-ups; bridge owns file list and size budgets, not Codex
 
-**Decision:** the resumed prompt does NOT re-upload the original payload (docs, plan, or code diff). For `plan-review` and `docs-review` it names the changed file and asks Codex to re-read via the read-only sandbox; for `docs-review --docs-dir` it embeds the exact aggregated file list; for `code-review` it embeds explicit git commands (`{{TARGET_INSTRUCTION}}`) so the resumed `UserTurn` re-fetches the diff (since `codex exec resume` does not re-trigger native diff capture). Codex's prompt cache covers the original payload across the conversation.
+**Decision:** the resumed prompt does NOT re-upload the original payload (docs, plan, or code diff). For `plan-review` and `docs-review` it names the changed file and asks Codex to re-read via the read-only sandbox; for `docs-review --docs-dir` it embeds the exact aggregated file list; for `code-review` it embeds explicit git commands (`{{TARGET_INSTRUCTION}}`) so the resumed `UserTurn` re-fetches the diff (since `codex exec resume` does not re-run the fresh prompt's git-collection step). Codex's prompt cache covers the original payload across the conversation.
 
 **Why:** re-uploading defeats the token-savings purpose of resume. The trade-off is that the bridge re-runs the 200KB / 500KB size budgets on resume to ensure Codex isn't asked to re-read a payload that's now too large. If the budget is exceeded on resume, the bridge fails (not a silent fallback) because the user changed the situation.
 
@@ -147,7 +146,23 @@ When to revisit: a specific error code shows up in a bug report.
 
 **Decision:** the bridge's minimum required codex-cli version is 0.130.0.
 
-**Why:** v0.4 depends on `codex exec review`, `codex exec resume`, and `-c sandbox_mode=read-only` config overrides. These were verified on codex-cli 0.130.0; older versions may lack the subcommands. The bridge fails fast at `getCodexVersion` startup with an upgrade hint. Smoke probes (`codex exec review --help`, `codex exec resume --help`, `codex exec review --base HEAD -c sandbox_mode=read-only --help`) catch surface drift earlier.
+**Why:** the bridge depends on `codex exec resume`, the `-c sandbox_mode=read-only` config override, and the global `--search` flag placed before the subcommand. These were verified on codex-cli 0.130.0; older versions may lack the surface. The bridge fails fast at `getCodexVersion` startup with an upgrade hint. Smoke probes (`codex exec resume --help`, `codex exec resume --help -c sandbox_mode=read-only`, `codex --search exec --help`) catch surface drift earlier; the last also covers the fresh code-review spawn shape (`codex --search exec --sandbox read-only -`, same as the other fresh modes).
+
+### Fresh `code-review` reverted from native `codex exec review` to a custom prompt + template (2026-05-18)
+
+**Decision:** fresh `code-review` no longer spawns the native `codex exec review` subcommand. It now spawns a regular `codex --search exec --sandbox read-only -` with a rendered prompt from [templates/codex/code-review.md](../templates/codex/code-review.md) — the same spawn shape as `research` / `plan-review` / `docs-review`. The prompt carries a `{{TARGET_INSTRUCTION}}` block of explicit git commands; Codex runs them itself under the read-only sandbox to collect the change under review (the sandbox permits running git, not writing files). This is a deliberate reversal of the v0.4 "`codex review` → `codex exec review`" migration recorded above — that history entry stands; this is its successor, not a rewrite.
+
+**Why reverse it:** the native `exec review` subcommand owns its own prompt and its own diff-capture heuristics, which the bridge cannot shape. A custom prompt + template gives the project control over (1) the review framing and severity vocabulary (`### Findings` Blocker/Major/Minor + `### Verdict`, matching the contract the loops parse), and (2) exactly *what* Codex reads — bounded to code reachable from the change, not a whole-repo scan.
+
+**Base target = committed-since-base PLUS uncommitted overlay (decision (d)):** for `--base <ref>`, the target-instruction block reviews the *effective worktree vs base*: `git diff <base>...HEAD` (committed since the merge-base) plus the uncommitted overlay (`git diff`, `git diff --cached`, `git ls-files --others --exclude-standard`), all read from the working tree. A pure `git diff <base>...HEAD` was **rejected for the base target** because `hyper-implement-loop` re-runs `code-review --base main --resume auto` after the `fixer` leaves its edits *uncommitted* — a commit-only base diff would make the fixer's fixes invisible to the next review round and the loop could never converge. (This also fixes a base-contamination bug: a two-dot `git diff <base>` would have shown unrelated changes already on the base.) `--commit <sha>` reads the historical commit; `--uncommitted` reads the working-tree overlay only.
+
+**Sub-decisions:**
+
+- **(a) Web search stays enabled.** `code-review` keeps the same unconditional global `--search` as every other mode. The template only *discourages* web use ("prefer repository evidence; use the web only to confirm an external API/library contract you are about to flag, never to source a finding"). There is **no** hermetic / web-search-disabled mode — the filesystem read-only invariant is the only hard sandbox, unchanged.
+- **(b) New code-review-only `template-version` resume gate.** `renderCodeReviewFrontmatter()` now emits `template-version: 1`, and `--resume` enforces a `CODE_REVIEW_TEMPLATE_VERSION` match in [scripts/codex/resume.mjs](../scripts/codex/resume.mjs). A legacy artifact from the old native path carries no matching `template-version` and is **not resumable**: `--resume auto` degrades gracefully (fresh fallback + stderr note), an explicit `--resume <legacy-path>` exits non-zero with `resume rejected`. This prevents resuming a thread whose framing no longer matches the current prompt contract.
+- **(c) `--title` degraded to metadata only.** With the native subcommand gone, `--title` is no longer an argv argument to Codex. It is now purely a frontmatter key + the artifact's `# Code review:` heading — it does not enter the prompt or the spawn.
+
+**Lock-step cost:** the code-review prompt now has **three** version-coupled points (the v0.4 table-of-two becomes three for code-review): `templates/codex/code-review.md`, the hardcoded `template-version: 1` in `renderCodeReviewFrontmatter()`, and `CODE_REVIEW_TEMPLATE_VERSION` in `resume.mjs`. Bump all three together. Accepted as the price of resume-safety + drift detection for code-review.
 
 ### Fresh subagent per task in `hyper-implement`
 
