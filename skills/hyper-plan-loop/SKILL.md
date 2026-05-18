@@ -139,7 +139,7 @@ While the planner is live and BEFORE Step 8 teardown, the only planner message t
 
 ### Step 5 — Plan-review iteration 1 (fresh)
 
-**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **5 total Codex reviews**, i.e. at most **4 revise rounds**.
+**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **5 severity-gated reviews, plus at most ONE final Minor-cleanup re-review** (the severity-gated portion is iter 1 fresh + at most **4 revise rounds**; the cleanup re-review is the separate non-gated one run only on branch-(c) in Step 7a).
 
 Invoke via the Bash tool with `timeout: 600000`:
 
@@ -165,7 +165,7 @@ Three successful severity outcomes; the conservative failure branch below is unc
 
 **Conservative branch:** if severity cannot be confidently judged by meaning (no recognizable `### Issues` / `### Verdict` structure, truncated body, etc.), do NOT assume "no Blocker/Major" — instead Step 8 teardown, then STOP with a named-loop report (**"hyper-plan-loop unparseable review, iter N"**) surfacing the artifact path for manual triage.
 
-### Step 7 — Revise via the live planner, then re-review
+### Step 7 — Revise via the live planner, then re-review (Blocker/Major only; Step 7a is the Minor-only counterpart, bounded to one occurrence)
 
 The lead never Reads the plan body into its context here (that would reintroduce the token cost this skill is designed to avoid). Validation is filesystem-level only.
 
@@ -195,9 +195,37 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<
 
 `--plan-path` is REQUIRED on every iteration including resumes (`plan-review --resume auto` alone is invalid). Always pass `--resume auto` from iteration 2 onward. Re-parse per Step 5's JSON rules, then loop back to Step 6.
 
+### Step 7a — Final Minor-cleanup pass (exactly once)
+
+Entered only on Step 6 branch (c): zero Blocker/Major, concrete actionable Minor remains. Runs exactly once, then hard-stops at Step 8 teardown → Step 9. **Never loops back to Step 6 or Step 7.**
+
+**Cap accounting:** this cleanup re-review is a SEPARATE single review that does NOT count against the 5 severity-gated reviews and occurs ONLY on the branch-(c) clean-exit path. The Step 8 Blocker/Major cap-exhaust report is unrelated and unchanged.
+
+1. **SendMessage the Minor findings to the still-live planner.** Send verbatim concrete Minor `### Issues` findings PLUS the relevant actionable `### Verdict` directive text. Do NOT re-send the task or research (planner holds context). Use the SAME reply-transport, anchored reply gate (Step 4), structure `ok`/`bad` check, and single-redo pipeline as Step 7 — reuse the `references/failure-protocol.md` §3 pipeline exactly — do not restate it. (A §3 terminal outcome here proceeds to Step 8 teardown → STOP — Step 8 is mandatory on every post-spawn stop; do not fall through to the passing-reply path below.) SendMessage shape:
+
+   ```
+   SendMessage({
+     to: "planner",
+     summary: "Apply Codex Minor cleanup (one-shot)",
+     message: "<verbatim Minor ### Issues findings + relevant ### Verdict directive text; instruct: first Read <the exact resolved plan path> to refresh, then revise and re-Write THAT SAME path; reply with exactly 'WROTE: <that exact path>' and nothing else — no plan body>"
+   })
+   ```
+
+2. **On a passing reply (gate + structure `ok`),** increment the iteration counter and re-invoke the bridge EXACTLY ONCE via the Bash tool with `timeout: 600000`:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<same path>" --resume auto
+   ```
+
+   `--plan-path` is REQUIRED; `--resume auto` always (this is iteration ≥2). Re-parse per Step 5's JSON rules; on `ok:true`, Read the artifact at `path` with the Read tool (required input for the Step 7a.3 classification). On any non-`ok:true`, Bash timeout, or parse failure → Step 8 teardown, then STOP with a named-loop report (**"hyper-plan-loop bridge failure, iter N"**) — same as Step 5's bridge-failure path (surface `error` verbatim or a parser/timeout diagnostic, plus the artifact path if present — as in Step 5).
+
+3. **Final-review classification (REPORTING ONLY — never re-revise).** Read the cleanup re-review artifact by meaning and extract, for Step 9's report ONLY: the final Codex verdict, and whether it introduced a NEW Blocker/Major (revise regression) or left only residual Minor. This is a read for reporting — it does NOT route back to Step 6 or Step 7 and never triggers another revision. If the cleanup artifact's structure is unparseable (no recognizable `### Issues` / `### Verdict`, truncated body), do NOT treat it as success — carry an explicit **"final cleanup re-review unparseable"** flag into Step 9 and report it loudly there (still hard-stop; never re-revise).
+
+4. **Hard stop regardless of classification.** Proceed unconditionally to Step 8 teardown → Step 9. NEVER loop back to Step 6 or Step 7. Even a NEW Blocker/Major found in Step 7a.3 above does NOT cause another revise — it is reported loudly in Step 9 and the loop terminates.
+
 ### Step 8 — Cap + teardown
 
-Cap at **5 total Codex reviews** (iter 1 fresh + at most 4 resumed revise rounds).
+Cap at **5 severity-gated reviews, plus at most ONE final Minor-cleanup re-review** (iter 1 fresh + at most 4 resumed revise rounds as the severity-gated portion; the cleanup re-review from Step 7a is the separate non-gated one).
 
 On cap-reached with Blocker/Major still open: FIRST capture the cap report details (iterations consumed, residual Blocker/Major findings, plan path left in its latest revised state), THEN run teardown, THEN emit the named-loop report (**"hyper-plan-loop revise loop"**).
 
