@@ -52,7 +52,7 @@ There is no no-op / unchanged-plan detection. A planner that replies `WROTE:` bu
 
 If `bad` (the planner clobbered the canonical path with malformed content, OR the file is missing/unreadable): send ONE corrective `SendMessage` (with `summary`) instructing the planner to redo the revision and re-Write the exact resolved plan path. That corrective's reply re-enters the FULL pipeline from step (1): anchored reply gate → structure `ok`/`bad` check. If the redo is still `bad` at the structure step → Step 8 teardown, then STOP (**"hyper-plan-loop planner format, iter N"**), surfacing the resolved plan path for manual triage. The loop does NOT auto-restore — the plan file is left as the planner last wrote it; `/hyperclaude:hyper-plan` regenerates it in one step. Only Read the full file into lead context for that human-facing failure diagnostic — never on the success path.
 
-On `ok`: continue Step 7's happy path (increment iteration, re-invoke the bridge with `--resume auto`).
+On `ok`: return to the **caller's** success continuation, not unconditionally Step 7's. **Step 7** increments the iteration, re-invokes the bridge with `--resume auto`, then loops back to Step 6 (the normal Blocker/Major loop). **Step 7a** instead returns to its own Step 7a.2 (exactly one re-review) then Step 7a.3–7a.4 hard-stop — it NEVER enters Step 6 or the Step 7 loop. The §3 redo pipeline is shared; its success exit is caller-scoped.
 
 Step 7a has exactly one planner round, which invokes this same redo pipeline (anchored gate → structure check → single redo) — no separate pipeline, no duplicated rules.
 
