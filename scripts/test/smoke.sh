@@ -193,6 +193,7 @@ for f in \
   skills/hyper-research/SKILL.md \
   skills/hyper-plan/SKILL.md \
   skills/hyper-plan-loop/SKILL.md \
+  skills/hyper-plan-loop/references/failure-protocol.md \
   skills/hyper-plan-review/SKILL.md \
   skills/hyper-tdd/SKILL.md \
   skills/hyper-debug/SKILL.md \
@@ -344,6 +345,59 @@ if out=$(
   ok "SessionStart hook fail-open: missing template → suppressOutput"
 else
   miss "SessionStart hook missing-template fail-open failed: $out"
+fi
+
+echo
+echo "==> hyper-plan-loop static content assertions"
+skill_file="skills/hyper-plan-loop/SKILL.md"
+fp_file="skills/hyper-plan-loop/references/failure-protocol.md"
+
+if grep -q "### Step 7a" "$skill_file" 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: Step 7a section header present"
+else
+  miss "hyper-plan-loop SKILL.md: Step 7a section header missing"
+fi
+
+if grep -q "5 severity-gated reviews" "$skill_file" 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: '5 severity-gated reviews' cap wording present"
+else
+  miss "hyper-plan-loop SKILL.md: '5 severity-gated reviews' cap wording missing"
+fi
+
+if ! grep -q "5 total Codex reviews" "$skill_file" 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: stale '5 total Codex reviews' phrase absent"
+else
+  miss "hyper-plan-loop SKILL.md: unqualified '5 total Codex reviews' phrase found (stale)"
+fi
+
+if ! grep -q "Treating Minor findings as blocking" "$skill_file" 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: stale fragment 'Treating Minor findings as blocking' absent"
+else
+  miss "hyper-plan-loop SKILL.md: stale fragment 'Treating Minor findings as blocking' still present"
+fi
+
+if ! grep -q "Only Blocker/Major gate the loop" "$skill_file" 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: stale fragment 'Only Blocker/Major gate the loop' absent"
+else
+  miss "hyper-plan-loop SKILL.md: stale fragment 'Only Blocker/Major gate the loop' still present"
+fi
+
+if ! grep -q "Treating Minor findings as blocking" "$fp_file" 2>/dev/null; then
+  ok "hyper-plan-loop failure-protocol.md: stale fragment 'Treating Minor findings as blocking' absent"
+else
+  miss "hyper-plan-loop failure-protocol.md: stale fragment 'Treating Minor findings as blocking' still present"
+fi
+
+if ! grep -q "Only Blocker/Major gate the loop" "$fp_file" 2>/dev/null; then
+  ok "hyper-plan-loop failure-protocol.md: stale fragment 'Only Blocker/Major gate the loop' absent"
+else
+  miss "hyper-plan-loop failure-protocol.md: stale fragment 'Only Blocker/Major gate the loop' still present"
+fi
+
+if grep -q "Treating an actionable Minor" "$fp_file" 2>/dev/null; then
+  ok "hyper-plan-loop failure-protocol.md: new qualified anti-pattern 'Treating an actionable Minor' present"
+else
+  miss "hyper-plan-loop failure-protocol.md: new qualified anti-pattern 'Treating an actionable Minor' missing"
 fi
 
 echo
