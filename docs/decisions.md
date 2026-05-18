@@ -131,6 +131,10 @@ Node 18+ stdlib only; no `package.json`, no `node_modules`. A `/plugin install` 
 - **Implement-loop cap is 3, not 5:** code-review is costlier/noisier than plan-review; 3 rounds (1 fresh + 2 resumed) bound cost while giving the fixer two convergence chances. `--commit <sha>` is forbidden as a loop target — the loop's fixed `--base main` lets `--resume auto` re-match the prior artifact by ref NAME; a changing SHA would switch resume-identity class and lose thread continuity. Fix-validation is a semantic finding-map check (every blocking finding → `fixed` or `not-applicable` with notes), not a diff check. No separate no-op/git-state gate — the Step 8 cap already bounds a stuck fixer.
 - **agent-teams is env-gated, not probed:** requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`; on spawn failure each skill degrades to its own manual fallback (plan-loop → `hyper-plan` + `hyper-plan-review`; implement-loop → `hyper-implement` + `hyper-code-review`) rather than probing the env var (unreliable at invocation time).
 
+### Plan-loop applies one Minor-cleanup pass, then hard-stops (Option B)
+
+The old two-branch gate dropped actionable Minor cleanup — Codex Verdicts naming a concrete small fix went unhandled (dogfooded: building-placement-tool, simulation-tick-loop in cimulity). When only an actionable Minor remains, the loop now runs exactly one planner revision + one resumed re-review then hard-stops to teardown — a third branch, not a recursive tracker. No recursion on Minor: bounded cost (one extra review, clean-exit path only, separate from the 5 severity-gated reviews) and a termination guarantee outweigh chasing Minor to zero; a vague "ship after small fixes" with no identifiable change stays branch (b) (no planner round). Accepted risk: the cleanup re-review may surface a new Blocker/Major (revise regression); the loop still hard-stops but Step 9 reports it loudly and withholds the implement recommendation rather than silently shipping.
+
 ---
 
 ## Pointers (decisions documented elsewhere)
