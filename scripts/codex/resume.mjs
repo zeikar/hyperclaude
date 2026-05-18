@@ -71,6 +71,14 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
       return { error: 'prior artifact docs-target/diff-base differs from current' };
     }
   } else if (expectedMode === 'code-review') {
+    // Deliberately code-review-scoped: only code-review now renders a custom
+    // prompt template, so only its prior artifacts carry template-version.
+    // plan-review/docs-review/research branches intentionally have NO such gate.
+    const CODE_REVIEW_TEMPLATE_VERSION = 1; // keep == frontmatter.mjs renderCodeReviewFrontmatter (see CLAUDE.md)
+    const tv = fm['template-version'];
+    if (tv === undefined || String(tv) !== String(CODE_REVIEW_TEMPLATE_VERSION)) {
+      return { error: 'prior code-review artifact predates the custom-prompt template (no/old template-version); not resumable' };
+    }
     // title is purely cosmetic — does NOT participate in identity (it does not
     // affect what Codex reviewed, only the display label in the output file).
     const hasPriorBaseRef = Object.prototype.hasOwnProperty.call(fm, 'base-ref');

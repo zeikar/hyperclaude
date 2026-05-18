@@ -1407,6 +1407,7 @@ test('resume happy path: code-review --resume <prev> spawns exec resume and writ
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
+        'template-version': 1,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-1',
@@ -1470,6 +1471,7 @@ test('resume explicit-path mismatch (base-ref differs) → ok:false, no new arti
       const prior = path.join(outDir, '20260510-1015-vs-feature-x.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
+        'template-version': 1,
         cwd: process.cwd(),
         'base-ref': 'feature-x',
         'codex-thread-id': 'thread-cr-x',
@@ -1553,6 +1555,7 @@ test('resume spawn fails (codex exits 7) → code-review status resume-failed, f
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
+        'template-version': 1,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-fail',
@@ -1638,6 +1641,7 @@ test('resume preserves thread id when thread.started is omitted from codex outpu
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
+        'template-version': 1,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-1',
@@ -1663,6 +1667,101 @@ test('resume preserves thread id when thread.started is omitted from codex outpu
       const outputContent = readFileSync(json.path, 'utf8');
       const fm = parseFrontmatter(outputContent);
       assert.equal(fm['codex-thread-id'], 'thread-cr-1', `frontmatter codex-thread-id should be thread-cr-1, got: ${fm['codex-thread-id']}`);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+// Task 5: template-version resume gate — explicit vs auto over a legacy
+// (no template-version) code-review artifact.
+
+test('resume explicit-path over LEGACY code-review artifact (no template-version) → resume rejected, no new artifact', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-legacy-exp-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-legacy-exp-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-vs-main.md');
+      // legacy-native: valid target/cwd/thread/status but NO template-version
+      writePriorArtifact(prior, {
+        mode: 'code-review',
+        cwd: process.cwd(),
+        'base-ref': 'main',
+        'codex-thread-id': 'thread-cr-legacy',
+        'codex-resume-status': 'fresh',
+      });
+
+      const beforeFiles = readdirSync(outDir).sort();
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'code-review', '--base', 'main', '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 1, `expected exit 1, got ${result.status}; stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, false);
+      assert.match(json.error, /^resume rejected:/, `json.error should start with "resume rejected:", got: ${json.error}`);
+      assert.match(json.error, /predates|not resumable/);
+      assert.equal(json.resumeStatus, 'fallback');
+
+      const afterFiles = readdirSync(outDir).sort();
+      assert.deepEqual(afterFiles, beforeFiles, 'outDir contents must be unchanged after gate rejection');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume auto over dir whose newest code-review artifact is LEGACY → fresh fallback + stderr note + ok:true', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-legacy-auto-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-legacy-auto-out-'));
+    try {
+      // Only artifact present is legacy (no template-version) → gate rejects it,
+      // discovery finds no eligible candidate, auto falls back to fresh.
+      writePriorArtifact(path.join(outDir, '20260510-1015-vs-main.md'), {
+        mode: 'code-review',
+        cwd: process.cwd(),
+        'base-ref': 'main',
+        'codex-thread-id': 'thread-cr-legacy',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'code-review', '--base', 'main', '--resume', 'auto', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'fallback', 'status should be fallback after auto skips legacy artifact');
+      assert.match(result.stderr, /hyperclaude: resume fallback —/, 'stderr should contain resume fallback warning');
+
+      const outputContent = readFileSync(json.path, 'utf8');
+      const fm = parseFrontmatter(outputContent);
+      assert.equal(fm['codex-resume-status'], 'fallback', 'frontmatter codex-resume-status should be fallback');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }

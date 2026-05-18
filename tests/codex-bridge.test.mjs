@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, renderDocsReviewFrontmatter, fmString, renderFailureBody, renderFileListBlock, renderDiffBaseBlock, readTemplateFile, parseFrontmatter, loadResumeContext, discoverResumeArtifact, defaultModeDir } from '../scripts/codex-bridge.mjs';
+import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, renderDocsReviewFrontmatter, fmString, renderFailureBody, renderFileListBlock, renderDiffBaseBlock, readTemplateFile, parseFrontmatter, loadResumeContext, discoverResumeArtifact, defaultModeDir, buildTargetInstruction } from '../scripts/codex-bridge.mjs';
 import { mkdirSync } from 'node:fs';
 
 test('slugify: simple ASCII task', () => {
@@ -729,7 +729,7 @@ test('renderCodeReviewFrontmatter: starts with --- and ends with ---\\n followed
   assert.match(fm, /\n---\n$/);
 });
 
-test('renderCodeReviewFrontmatter: base-ref variant has required fields and no template-version/task', () => {
+test('renderCodeReviewFrontmatter: base-ref variant has required fields and template-version, no task', () => {
   const fm = renderCodeReviewFrontmatter({
     reviewTarget: 'base',
     baseRef: 'main',
@@ -751,8 +751,29 @@ test('renderCodeReviewFrontmatter: base-ref variant has required fields and no t
   assert.match(fm, /generated:/);
   assert.match(fm, /codex-version:/);
   assert.match(fm, /slug:/);
-  assert.doesNotMatch(fm, /template-version:/);
+  assert.match(fm, /template-version: 1/);
   assert.doesNotMatch(fm, /\btask:/);
+});
+
+test('renderCodeReviewFrontmatter: template-version: 1 emitted IMMEDIATELY AFTER codex-version line (positional sanity)', () => {
+  const fm = renderCodeReviewFrontmatter({
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    slug: 'vs-main',
+    gitHead: 'unknown',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.130.0',
+    title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  const lines = fm.split('\n');
+  const cvIdx = lines.findIndex((l) => l.startsWith('codex-version:'));
+  assert.ok(cvIdx >= 0, 'codex-version line must be present');
+  assert.equal(lines[cvIdx + 1], 'template-version: 1', 'template-version must be the line immediately after codex-version');
 });
 
 test('renderCodeReviewFrontmatter: does not emit codex-subcommand field', () => {
@@ -2363,6 +2384,7 @@ test('loadResumeContext: code-review --base main identity success', async () => 
     const prior = path.join(tmp, '20260510-1015-x.md');
     writePriorReview(prior, {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'base-ref': 'main',
       'codex-thread-id': 'thread-cr-base',
@@ -2382,6 +2404,7 @@ test('loadResumeContext: code-review base-ref mismatch rejected', async () => {
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'base-ref': 'main',
       'codex-thread-id': 't',
@@ -2400,6 +2423,7 @@ test('loadResumeContext: code-review --uncommitted identity success when prior a
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       // no base-ref, no commit — means uncommitted
       'codex-thread-id': 'thread-unc',
@@ -2420,6 +2444,7 @@ test('loadResumeContext: code-review --commit <sha> identity success on exact SH
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'commit': sha,
       'codex-thread-id': 'thread-sha',
@@ -2439,6 +2464,7 @@ test('loadResumeContext: code-review --uncommitted current vs --base prior rejec
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'base-ref': 'main',
       'codex-thread-id': 't',
@@ -2457,6 +2483,7 @@ test('loadResumeContext: code-review title differs but base-ref matches → iden
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'base-ref': 'main',
       'title': 'Old title',
@@ -2480,6 +2507,7 @@ test('loadResumeContext: code-review commit SHA mismatch (prefix of the other) r
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'commit': fullSha,
       'codex-thread-id': 't',
@@ -2499,6 +2527,7 @@ test('loadResumeContext: code-review malformed prior with both base-ref and comm
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'base-ref': 'main',
       'commit': 'abc1234567890abcdef1234567890abcdef12345',
@@ -2519,6 +2548,48 @@ test('loadResumeContext: code-review malformed prior with both base-ref and comm
   }
 });
 
+// ── Task 5: code-review template-version resume gate ─────────────────────────
+
+test('loadResumeContext: code-review legacy artifact WITHOUT template-version rejected as not resumable', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cr-notv-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    // legacy-native shape: valid target/cwd/thread/status but no template-version
+    writePriorReview(prior, {
+      mode: 'code-review',
+      cwd: process.cwd(),
+      'base-ref': 'main',
+      'codex-thread-id': 'thread-legacy',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', baseRef: 'main' });
+    assert.match(ctx.error, /predates|not resumable/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: code-review artifact WITH template-version: 1 and matching target → normal context', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cr-tv-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'code-review',
+      'template-version': 1,
+      cwd: process.cwd(),
+      'base-ref': 'main',
+      'codex-thread-id': 'thread-tv-ok',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', baseRef: 'main' });
+    assert.equal(ctx.error, undefined);
+    assert.equal(ctx.threadId, 'thread-tv-ok');
+    assert.equal(ctx.frontmatter['template-version'], '1');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 // ── Task 2: discoverResumeArtifact code-review ────────────────────────────────
 
 test('discoverResumeArtifact: code-review --base skips newer wrong-target artifact, picks matching one', async () => {
@@ -2527,6 +2598,7 @@ test('discoverResumeArtifact: code-review --base skips newer wrong-target artifa
     // newest: wrong base-ref (feature-x)
     writePriorReview(path.join(tmp, '20260601-0000-newest.md'), {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'base-ref': 'feature-x',
       'codex-thread-id': 'thread-wrong',
@@ -2536,6 +2608,7 @@ test('discoverResumeArtifact: code-review --base skips newer wrong-target artifa
     const middle = path.join(tmp, '20260510-1015-middle.md');
     writePriorReview(middle, {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'base-ref': 'main',
       'codex-thread-id': 'thread-match',
@@ -2544,6 +2617,7 @@ test('discoverResumeArtifact: code-review --base skips newer wrong-target artifa
     // oldest: wrong base-ref (feature-x)
     writePriorReview(path.join(tmp, '20260101-0000-oldest.md'), {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'base-ref': 'feature-x',
       'codex-thread-id': 'thread-old-wrong',
@@ -2565,6 +2639,7 @@ test('discoverResumeArtifact: code-review --commit skips newer wrong-SHA artifac
     // newest: wrong commit SHA
     writePriorReview(path.join(tmp, '20260601-0000-newest.md'), {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'commit': otherSha,
       'codex-thread-id': 'thread-wrong',
@@ -2574,6 +2649,7 @@ test('discoverResumeArtifact: code-review --commit skips newer wrong-SHA artifac
     const middle = path.join(tmp, '20260510-1015-middle.md');
     writePriorReview(middle, {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'commit': targetSha,
       'codex-thread-id': 'thread-match',
@@ -2582,6 +2658,7 @@ test('discoverResumeArtifact: code-review --commit skips newer wrong-SHA artifac
     // oldest: wrong commit SHA
     writePriorReview(path.join(tmp, '20260101-0000-oldest.md'), {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'commit': otherSha,
       'codex-thread-id': 'thread-old-wrong',
@@ -2601,6 +2678,7 @@ test('discoverResumeArtifact: code-review --uncommitted skips newer non-uncommit
     // newest: has base-ref, so not uncommitted
     writePriorReview(path.join(tmp, '20260601-0000-newest.md'), {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'base-ref': 'main',
       'codex-thread-id': 'thread-wrong',
@@ -2610,6 +2688,7 @@ test('discoverResumeArtifact: code-review --uncommitted skips newer non-uncommit
     const middle = path.join(tmp, '20260510-1015-middle.md');
     writePriorReview(middle, {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       // no base-ref, no commit
       'codex-thread-id': 'thread-match',
@@ -2618,6 +2697,7 @@ test('discoverResumeArtifact: code-review --uncommitted skips newer non-uncommit
     // oldest: has commit, so not uncommitted
     writePriorReview(path.join(tmp, '20260101-0000-oldest.md'), {
       mode: 'code-review',
+      'template-version': 1,
       cwd: process.cwd(),
       'commit': 'deadbeef1234deadbeef1234deadbeef12345678',
       'codex-thread-id': 'thread-old-wrong',
@@ -2629,4 +2709,78 @@ test('discoverResumeArtifact: code-review --uncommitted skips newer non-uncommit
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+// ── Task 5: buildTargetInstruction command-set unit tests ────────────────────
+
+test('buildTargetInstruction: base target emits base...HEAD + uncommitted-overlay commands', () => {
+  const block = buildTargetInstruction({ reviewTarget: 'base', baseRef: 'main' });
+  assert.ok(block.includes('git diff main...HEAD --name-status'), 'base name-status');
+  assert.ok(block.includes('git diff main...HEAD'), 'base committed diff');
+  assert.ok(block.includes('git diff'), 'unstaged overlay');
+  assert.ok(block.includes('git diff --cached'), 'staged overlay');
+  assert.ok(block.includes('git ls-files --others --exclude-standard'), 'untracked overlay');
+});
+
+test('buildTargetInstruction: commit target emits show name-status/patch + reviewed-revision read + guidance', () => {
+  const block = buildTargetInstruction({ reviewTarget: 'commit', commit: 'abc1234f' });
+  assert.ok(block.includes('git show --name-status abc1234f'), 'show name-status');
+  assert.ok(block.includes('git show --format= --patch abc1234f'), 'show patch');
+  assert.ok(block.includes("git show abc1234f:"), 'reviewed-revision post-image read');
+  assert.ok(/deleted\/renamed\/binary/.test(block), 'deleted/renamed/binary guidance');
+  assert.ok(block.includes('Quote paths'), 'quote-path guidance');
+  assert.ok(
+    block.includes('MUST NOT be treated as a review blocker'),
+    'failed git read does not block guidance'
+  );
+});
+
+test('buildTargetInstruction: uncommitted target emits status/diff/cached/ls-files', () => {
+  const block = buildTargetInstruction({ reviewTarget: 'uncommitted' });
+  assert.ok(block.includes('git status --short --untracked-files=all'), 'status');
+  assert.ok(block.includes('git diff'), 'unstaged');
+  assert.ok(block.includes('git diff --cached'), 'staged');
+  assert.ok(block.includes('git ls-files --others --exclude-standard'), 'untracked');
+});
+
+// implement-loop (Step-7) regression: hyper-implement-loop re-runs
+// `code-review --base main --resume auto` AFTER the fixer leaves edits
+// UNCOMMITTED. A HEAD-only base review would skip those fix-round changes,
+// so the base prompt must carry the uncommitted-overlay commands too.
+test('buildTargetInstruction: implement-loop scenario — base prompt surfaces committed AND uncommitted fixer edits', () => {
+  const block = buildTargetInstruction({ reviewTarget: 'base', baseRef: 'main' });
+  assert.ok(block.includes('git diff main...HEAD'), 'committed diff vs base');
+  assert.ok(block.includes('git diff'), 'uncommitted unstaged fixer edits');
+  assert.ok(block.includes('git diff --cached'), 'uncommitted staged fixer edits');
+  assert.ok(
+    block.includes('git ls-files --others --exclude-standard'),
+    'untracked fixer edits'
+  );
+});
+
+// ── Task 5: rendered-prompt snapshot-style tests (focused render) ─────────────
+
+test('rendered fresh code-review prompt (base): no placeholders, command block + reviewed-revision semantics', async () => {
+  const tpl = await readTemplateFile('code-review');
+  const rendered = loadTemplate(tpl, { TARGET_INSTRUCTION: buildTargetInstruction({ reviewTarget: 'base', baseRef: 'main' }) });
+  assert.doesNotMatch(rendered, /\{\{[A-Z_]+\}\}/, 'no leftover {{...}} placeholders');
+  assert.ok(rendered.includes('git diff main...HEAD'), 'base command block present');
+  assert.ok(rendered.includes('git diff --cached'), 'base overlay command present');
+  assert.match(rendered, /reviewed revision|EFFECTIVE worktree state/i, 'reviewed-revision semantics phrase present');
+});
+
+test('rendered fresh code-review prompt (commit): no placeholders, command block + reviewed-revision read', async () => {
+  const tpl = await readTemplateFile('code-review');
+  const rendered = loadTemplate(tpl, { TARGET_INSTRUCTION: buildTargetInstruction({ reviewTarget: 'commit', commit: 'abc1234f' }) });
+  assert.doesNotMatch(rendered, /\{\{[A-Z_]+\}\}/, 'no leftover {{...}} placeholders');
+  assert.ok(rendered.includes('git show --name-status abc1234f'), 'commit command block present');
+  assert.ok(rendered.includes("git show abc1234f:"), 'commit reviewed-revision read present');
+  assert.match(rendered, /reviewed revision/i, 'reviewed-revision semantics phrase present');
+});
+
+test('rendered fresh code-review prompt (uncommitted): no placeholders, command block present', async () => {
+  const tpl = await readTemplateFile('code-review');
+  const rendered = loadTemplate(tpl, { TARGET_INSTRUCTION: buildTargetInstruction({ reviewTarget: 'uncommitted' }) });
+  assert.doesNotMatch(rendered, /\{\{[A-Z_]+\}\}/, 'no leftover {{...}} placeholders');
+  assert.ok(rendered.includes('git status --short --untracked-files=all'), 'uncommitted command block present');
 });

@@ -41,6 +41,8 @@ export function renderCodeReviewFrontmatter({
   lines.push(`slug: ${slug}`);
   lines.push(`generated: ${generated}`);
   lines.push(`codex-version: ${codexVersion}`);
+  // template-version: keep in lock-step with templates/codex/code-review.md and resume.mjs CODE_REVIEW_TEMPLATE_VERSION (see CLAUDE.md)
+  lines.push('template-version: 1');
   lines.push(fmString('git-head', gitHead));
   if (reviewTarget === 'base') lines.push(fmString('base-ref', baseRef));
   if (reviewTarget === 'commit') lines.push(fmString('commit', commit));
