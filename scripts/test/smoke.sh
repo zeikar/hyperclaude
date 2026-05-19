@@ -456,7 +456,9 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      If agent teams are available: verify the plan file is written BY
      THE PLANNER itself at the lead-resolved path under
      .hyperclaude/plans/ (the lead never Writes it), that planner
-     replies are `WROTE: <path>`-only with no plan body echoed and no
+     replies are `WROTE: <reqid> <path>`-only (the planner echoes the
+     lead-supplied id verbatim, the id increments across revise and
+     corrective rounds) with no plan body echoed and no
      "RESEND:"/duplicate-body churn between revise rounds, that at
      least one Codex plan-review runs, and the loop reaches a terminal
      state (clean exit, iteration cap, or controlled failure) bounded

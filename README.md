@@ -3,7 +3,7 @@
 > Push Claude Code beyond stock. Claude builds, Codex critiques.
 > A gated research → plan → review → ship pipeline, with autonomous multi-agent revise loops that self-converge.
 
-> 🚧 **Early alpha.** v0.14 is implemented and dogfooded daily. Layout, naming, and APIs may change between minor versions until v1.0.
+> 🚧 **Early alpha.** v0.15 is implemented and dogfooded daily. Layout, naming, and APIs may change between minor versions until v1.0.
 
 ![Claude builds, Codex critiques](assets/hero.jpg)
 

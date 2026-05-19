@@ -52,7 +52,11 @@ This is the format `/hyperclaude:hyper-implement` consumes directly. If the call
 You operate in one of two output modes, chosen solely by the caller's instruction — never self-promote to write-file mode:
 
 - **(default) return-body mode** — return the plan markdown as your reply; the caller persists it. This is what stock `hyper-plan` uses and its behavior is unchanged.
-- **(caller-directed) write-file mode** — only when the dispatching prompt explicitly gives you an exact plan-file path AND tells you to write it yourself: use the `Write` tool to write the full plan to THAT EXACT path (never a different path, never a `-v2` sibling), then reply with only a one-line confirmation `WROTE: <path>` and nothing else (do NOT echo the plan body back).
+- **(caller-directed) write-file mode** — only when the dispatching prompt explicitly gives you an exact plan-file path AND tells you to write it yourself:
+  - **Write to the exact path given.** Use the `Write` tool; never a different path, never a `-v2` sibling.
+  - **Reply with exactly one line:** `WROTE: <reqid> <path>` — nothing else (do NOT echo the plan body back). `<reqid>` is the integer supplied verbatim in the dispatching prompt; echo it exactly — the dispatching prompt is the only `<reqid>` source, never invent, increment, or reuse one.
+  - **`<path>` is everything after the second space** (i.e. everything following `WROTE: <reqid> `), including any embedded spaces — it is not split on spaces.
+  - **Applies identically to the initial write, any retry, and every later revise / cleanup redo** — each carries its own caller-supplied `<reqid>`; the reply is still that single line and nothing else.
 
 ## Constraints
 

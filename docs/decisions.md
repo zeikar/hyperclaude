@@ -127,13 +127,30 @@ Node 18+ stdlib only; no `package.json`, no `node_modules`. A `/plugin install` 
 
 `hyper-plan-loop` (persistent `planner`) and `hyper-implement-loop` (persistent `fixer`) spawn their worker once as a team teammate so context isn't re-uploaded every revise/fix round. The reviewer is **always** a direct Codex bridge call, never a team agent — making it a Claude agent would collapse the "Claude builds, Codex reviews" invariant and bypass the sandbox.
 
-- **Plan-loop amendment — planner writes the plan file directly:** the lead resolves/owns the plan path and instructs the planner teammate to write it there; the planner replies `WROTE: <path>` and idles. Caller-directed write-file mode, scoped to the loop — it avoids per-iteration plan-body round-trips. Con: the planner has `Write` (mitigated: caller-directed, exact-path-bound, loop-scoped; stock `hyper-plan` still uses return-body mode, unchanged).
+- **Plan-loop amendment — planner writes the plan file directly:** the lead resolves/owns the plan path and instructs the planner teammate to write it there; the planner sends a write-confirmation reply echoing the lead-minted per-request id (`WROTE: <reqid> <path>`) and idles. Caller-directed write-file mode, scoped to the loop — it avoids per-iteration plan-body round-trips. Con: the planner has `Write` (mitigated: caller-directed, exact-path-bound, loop-scoped; stock `hyper-plan` still uses return-body mode, unchanged).
 - **Implement-loop cap is 3, not 5:** code-review is costlier/noisier than plan-review; 3 rounds (1 fresh + 2 resumed) bound cost while giving the fixer two convergence chances. `--commit <sha>` is forbidden as a loop target — the loop's fixed `--base main` lets `--resume auto` re-match the prior artifact by ref NAME; a changing SHA would switch resume-identity class and lose thread continuity. Fix-validation is a semantic finding-map check (every blocking finding → `fixed` or `not-applicable` with notes), not a diff check. No separate no-op/git-state gate — the Step 8 cap already bounds a stuck fixer.
 - **agent-teams is env-gated, not probed:** requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`; on spawn failure each skill degrades to its own manual fallback (plan-loop → `hyper-plan` + `hyper-plan-review`; implement-loop → `hyper-implement` + `hyper-code-review`) rather than probing the env var (unreliable at invocation time).
 
 ### Plan-loop applies one Minor-cleanup pass, then hard-stops (Option B)
 
 The old two-branch gate dropped Minor cleanup that Codex Verdicts explicitly prescribed (dogfooded: building-placement-tool, simulation-tick-loop), so an *actionable* Minor now triggers exactly one planner revision + one resumed re-review then hard-stop — a third branch, not a recursive tracker; a vague "ship after small fixes" with no identifiable change stays branch (b). No recursion: one extra review (outside the 5 severity-gated cap) plus a guaranteed stop beat chasing Minor to zero. Accepted risk: the cleanup re-review may regress to a new Blocker/Major — the loop still hard-stops but Step 9 flags it and withholds the implement recommendation rather than ship silently.
+
+### Plan-loop per-request correlation id (stale-reply mis-attribution fix)
+
+**Problem:** the lead could mis-attribute a stale planner write-confirmation to the current round, causing the loop to advance on a plan file that was NOT written for the current revision prompt.
+
+**Root cause (four evidence classes):**
+
+- **[official docs]** The agent-teams "Context and communication" section documents only "automatic message delivery" and idle notifications. It provides **no DOCUMENTED guarantee** of ordering, dedup, or request/reply-correlation for plain-text messages — so the gap is an absence of documentation, not an affirmative platform failure.
+- **[observed behavior, from the SendMessage tool schema]** The `request_id` echo mechanism exists only for protocol messages: the live SendMessage tool schema's legacy `*_response` types (e.g. `shutdown_response`, `plan_approval_response`) echo a `request_id` back to the sender; plain-text write-confirmation replies carry no built-in correlation. This was read from the tool schema directly — NOT from either of the two cited URLs below, which do not describe this rule.
+- **[observed behavior]** Three structural factors widen the window: (1) the in-place same-path overwrite rule makes a stale planner write-confirmation byte-identical to the next round's, so the old path-only Step 4 gate could not disambiguate; (2) §2's solicited/unsolicited heuristic was structurally blind in Step 7 because the lead DID solicit a reply there; (3) the long Codex plan-review Bash turn widens the race window. Reproduced while dogfooding the `20260519-1928-build-a-static-project-landing` run.
+- **[external article]** The claudecodecamp under-the-hood writeup describes the filesystem inbox delivery mechanics and shows a `permission_request` carrying a `request_id`. Cited ONLY for the filesystem-inbox / fire-and-forget delivery characterization — NOT for any "shutdown_request / plan_approval_request only" rule (the article does not state that).
+
+**Fix:** the lead mints a monotonic correlation id on EVERY solicitation — including BOTH §1 corrective prompts and the §3 redo. Each is a fresh solicitation; reusing an id across rounds reintroduces the blind spot. The new contract form the planner must echo is `WROTE: <reqid> <path>`. The id fixes mis-attribution only, not the payload-less idle notification; the empty-idle corrective round-trip fallback is retained, now id-carrying so that round-trip is also correlatable.
+
+**Sources:**
+- [official docs — delivery + idle behavior only] https://code.claude.com/docs/en/agent-teams
+- [external article — filesystem-inbox delivery mechanics] https://www.claudecodecamp.com/p/claude-code-agent-teams-how-they-work-under-the-hood
 
 ---
 
