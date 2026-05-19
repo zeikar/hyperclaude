@@ -49,10 +49,304 @@
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%234338ca'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='20' font-weight='bold' text-anchor='middle' fill='white'%3EH%3C/text%3E%3C/svg%3E">
 </head>
-<body>
+<body class="bg-gray-950 text-gray-100 antialiased">
+
+  <!-- ===================== HERO ===================== -->
+  <header class="relative overflow-hidden bg-gradient-to-b from-gray-900 to-gray-950 border-b border-gray-800">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 text-center">
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white mb-4">HyperClaude</h1>
+      <p class="text-xl sm:text-2xl font-semibold text-indigo-400 mb-3">
+        Push Claude Code beyond stock. Claude builds, Codex critiques.
+      </p>
+      <p class="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto mb-8">
+        A gated research &rarr; plan &rarr; review &rarr; ship pipeline, with autonomous multi-agent revise loops that self-converge.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+        <a href="#quick-start"
+           class="inline-block px-7 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950 text-white font-semibold transition-colors">
+          Get started
+        </a>
+        <a href="https://github.com/zeikar/hyperclaude"
+           target="_blank" rel="noopener noreferrer"
+           class="inline-block px-7 py-3 rounded-lg border border-gray-600 hover:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950 text-gray-200 hover:text-white font-semibold transition-colors">
+          View on GitHub
+        </a>
+      </div>
+      <img src="hero.png"
+           alt="HyperClaude — Claude builds, Codex critiques"
+           loading="eager"
+           width="1536"
+           height="1024"
+           class="mx-auto rounded-xl border border-gray-800 shadow-2xl max-w-full">
+    </div>
+  </header>
+
   <main>
-    <!-- sections: Task 3 -->
+
+    <!-- ===================== THESIS ===================== -->
+    <section class="py-16 sm:py-20 border-b border-gray-800">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white mb-6">Why</h2>
+        <p class="text-gray-300 text-base sm:text-lg mb-6">
+          A Claude Code plugin built around a deliberate division of labor between two AI coding agents:
+        </p>
+        <ul class="space-y-3 mb-6 text-base sm:text-lg">
+          <li class="flex gap-3">
+            <span class="text-indigo-400 font-semibold shrink-0">Claude</span>
+            <span class="text-gray-300">implements &mdash; planning, coding, subagents, agent teams</span>
+          </li>
+          <li class="flex gap-3">
+            <span class="text-indigo-400 font-semibold shrink-0">Codex</span>
+            <span class="text-gray-300">reviews &mdash; pre-implementation research, plan critique, code review, documentation accuracy review</span>
+          </li>
+        </ul>
+        <p class="text-lg sm:text-xl font-semibold text-white">
+          Thesis: <span class="text-indigo-400">Claude is the builder, Codex is the critic.</span> You get better software with a smarter cost split.
+        </p>
+      </div>
+    </section>
+
+    <!-- ===================== THE CYCLE ===================== -->
+    <section class="py-16 sm:py-20 border-b border-gray-800 bg-gray-900/40">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white mb-6">The cycle</h2>
+        <pre class="overflow-x-auto rounded-lg border border-gray-700 p-4 sm:p-6 text-xs sm:text-sm text-green-300 font-mono leading-relaxed mb-6"><code>        ┌─ refine ─┐            ┌──── fix ───┐            ┌──── fix ───┐
+        ▼          │            ▼            │            ▼            │
+research → plan → plan-review → implement → code-review → docs-sync → docs-review → ship
+   │         │         │            │            │            │            │           │
+Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex        user</code></pre>
+        <p class="text-gray-300 text-base sm:text-lg">
+          The <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">refine</code> /
+          <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">fix</code> arcs are exactly what
+          <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">hyper-plan-loop</code> and
+          <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">hyper-implement-loop</code> automate &mdash; a Claude-side teammate
+          (<code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">planner</code> /
+          <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">fixer</code>) revises while Codex stays the reviewer,
+          looping until it converges.
+        </p>
+      </div>
+    </section>
+
+    <!-- ===================== LAYERS / FEATURES ===================== -->
+    <section class="py-16 sm:py-20 border-b border-gray-800">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white mb-8">Layers</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-10">
+          <!-- Commands -->
+          <div class="rounded-xl border border-gray-700 bg-gray-900 p-5">
+            <h3 class="text-lg font-semibold text-indigo-300 mb-2">Commands</h3>
+            <p class="text-gray-400 text-sm">
+              Explicitly-invoked slash commands, auto-discovered; no manifest entry required. Currently one:
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">hyper-setup</code> &mdash;
+              a local prerequisite doctor that never spawns Codex or agents.
+            </p>
+          </div>
+          <!-- Skills -->
+          <div class="rounded-xl border border-gray-700 bg-gray-900 p-5">
+            <h3 class="text-lg font-semibold text-indigo-300 mb-2">Skills</h3>
+            <p class="text-gray-400 text-sm">
+              Codex gates (<code class="text-indigo-300 bg-gray-800 px-1 rounded">hyper-research</code>,
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">hyper-plan-review</code>,
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">hyper-code-review</code>,
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">hyper-docs-review</code>) plus Claude orchestrators
+              and autonomous loops. All surface via Claude Code&rsquo;s description-triggered dispatch.
+            </p>
+          </div>
+          <!-- Agents -->
+          <div class="rounded-xl border border-gray-700 bg-gray-900 p-5">
+            <h3 class="text-lg font-semibold text-indigo-300 mb-2">Agents</h3>
+            <p class="text-gray-400 text-sm">
+              Claude implementation arm:
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">planner</code>,
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">implementer</code>,
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">verifier</code>,
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">documenter</code>,
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">researcher</code>,
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">fixer</code>.
+              Sub-Claude personas with restricted tool lists; used by skills, never the other way around.
+            </p>
+          </div>
+          <!-- Hooks -->
+          <div class="rounded-xl border border-gray-700 bg-gray-900 p-5">
+            <h3 class="text-lg font-semibold text-indigo-300 mb-2">Hooks</h3>
+            <p class="text-gray-400 text-sm">
+              SessionStart reminder &mdash; injects a workflow router prompt plus an optional
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">.hyperclaude/</code> snapshot footer so every session
+              starts context-aware.
+            </p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-indigo-800 bg-indigo-950/40 p-5 text-sm text-gray-300">
+          <h3 class="text-base font-semibold text-indigo-300 mb-2">Codex gates &amp; the read-only sandbox</h3>
+          <p>
+            Every fresh <code class="text-indigo-300 bg-gray-800 px-1 rounded">codex exec</code> invocation
+            (research, plan-review, code-review, docs-review) passes <code class="text-indigo-300 bg-gray-800 px-1 rounded">--sandbox read-only</code>.
+            Resumed sessions use <code class="text-indigo-300 bg-gray-800 px-1 rounded">-c sandbox_mode=read-only</code> as a config override.
+            In every mode, Codex&rsquo;s role in hyperclaude is <em>critic</em>, never editor.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== QUICK START ===================== -->
+    <section id="quick-start" class="py-16 sm:py-20 border-b border-gray-800 bg-gray-900/40">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white mb-8">Quick start</h2>
+
+        <!-- Step 1 -->
+        <div class="mb-8">
+          <h3 class="text-lg font-semibold text-gray-200 mb-3">1. Install the plugin via Claude Code</h3>
+          <div class="relative group">
+            <pre class="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-green-300 font-mono overflow-x-auto"><code id="code-install">/plugin marketplace add zeikar/hyperclaude
+/plugin install hyperclaude</code></pre>
+            <button
+              data-copy-target="code-install"
+              class="copy-btn absolute top-2 right-2 px-2.5 py-1 text-xs font-medium rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900"
+              aria-label="Copy install commands">
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="mb-8">
+          <h3 class="text-lg font-semibold text-gray-200 mb-3">2. Verify prerequisites with the built-in doctor command</h3>
+          <div class="relative group">
+            <pre class="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-green-300 font-mono overflow-x-auto"><code id="code-setup">/hyperclaude:hyper-setup</code></pre>
+            <button
+              data-copy-target="code-setup"
+              class="copy-btn absolute top-2 right-2 px-2.5 py-1 text-xs font-medium rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900"
+              aria-label="Copy setup command">
+              Copy
+            </button>
+          </div>
+          <p class="mt-2 text-sm text-gray-500">
+            Checks Node 18+, codex-cli &ge; 0.130.0, the <code class="text-indigo-300 bg-gray-800 px-1 rounded">codex --search</code> global flag, git, and the optional
+            <code class="text-indigo-300 bg-gray-800 px-1 rounded">CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS</code> env var. Report-only; nothing is installed automatically.
+          </p>
+        </div>
+
+        <!-- Step 3 -->
+        <div>
+          <h3 class="text-lg font-semibold text-gray-200 mb-3">3. Run the cycle inside any project</h3>
+          <div class="relative group">
+            <pre class="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-green-300 font-mono overflow-x-auto"><code id="code-cycle">/hyperclaude:hyper-research add OAuth login to the API   # Codex+Claude prior-art / pitfalls
+/hyperclaude:hyper-plan                                  # Claude writes .hyperclaude/plans/&lt;slug&gt;.md
+/hyperclaude:hyper-plan-review                            # Codex critiques the plan
+#   → Claude implements
+/hyperclaude:hyper-code-review                            # Codex reviews the diff (branch vs main)
+/hyperclaude:hyper-docs-sync uncommitted                  # Claude updates docs for the change
+/hyperclaude:hyper-docs-review                            # Codex accuracy gate on docs</code></pre>
+            <button
+              data-copy-target="code-cycle"
+              class="copy-btn absolute top-2 right-2 px-2.5 py-1 text-xs font-medium rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900"
+              aria-label="Copy cycle commands">
+              Copy
+            </button>
+          </div>
+          <p class="mt-2 text-sm text-gray-500">
+            Skip any step a small change doesn&rsquo;t need &mdash; only <code class="text-indigo-300 bg-gray-800 px-1 rounded">code-review</code> is non-negotiable for behavioral changes.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== STATUS ===================== -->
+    <section class="py-16 sm:py-20 border-b border-gray-800">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white mb-6">Status</h2>
+        <div class="rounded-xl border border-yellow-700 bg-yellow-950/40 p-5 sm:p-6">
+          <p class="text-yellow-300 font-semibold text-base mb-2">&#9888; Early alpha</p>
+          <p class="text-gray-300 text-sm sm:text-base">
+            v0.14 is implemented and dogfooded daily. <strong class="text-white">Alpha</strong> — layout, naming, and APIs may change; expect breaking changes between minor versions until v1.0. Use at your own risk.
+          </p>
+        </div>
+      </div>
+    </section>
+
   </main>
+
+  <!-- ===================== FOOTER ===================== -->
+  <footer class="py-10 border-t border-gray-800 bg-gray-950">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-sm text-gray-500 space-y-3">
+      <div class="flex flex-wrap gap-4 items-center">
+        <a href="https://github.com/zeikar/hyperclaude"
+           target="_blank" rel="noopener noreferrer"
+           class="text-gray-300 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded transition-colors">
+          GitHub &rarr; zeikar/hyperclaude
+        </a>
+        <a href="https://github.com/zeikar/hyperclaude/blob/main/LICENSE"
+           target="_blank" rel="noopener noreferrer"
+           class="text-gray-300 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded transition-colors">
+          MIT License
+        </a>
+      </div>
+      <p>
+        Structural inspiration from&nbsp;
+        <a href="https://github.com/obra/superpowers"
+           target="_blank" rel="noopener noreferrer"
+           class="text-indigo-400 hover:text-indigo-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded">
+          superpowers
+        </a>
+        &nbsp;by Jesse Vincent and&nbsp;
+        <a href="https://github.com/Yeachan-Heo/oh-my-claudecode"
+           target="_blank" rel="noopener noreferrer"
+           class="text-indigo-400 hover:text-indigo-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded">
+          oh-my-claudecode
+        </a>
+        &nbsp;by Yeachan Heo. No code ported from either; references only.
+      </p>
+    </div>
+  </footer>
+
+  <!-- Copy-to-clipboard (inline, no external JS) -->
+  <script>
+    (function () {
+      function fallbackCopy(text, btn, originalLabel) {
+        // Fallback: try to select the code block text so user can press Cmd/Ctrl+C
+        try {
+          var targetId = btn.getAttribute('data-copy-target');
+          var el = document.getElementById(targetId);
+          if (el) {
+            var range = document.createRange();
+            range.selectNodeContents(el);
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        } catch (e) { /* ignore */ }
+        btn.textContent = 'Press ⌘C';
+        setTimeout(function () { btn.textContent = originalLabel; }, 2500);
+      }
+
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.copy-btn');
+        if (!btn) return;
+
+        var targetId = btn.getAttribute('data-copy-target');
+        var el = document.getElementById(targetId);
+        if (!el) return;
+
+        var text = el.textContent;
+        var originalLabel = btn.textContent.trim();
+
+        if (!navigator.clipboard) {
+          fallbackCopy(text, btn, originalLabel);
+          return;
+        }
+
+        navigator.clipboard.writeText(text).then(function () {
+          btn.textContent = 'Copied!';
+          setTimeout(function () { btn.textContent = originalLabel; }, 2000);
+        }).catch(function () {
+          fallbackCopy(text, btn, originalLabel);
+        });
+      });
+    })();
+  </script>
+
 </body>
 </html>
