@@ -153,7 +153,7 @@ The version is recorded in research / plan-review / docs-review / code-review ou
 1. **Self-check.** Run `node --test tests/*.mjs` and `bash scripts/test/smoke.sh` until green.
 2. **Code review.** `/hyperclaude:hyper-code-review vs v0.<prev>.0` to catch regressions on the diff since the last tag.
 3. **Docs sync + review.** `/hyperclaude:hyper-docs-sync uncommitted` then `/hyperclaude:hyper-docs-review` for any docs that changed shape.
-4. **Bump version.** Update `version` in [.claude-plugin/plugin.json](../.claude-plugin/plugin.json). Commit.
+4. **Bump version.** Update `version` in [.claude-plugin/plugin.json](../.claude-plugin/plugin.json). On a minor bump, also update the `vMAJOR.MINOR` alpha-status string in [README.md](../README.md) and [site/index.html](../site/index.html) (search for `v0.X is implemented`). Commit.
 5. **Tag.** `git tag -a v0.X.Y -m "v0.X.Y: <one-line summary>"`.
 6. **Push.** `git push origin main v0.X.Y`.
 7. **Verify GitHub install.** From a fresh checkout: `/plugin marketplace add zeikar/hyperclaude` → `/plugin install hyperclaude` → run a gate.

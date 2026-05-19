@@ -6,7 +6,7 @@ Operational backstops for `hyper-plan-loop`. SKILL.md carries the happy path and
 
 The anchored reply gate (SKILL.md Step 4) is the accept condition for EVERY planner reply in write-file mode (initial write, any retry, every Step 7 revise redo, every Step 7a cleanup reply and redo). The gate definition stays in SKILL.md; this section is the failure handling.
 
-On any body echo, added prose, preamble, or a different path: set ALL THREE run-state fields — `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true` — BEFORE sending, and send ONE corrective message that carries the new id:
+On any body echo, added prose, preamble, or a different path: mint a new id BEFORE sending — `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true` — and immediately before the SendMessage call capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (per SKILL.md's binding field definition — assistant-turn start is NOT valid). Send ONE corrective message that carries the new id:
 
 ```
 SendMessage({
@@ -18,7 +18,7 @@ SendMessage({
 
 If the next reply still fails the anchored gate → Step 8 teardown, then STOP (**"hyper-plan-loop reply-contract failure"**).
 
-**File check failure (only reached after the gate passes):** if `[ -s "<resolved plan path>" ]` shows the file missing or empty, this is a fresh solicitation — set ALL THREE run-state fields — `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true` — BEFORE sending, and send ONE corrective message:
+**File check failure (only reached after the gate passes):** if `[ -s "<resolved plan path>" ]` shows the file missing or empty, this is a fresh solicitation — mint a new id BEFORE sending: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true`; immediately before the SendMessage call capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (per SKILL.md's binding field definition — assistant-turn start is NOT valid). Send ONE corrective message:
 
 ```
 SendMessage({
@@ -51,9 +51,9 @@ After that single idle correction, a short content-free acknowledgment (e.g. "ok
 **Interplay with §6 (id-first classification).** §2's "did I solicit anything" heuristic is now a secondary check — the §6 two-phase state machine is the authoritative router:
 
 - **While NOT awaiting (§6 Phase 1, `awaiting_planner_reply == false`):** a `WROTE:` with `reqid <= request_id_counter` is stale or duplicate — per §6 Phase 1, ignore its content SILENTLY (NO idle-correction for the `WROTE:` itself), NEVER re-accept. Separately, all genuinely unsolicited non-`WROTE:` traffic (nags, body echoes, `RESEND:`) in Phase 1 IS §2's domain — that, and only that, triggers the §2 idle-correction via Step 4a.
-- **While AWAITING (§6 Phase 2, `awaiting_planner_reply == true`):** a `WROTE:` reply with `reqid < expected_request_id` is NOT an unsolicited message — it is §6 Phase 2's stale branch. Ignore its content and run §6's stale-recovery sub-step. Do NOT send the §2 idle-correction for it. This branch positively identifies the stale-reply race that the prior solicited/unsolicited heuristic could only guess at.
+- **While AWAITING (§6 Phase 2, `awaiting_planner_reply == true`):** a `WROTE:` reply with `reqid < expected_request_id` is NOT an unsolicited message — it is §6 Phase 2's stale branch. Ignore its content and run §6's stale-recovery sub-step. Do NOT send the §2 idle-correction for it. This branch positively identifies the stale-reply race that the prior solicited/unsolicited heuristic could only guess at. A payload-less `idle_notification` whose `idle.timestamp < solicit_sent_at` is similarly NOT an unsolicited message — it is §6 Phase 2's stale-idle branch (ignore silently, stay awaiting); only an idle with `idle.timestamp >= solicit_sent_at` is a true post-solicit silence and routes through §1.
 
-The id-based classification subsumes the former Step 7 / Step 7a stale-reply case that was previously papered over by §2's "did I solicit anything" guess — stale replies are now identified by id, not timing.
+The id-based classification subsumes the former Step 7 / Step 7a stale-reply case that was previously papered over by §2's "did I solicit anything" guess, and the timestamp-based idle guard subsumes the stale-idle case that triggered the dogfooded 1-round-lag race — both are now identified by lead-owned state, not timing heuristics.
 
 ## §3 — Revise-validation redo pipeline (Step 7 failure handling)
 
@@ -67,7 +67,7 @@ There is no no-op / unchanged-plan detection. A planner that replies `WROTE:` bu
 
 **Structure check (step 2 of the pipeline):** the SKILL.md one-liner prints only `ok` or `bad`. The try/catch in it is load-bearing: any read failure (the planner deleted or clobbered the canonical path) prints `bad` instead of throwing — so a missing/unreadable file routes through the corrective path here, not to teardown as an unexpected tool error.
 
-If `bad` (the planner clobbered the canonical path with malformed content, OR the file is missing/unreadable): set ALL THREE run-state fields — `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true` — BEFORE sending, and send ONE corrective `SendMessage` (with `summary: "... request <id>"`) instructing the planner to redo the revision and re-Write the exact resolved plan path, passing the new id and requiring `WROTE: <that new id> <exact resolved path>`. That corrective's reply re-enters the FULL pipeline from step (1): id-first parse → anchored reply gate → structure `ok`/`bad` check — the gate now expects that NEWEST `expected_request_id`. If the redo is still `bad` at the structure step → Step 8 teardown, then STOP (**"hyper-plan-loop planner format, iter N"**), surfacing the resolved plan path for manual triage. The loop does NOT auto-restore — the plan file is left as the planner last wrote it; `/hyperclaude:hyper-plan` regenerates it in one step. Only Read the full file into lead context for that human-facing failure diagnostic — never on the success path.
+If `bad` (the planner clobbered the canonical path with malformed content, OR the file is missing/unreadable): mint a new id BEFORE sending — `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true` — and immediately before the SendMessage call capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (per SKILL.md's binding field definition — assistant-turn start is NOT valid). Send ONE corrective `SendMessage` (with `summary: "... request <id>"`) instructing the planner to redo the revision and re-Write the exact resolved plan path, passing the new id and requiring `WROTE: <that new id> <exact resolved path>`. That corrective's reply re-enters the FULL pipeline from step (1): id-first parse → anchored reply gate → structure `ok`/`bad` check — the gate now expects that NEWEST `expected_request_id`. If the redo is still `bad` at the structure step → Step 8 teardown, then STOP (**"hyper-plan-loop planner format, iter N"**), surfacing the resolved plan path for manual triage. The loop does NOT auto-restore — the plan file is left as the planner last wrote it; `/hyperclaude:hyper-plan` regenerates it in one step. Only Read the full file into lead context for that human-facing failure diagnostic — never on the success path.
 
 On `ok`: return to the **caller's** success continuation, not unconditionally Step 7's. **Step 7** increments the iteration, re-invokes the bridge with `--resume auto`, then loops back to Step 6 (the normal Blocker/Major loop). **Step 7a** instead returns to its own Step 7a.2 (exactly one re-review) then Step 7a.3–7a.4 hard-stop — it NEVER enters Step 6 or the Step 7 loop. The §3 redo pipeline is shared; its success exit is caller-scoped.
 
@@ -96,6 +96,7 @@ If `TeamDelete` fails because a member is still live: send `shutdown_request` on
 - Reusing a `request_id` across distinct solicitations — including reusing the same id for either §1 corrective (anchored-gate or file-check) and for the §3 redo corrective. Each is a fresh solicitation; sharing an id reintroduces the stale-reply blind spot the counter is designed to eliminate.
 - Checking the exact-path regex before classifying the `reqid`, OR accepting a reply whose `reqid != expected_request_id` as genuine. `reqid < expected_request_id` means stale → ignore content + §6 stale-recovery; `reqid > expected_request_id` is impossible (lead is sole id source) → teardown + STOP. Id classification MUST precede all content checks.
 - Comparing `reqid` against `expected_request_id` while `awaiting_planner_reply == false` (§6 Phase 1) — `expected_request_id` is `null` then; the Phase 1 branch routes by `request_id_counter` only. Collapsing Phase 1 and Phase 2 into a single comparison reintroduces the duplicate-during-Codex-review mis-attribution.
+- Treating a payload-less `idle_notification` as a contract failure without comparing `idle.timestamp` to `solicit_sent_at`. An idle queued from a PRIOR round can land between the current solicitation's send and the planner's reply — typically because the lead's previous turn ran Codex review for minutes and the planner's post-WROTE idle from that prior round was held until the next turn delivery. Minting a fresh-id corrective for such a stale idle kicks off a perpetual 1-round-lag race; the §6 Phase 2 stale-idle guard exists to plug exactly this dogfooded failure mode.
 - Inlining the §6 pseudo-code / state-machine body into SKILL.md instead of keeping SKILL.md a summary + pointer. SKILL.md is the always-loaded surface; duplicating §6 there bloats every trigger and risks the two copies drifting out of sync.
 
 ## §6 — Request-id state machine
@@ -106,7 +107,7 @@ The id is the new disambiguator for a stale vs. genuine `WROTE:` reply; it is NO
 
 **`expected_request_id` lifecycle.** Two named stages bracket every awaited reply:
 
-- **MESSAGE ACCEPTED** — the reply whose `reqid == expected_request_id` passed id classification and the exact accept regex with no extra prose: i.e. none of the reject conditions enumerated in the pseudo-code's `reqid == expected_request_id` branch fired (body echo / added prose / preamble / different path). At this moment, and HERE only, set `expected_request_id = null` and `awaiting_planner_reply = false`. This is the moment the duplicate-during-Codex-review window opens (a byte-identical re-emit may arrive while the long Codex-review turn runs); Phase 1 below handles that window.
+- **MESSAGE ACCEPTED** — the reply whose `reqid == expected_request_id` passed id classification and the exact accept regex with no extra prose: i.e. none of the reject conditions enumerated in the pseudo-code's `reqid == expected_request_id` branch fired (body echo / added prose / preamble / different path). At this moment, and HERE only, set `expected_request_id = null`, `awaiting_planner_reply = false`, and `solicit_sent_at = null`. This is the moment the duplicate-during-Codex-review window opens (a byte-identical re-emit may arrive while the long Codex-review turn runs); Phase 1 below handles that window.
 - **PLAN VALIDATION ACCEPTED** — the subsequent file/structure check passed, so the reply is fully usable and the loop proceeds. A structure-check `bad` reached AFTER MESSAGE ACCEPTED does not re-open the same id: it routes through the §3 redo pipeline, which mints a FRESH id and re-enters Phase 2 awaiting that fresh id.
 
 Two-phase classification (verbatim):
@@ -128,8 +129,23 @@ if awaiting_planner_reply == false:
 # PHASE 2 — awaiting a reply (awaiting_planner_reply == true; expected_request_id is set)
 else:
     if reqid is absent (no/garbled "WROTE:" token):
-        → reply-contract failure for the current expected_request_id:
-          §1 corrective + escalation
+        # Stale-idle guard. A payload-less idle_notification carries the
+        # planner's idle-event timestamp, NOT the lead-receipt time; a long
+        # lead turn (typically Codex review) can queue an idle from the PRIOR
+        # round so it lands AFTER the current solicit was sent. Such an idle
+        # cannot possibly be a response to the current solicit — minting a
+        # fresh-id corrective for it triggers the perpetual 1-round-lag race
+        # this guard exists to prevent. Compare timestamps to tell the cases
+        # apart; "true post-solicit silence" is the only case that warrants
+        # the corrective.
+        if wake is a payload-less idle_notification
+           AND idle.timestamp < solicit_sent_at:
+            → stale prior-round idle: ignore SILENTLY, stay awaiting
+              expected_request_id (do NOT mint a corrective; the current
+              solicit may still be unread by the planner)
+        else:
+            → reply-contract failure for the current expected_request_id:
+              §1 corrective + escalation
     elif reqid < expected_request_id:
         → stale leftover from a prior round: ignore content regardless of payload;
           do NOT count it as the reply; do NOT run the §1 corrective for it;
@@ -140,7 +156,8 @@ else:
           (path = entire remaining string, verbatim) and the no-prose rule.
           On body echo / added prose / preamble / different path → §1 corrective + escalation.
           On pass → MESSAGE ACCEPTED: immediately set
-            expected_request_id = null, awaiting_planner_reply = false
+            expected_request_id = null, awaiting_planner_reply = false,
+            solicit_sent_at = null
           then run the file/structure check (= PLAN VALIDATION ACCEPTED stage)
     else:  # reqid > expected_request_id
         → impossible (lead is sole id source) → protocol violation
@@ -151,6 +168,6 @@ else:
 
 - (i) a reply whose `reqid == expected_request_id` → handled by the expected branch (candidate genuine reply);
 - (ii) another stale-id reply → ignore again, stay waiting;
-- (iii) a payload-less idle notification OR any non-matching / no-`WROTE:` wake while still waiting → run the existing empty-idle / reply-contract corrective round-trip, which itself mints a FRESH id (per §1/§3) and sets `expected_request_id` to that fresh id; the planner's reply to that corrective is then matched against the fresh id.
+- (iii) a payload-less idle notification with `idle.timestamp >= solicit_sent_at` (the Phase 2 stale-idle guard above already ignored any idle with `idle.timestamp < solicit_sent_at`, so those never enter this branch) OR any non-matching / no-`WROTE:` wake while still waiting → run the existing empty-idle / reply-contract corrective round-trip, which itself mints a FRESH id (per §1/§3), sets `expected_request_id` to that fresh id, and records a fresh `solicit_sent_at`; the planner's reply to that corrective is then matched against the fresh id.
 
 Do NOT promise progress in the absence of a wake: there is no poll/wait primitive — the lead only acts when a turn is delivered, and on that turn it routes via either the matching `expected_request_id` reply or a fresh-id corrective round-trip.
