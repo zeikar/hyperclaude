@@ -102,10 +102,14 @@ Per-feature plans for later versions live in `.hyperclaude/plans/` (gitignored �
    /hyperclaude:hyper-research add OAuth login to the API   # Codex+Claude prior-art / pitfalls
    /hyperclaude:hyper-plan                                  # Claude writes .hyperclaude/plans/<slug>.md
    /hyperclaude:hyper-plan-review                            # Codex critiques the plan
-   #   → Claude implements
+   /hyperclaude:hyper-implement                             # Claude executes the plan task-by-task
    /hyperclaude:hyper-code-review                            # Codex reviews the diff (branch vs main)
    /hyperclaude:hyper-docs-sync uncommitted                  # Claude updates docs for the change
    /hyperclaude:hyper-docs-review                            # Codex accuracy gate on docs
+
+   # Or let the autonomous loops self-converge in one gesture:
+   /hyperclaude:hyper-plan-loop add OAuth login to the API   # plan → Codex review → revise, looped
+   /hyperclaude:hyper-implement-loop <plan path>             # implement → Codex code-review → fix, looped
    ```
 
    Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. Per-step targets (`uncommitted`, `<commit-sha>`, a docs subdir), `--resume` for token-cheap re-runs, and the autonomous `hyper-plan-loop` (plan → review → revise in one gesture) are all covered in [docs/workflow.md](docs/workflow.md).

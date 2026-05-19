@@ -236,10 +236,14 @@ Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex   
             <pre class="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-green-300 font-mono overflow-x-auto"><code id="code-cycle">/hyperclaude:hyper-research add OAuth login to the API   # Codex+Claude prior-art / pitfalls
 /hyperclaude:hyper-plan                                  # Claude writes .hyperclaude/plans/&lt;slug&gt;.md
 /hyperclaude:hyper-plan-review                            # Codex critiques the plan
-#   → Claude implements
+/hyperclaude:hyper-implement                             # Claude executes the plan task-by-task
 /hyperclaude:hyper-code-review                            # Codex reviews the diff (branch vs main)
 /hyperclaude:hyper-docs-sync uncommitted                  # Claude updates docs for the change
-/hyperclaude:hyper-docs-review                            # Codex accuracy gate on docs</code></pre>
+/hyperclaude:hyper-docs-review                            # Codex accuracy gate on docs
+
+# Or let the autonomous loops self-converge in one gesture:
+/hyperclaude:hyper-plan-loop add OAuth login to the API   # plan → Codex review → revise, looped
+/hyperclaude:hyper-implement-loop &lt;plan path&gt;             # implement → Codex code-review → fix, looped</code></pre>
             <button
               data-copy-target="code-cycle"
               class="copy-btn absolute top-2 right-2 px-2.5 py-1 text-xs font-medium rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900"
