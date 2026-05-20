@@ -1,6 +1,6 @@
 ---
 name: hyper-code-review
-description: Run a Codex code review on the current branch, working tree, or a specific commit. Use when the user invokes /hyperclaude:hyper-code-review, or after producing code changes and you want a Codex critique. Distinct from /hyperclaude:hyper-plan-review (which critiques plans, not code).
+description: Use after producing code changes that should be critiqued — before commit or merge. Also when the user invokes /hyperclaude:hyper-code-review. Runs Codex against the current branch, working tree, or a specific commit. Distinct from /hyperclaude:hyper-plan-review (plans, not code).
 ---
 
 # hyper-code-review

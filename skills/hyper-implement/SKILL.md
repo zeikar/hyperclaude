@@ -1,6 +1,6 @@
 ---
 name: hyper-implement
-description: Execute a plan task-by-task using fresh subagents, with spec compliance + code quality reviews between tasks. Use when the user invokes /hyperclaude:hyper-implement, or when about to start a multi-task implementation from a plan in .hyperclaude/plans/. Skip for single-step trivia or fast prototyping.
+description: Use when about to execute a multi-task plan from .hyperclaude/plans/. Also when the user invokes /hyperclaude:hyper-implement. Runs each task in a fresh subagent with spec-compliance and code-quality gates between tasks.
 ---
 
 # hyper-implement

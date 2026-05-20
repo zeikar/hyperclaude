@@ -1,12 +1,9 @@
 # Session-Start Workflow Router
 
-Route your intent to the right hyper-* skill. Use this table as a quick reminder when starting work.
+Multi-step hyper-* chains. Single-skill triggers (hyper-code-review, hyper-docs-review, hyper-tdd, hyper-debug used on their own) fire from their own skill descriptions — this table only lists chained workflows.
 
 | User intent / trigger | Recommended workflow |
 |---|---|
-| "let's plan" / new non-trivial task | hyper-research (optional) → hyper-plan → hyper-plan-review → revise plan if review flags blockers → hyper-implement (or use hyper-plan-loop for an autonomous plan-revise cycle) |
-| "review this code" / before commit | hyper-code-review |
-| code changed / docs may be stale | hyper-docs-sync → hyper-docs-review |
-| docs-only edit / after docs change | hyper-docs-review |
-| about to write behavior-bearing code | hyper-tdd |
-| debugging / bug / test failure | hyper-debug |
+| Planning a non-trivial task | hyper-research (optional) → hyper-plan → hyper-plan-review → revise if blockers → hyper-implement. Autonomous variant: **hyper-plan-loop** (plan ↔ review cycle). |
+| Executing a plan | hyper-implement → hyper-code-review → fix findings. Autonomous variant: **hyper-implement-loop** (implement ↔ review ↔ fix cycle). |
+| Code changed → docs may be stale | hyper-docs-sync → hyper-docs-review |

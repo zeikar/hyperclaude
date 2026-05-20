@@ -1,6 +1,6 @@
 ---
 name: hyper-plan-loop
-description: Autonomous plan → Codex-review → revise loop in one gesture. Use when the user invokes /hyperclaude:hyper-plan-loop, or wants a plan generated and critic-hardened end-to-end without manually chaining /hyperclaude:hyper-plan and /hyperclaude:hyper-plan-review. Skip for one-step tasks (dispatch the implementer agent directly), when you want manual control over each plan / review round (use /hyperclaude:hyper-plan + /hyperclaude:hyper-plan-review), or when the experimental agent-teams feature is unavailable.
+description: Use when a plan should be produced and critic-hardened in one gesture — plan → Codex review → revise, repeated until clean. Also when the user invokes /hyperclaude:hyper-plan-loop. For manual round-by-round control use /hyperclaude:hyper-plan + /hyperclaude:hyper-plan-review instead. Requires the experimental agent-teams feature.
 ---
 
 # hyper-plan-loop

@@ -1,11 +1,18 @@
 ---
 name: hyper-debug
-description: Applies systematic debugging discipline when a test fails, code throws, or behavior diverges from expectation. Use when the user invokes /hyperclaude:hyper-debug, or the moment something is unexpectedly broken. Skip for "I know what's wrong" one-line fixes; this skill is for when the cause is not immediately obvious.
+description: Use when encountering a test failure, exception, regression, or unexpected behavior — before proposing fixes. Also when the user invokes /hyperclaude:hyper-debug. Forms hypotheses systematically instead of guess-and-check thrashing.
 ---
 
 # hyper-debug
 
 Debugging discipline tailored to this author's preferences.
+
+## Skip when
+
+- You already know the exact line and exact fix (typo, missing import, obvious null check). Just fix it.
+- The "bug" is a one-character correction that doesn't merit a hypothesis.
+
+If you catch yourself rationalizing ("the cause is probably X, let me just try…") — that's hypothesis stacking. Run the cycle.
 
 ## The cycle
 

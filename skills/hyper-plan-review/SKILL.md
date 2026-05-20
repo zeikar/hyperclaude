@@ -1,6 +1,6 @@
 ---
 name: hyper-plan-review
-description: Run Codex critique on an implementation plan. Use when the user invokes /hyperclaude:hyper-plan-review, after Claude has produced a plan that should be sanity-checked before execution. Skip when no plan exists yet — run /hyperclaude:hyper-plan first.
+description: Use after a plan exists in .hyperclaude/plans/ and should be sanity-checked before execution. Also when the user invokes /hyperclaude:hyper-plan-review. Runs Codex critique on the plan — distinct from /hyperclaude:hyper-code-review (code, not plans).
 ---
 
 # hyper-plan-review

@@ -1,6 +1,6 @@
 ---
 name: hyper-research
-description: Run pre-implementation research on a task — by default both Codex and Claude in parallel, producing two artifacts. Use when the user invokes /hyperclaude:hyper-research, or when starting a non-trivial implementation and you want prior-art / pitfalls / recommendations before designing. Skip for one-line fixes or when a recent research artifact already covers the task.
+description: Use when starting a non-trivial task and want prior-art, pitfalls, or recommendations before designing. Also when the user invokes /hyperclaude:hyper-research. Runs Codex and Claude in parallel by default, producing two artifacts in .hyperclaude/research/.
 ---
 
 # hyper-research

@@ -1,6 +1,6 @@
 ---
 name: hyper-plan
-description: Generate an ordered, bite-sized plan via the planner agent and save it to .hyperclaude/plans/. Use when the user invokes /hyperclaude:hyper-plan, or when about to start a non-trivial implementation that needs a plan for /hyperclaude:hyper-plan-review to critique and /hyperclaude:hyper-implement to execute. Skip for one-step tasks (dispatch the implementer agent directly).
+description: Use when about to start a non-trivial implementation that needs decomposition before coding. Also when the user invokes /hyperclaude:hyper-plan. Produces an ordered, bite-sized plan in .hyperclaude/plans/ — the input for /hyperclaude:hyper-plan-review and /hyperclaude:hyper-implement.
 ---
 
 # hyper-plan

@@ -1,6 +1,6 @@
 ---
 name: hyper-implement-loop
-description: Autonomous implement → Codex code-review → fix loop in one gesture. Use when the user invokes /hyperclaude:hyper-implement-loop, or wants implementation executed and critic-hardened end-to-end without manually chaining /hyperclaude:hyper-implement and /hyperclaude:hyper-code-review. Skip for one-step tasks (use /hyperclaude:hyper-implement directly), when you want manual control over each implement / review round (use /hyperclaude:hyper-implement + /hyperclaude:hyper-code-review), or when the experimental agent-teams feature is unavailable.
+description: Use when a plan should be executed end-to-end and critic-hardened in one gesture — implement → Codex code-review → fix, repeated until clean. Also when the user invokes /hyperclaude:hyper-implement-loop. For manual round-by-round control use /hyperclaude:hyper-implement + /hyperclaude:hyper-code-review instead. Requires the experimental agent-teams feature.
 ---
 
 # hyper-implement-loop

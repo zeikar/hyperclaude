@@ -1,6 +1,6 @@
 ---
 name: hyper-docs-review
-description: Run Codex accuracy review on documentation. Use when the user invokes /hyperclaude:hyper-docs-review or after the documenter agent edits docs. Distinct from /hyperclaude:hyper-code-review (which critiques code diffs) and /hyperclaude:hyper-plan-review (which critiques plans). Scope is strict: accuracy, drift, completeness, broken links, cross-doc inconsistencies — NOT prose or style. Skip when docs haven't changed or you want a prose/style review.
+description: Use after documentation edits — typically after the documenter agent runs, or when the user invokes /hyperclaude:hyper-docs-review. Runs Codex for accuracy, drift, completeness, broken links, cross-doc inconsistencies — NOT prose or style. Distinct from /hyperclaude:hyper-code-review (code diffs) and /hyperclaude:hyper-plan-review (plans).
 ---
 
 # hyper-docs-review

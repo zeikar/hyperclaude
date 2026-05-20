@@ -1,6 +1,6 @@
 ---
 name: hyper-docs-sync
-description: Sync documentation to reflect recent code changes. Use when the user invokes /hyperclaude:hyper-docs-sync, or after non-trivial implementation that affects documented API, schemas, CLI flags, or architecture. Skip pure refactors with no behavioral change, or when docs are already up to date.
+description: Use after implementation changes documented API, schemas, CLI flags, or architecture — before docs go stale. Also when the user invokes /hyperclaude:hyper-docs-sync. Syncs docs to the current code state.
 ---
 
 # hyper-docs-sync
