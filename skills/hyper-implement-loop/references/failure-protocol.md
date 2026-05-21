@@ -8,16 +8,24 @@ These fill the shared `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` bindin
 
 - **Teammate role-name:** `fixer`.
 - **Reply-token-with-id shape** (binds the shared §E "parse leading `<loop-bound reply-token-with-id>`" hole): `request-id: <integer>` on the FIRST non-blank line of the reply body. The integer is the `<reqid>` for shared §E classification. The rest of the body is the structured findings schema; correctives re-enter the full §1 / §3 pipeline (same accept rule), they do NOT relax it. (Note: §B's idle-correction tolerates a content-free "ok, waiting" ack ONCE — but that is an unsolicited-message tolerance handled at the §B layer, NOT a relaxation of this accept rule.)
-- **Accept rule** (binds the shared §E "loop-bound accept rule" hole): the structured-schema requirements from §1 (every cited finding has its own `finding:` / `status:` / `files-changed:` / `verification:` / `notes:` block; `status` ∈ {`fixed`, `not-applicable`}; `notes:` required when `status: not-applicable`; no diff dump / no patch block / no source-body echo) PLUS the new `request-id: <id>` first-line check (the `<integer>` must equal `expected_request_id`). The `request-id: <id>` line is the loop's "exact-path-equivalent" — without it, the gate fails.
+- **Accept rule** (binds the shared §E "loop-bound accept rule" hole): (a) id-classification routing per §1's pre-gate paragraph (older → stale branch, future → teardown, absent/malformed → corrective, matching → continue); THEN (b) the structured-schema requirements from §1's schema gate (every cited finding has its own `finding:` / `status:` / `files-changed:` / `verification:` / `notes:` block; `status` ∈ {`fixed`, `not-applicable`}; `notes:` required when `status: not-applicable`; no diff dump / no patch block / no source-body echo). Id-classification is the outer wrapper — the schema gate only fires on a matching id.
 - **Post-acceptance validation stage** (binds the shared §E "loop-bound post-acceptance validation" hole): the semantic finding-map check from §3 (every cited blocking finding maps to `status: fixed` OR `status: not-applicable` with a non-empty `notes:` reason).
 - **Named-loop-report strings** (bind the shared `<loop-name>` placeholder): `hyper-implement-loop reply-contract failure`, `hyper-implement-loop fixer format, iter N`, `hyper-implement-loop teardown`, `hyper-implement-loop unparseable review, iter N`, `hyper-implement-loop bridge failure, iter N`, `hyper-implement-loop fix loop`.
 - **State-field name reminder:** the shared file calls the awaiting-state field `awaiting_reply`; implement-loop's SKILL.md uses that exact name (added in Task 10).
 
 ## §1 — Anchored reply gate: corrective + escalation
 
-The anchored reply gate (SKILL.md Step 7) is the accept condition for EVERY fixer reply to a Step 7 findings `SendMessage` (the first fix round, any retry, and every Step 7 redo). The spawn-time state carries no deliverable and is governed by §2 (which now points at shared §B), not this gate. The gate is evaluated BEFORE the §3 semantic finding-map check. A fixer reply **FAILS** the anchored gate if any of the following are true:
+The anchored reply gate (SKILL.md Step 7) is the accept condition for EVERY fixer reply to a Step 7 findings `SendMessage` (the first fix round, any retry, and every Step 7 redo). The spawn-time state carries no deliverable and is governed by §2 (which now points at shared §B), not this gate.
 
-- The FIRST non-blank line is not `request-id: <integer>` where `<integer> == expected_request_id` (per shared §E Phase 2 classification). This first-line check IS the loop's id-classification step; failures here include missing the prefix, malformed integer, and mismatched id.
+**Pre-gate id-classification routing (shared §E Phase 1 / Phase 2 — do this FIRST, before evaluating the schema gate):** parse the leading `request-id: <int>` token from the FIRST non-blank line of the fixer reply and route:
+
+- **Older id (`reqid < expected_request_id`)** → shared §E Phase 2 stale branch: ignore the reply content entirely and execute the stale-recovery sub-step. Do NOT invoke the schema gate.
+- **Future id (`reqid > expected_request_id`)** → shared §E protocol violation: go to Step 8 teardown, then STOP (**"hyper-implement-loop teardown"**). Do NOT invoke the schema gate.
+- **Absent or malformed prefix** (first non-blank line is not `request-id: <integer>`, or `<integer>` is not a valid integer) → reply-contract failure: mint a fresh corrective id per shared §E mint protocol, then send ONE corrective per the template below. The schema gate does NOT fire — this is the "absent/garbled reply-token" branch from shared §E.
+- **Matching id (`reqid == expected_request_id`)** → proceed to the schema gate below.
+
+**Schema gate (only on matching id):** the gate is evaluated AFTER id-classification confirms a matching id, and BEFORE the §3 semantic finding-map check. A fixer reply **FAILS** the schema gate if any of the following are true:
+
 - It has no per-finding block (the structured-schema fields are entirely absent).
 - It is missing a block for any cited finding (every cited finding must have its own `finding:` / `status:` / `files-changed:` / `verification:` / `notes:` block).
 - Any `status:` value is not exactly `fixed` or `not-applicable` (no synonyms, no extra words).
@@ -45,7 +53,7 @@ See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §B — Unsolicited-mess
 
 ## §3 — Fix-validation redo pipeline (Step 7 failure handling)
 
-**The ordered pipeline** every fixer reply must pass (this order is named inline in SKILL.md Step 7): (1) **anchored structured-schema reply gate** (§1, which now includes the `request-id: <id>` first-line check) → (2) **semantic finding-map check**: the lead reads the fixer reply and confirms that EVERY cited blocking finding maps to `status: fixed` OR `status: not-applicable` with a non-empty `notes:` reason.
+**The ordered pipeline** every fixer reply must pass (this order is named inline in SKILL.md Step 7): (1) **id-classification routing** (§1 pre-gate: parse `request-id: <int>` prefix; route per shared §E Phase 1 / Phase 2 — older = stale-recovery, future = teardown, absent/malformed = corrective) → (2) **anchored structured-schema reply gate** (§1 schema gate, on matching id only — schema requirements per §1) → (3) **semantic finding-map check**: the lead reads the fixer reply and confirms that EVERY cited blocking finding maps to `status: fixed` OR `status: not-applicable` with a non-empty `notes:` reason.
 
 There is **NO git-working-tree / no-op / `.bak` / restore mechanism**. A fixer that applies no real change is bounded by the Step 8 cap (the loop re-reviews and re-issues findings until convergence or the cap, then STOPs with the cap report) — reasserting a git-diff gate here is an anti-pattern and is intentionally not a separate failure path.
 
