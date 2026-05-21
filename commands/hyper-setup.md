@@ -19,7 +19,7 @@ The five checks:
 2. **codex-cli >= 0.130.0 on PATH** — severity: hard. Version-floor check only (no capability probe). The bridge spawns `codex exec`; the tool must be present and at a known-good version.
 3. **git on PATH** — severity: hard. The bridge reads git state for slug generation and diff targets.
 4. **`codex --search` global flag (pre-subcommand)** — severity: hard. The bridge passes `--search` as a global flag before the subcommand on every Codex spawn; codex-cli must accept `codex --search exec --help` (exit 0).
-5. **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`** — severity: conditional. Required by `hyper-plan-loop` and `hyper-implement-loop`. Its absence is a WARN, never a hard failure — the full research→plan→implement flow works without it.
+5. **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`** — severity: conditional. Required by `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-auto` (which chains both). Its absence is a WARN, never a hard failure — the full research→plan→implement flow works without it.
 
 ## Reporting directive
 

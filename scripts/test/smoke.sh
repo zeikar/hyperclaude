@@ -199,6 +199,7 @@ for f in \
   skills/hyper-debug/SKILL.md \
   skills/hyper-implement/SKILL.md \
   skills/hyper-implement-loop/SKILL.md \
+  skills/hyper-auto/SKILL.md \
   skills/hyper-code-review/SKILL.md \
   skills/hyper-docs-sync/SKILL.md \
   skills/hyper-docs-review/SKILL.md \
@@ -481,7 +482,24 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
 
-  10. Run (in a fresh Claude Code session):
+  10. Run:
+       /hyperclaude:hyper-auto <small task description>
+     If agent teams are available: verify that the skill chains
+     hyper-plan-loop → hyper-implement-loop in one gesture — plan-loop
+     runs to terminal state first, and ONLY a clean exit (no Blocker /
+     Major; cleanup branch ok) advances into implement-loop with the
+     canonical plan path. Verify the safety boundary: artificially
+     induce or simulate a plan-loop non-clean terminal (cap-reached or
+     revise-regression) and confirm implement-loop is NOT invoked.
+     Verify the final report relays both phases' Step 9 facts (no
+     invented fields), with the composed-flow exception: plan-loop's
+     clean-exit "Next step: /hyperclaude:hyper-implement <plan path>"
+     recommendation is suppressed (implement already ran in Step 3) so
+     the surfaced next-step is the implement-loop's own guidance.
+     If agent teams are unavailable: verify the inherited graceful
+     fallback fires before any inner loop spawns a team.
+
+  11. Run (in a fresh Claude Code session):
        /hyperclaude:hyper-setup
      Verify it runs the doctor probe, renders a per-prerequisite
      pass/fail table with remediation lines for any non-PASS check,

@@ -91,7 +91,7 @@ After the automated checks it prints a manual acceptance checklist for running e
 
 Symlink the repo into Claude Code's plugin cache so edits are picked up live. Use the version from [.claude-plugin/plugin.json](../.claude-plugin/plugin.json) as the leaf directory name:
 
-Note: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is optional and only needed to dogfood `hyper-plan-loop` (the autonomous plan-revise loop skill) and `hyper-implement-loop` (the autonomous implement-hardening loop skill). All other skills work without it.
+Note: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is optional and only needed to dogfood `hyper-plan-loop` (the autonomous plan-revise loop skill), `hyper-implement-loop` (the autonomous implement-hardening loop skill), and `hyper-auto` (which chains both inner loops and inherits the requirement). All other skills work without it.
 
 ```bash
 version=$(node -e 'console.log(require("./.claude-plugin/plugin.json").version)')

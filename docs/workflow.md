@@ -2,7 +2,7 @@
 
 The end-to-end cycle hyperclaude is built around. This is the dogfooding loop the author actually runs to ship its own releases.
 
-Before running any gate for the first time, run `/hyperclaude:hyper-setup` to diagnose host prerequisites (Node 18+, codex-cli >= 0.130.0, git, and the optional `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var for `hyper-plan-loop` and `hyper-implement-loop`).
+Before running any gate for the first time, run `/hyperclaude:hyper-setup` to diagnose host prerequisites (Node 18+, codex-cli >= 0.130.0, git, and the optional `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var for `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-auto` which chains both).
 
 For per-skill mechanics, see [gates-and-agents.md](gates-and-agents.md). For the bridge details, see [architecture.md](architecture.md).
 
@@ -77,6 +77,8 @@ Fix loops happen inline — reviewer ❌ → implementer fixes → re-review. Th
 When to skip the skill: one-step plans (just dispatch `implementer` directly), tightly-coupled tasks that benefit from shared context, or fast prototyping.
 
 **Autonomous alternative:** `/hyperclaude:hyper-implement-loop` combines steps 4–5 into a single gesture — it creates the team FIRST (the `TeamCreate` probe is what makes an agent-teams-unavailable host fail as a clean no-op before any tree mutation), runs `hyper-implement` to completion (boundary A; hyper-implement's own optional final code-review is suppressed so the loop's first review is the single authoritative one), then spawns the `fixer` agent as a persistent teammate — only *after* implementation finishes, since spawning earlier buys no context (hyper-implement builds with its own fresh subagents the fixer never observes) — then invokes Codex `code-review --base main` via the bridge, sends blocking findings to the fixer via SendMessage, and repeats until no blocking findings remain (6-review cap). Both `hyper-implement` + `hyper-code-review` and `hyper-implement-loop` are available; use whichever fits your workflow. `hyper-implement-loop` requires Claude Code's experimental agent-teams feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`).
+
+**Full-chain alternative:** `/hyperclaude:hyper-auto <task>` chains steps 2–3 (plan-loop) into steps 4–5 (implement-loop) in one gesture — it runs `hyper-plan-loop` to terminal state, branches on the result (clean exit proceeds; cap-reached / terminal revise-regression / any other terminal failure stops without entering the implement phase, so the implement budget is never spent on a non-converged plan), then runs `hyper-implement-loop` against the canonical plan path. Use when you want plan-harden + implement-harden without manually invoking each. Inherits both inner loops' agent-teams requirement.
 
 ## 5. Code review — Codex critiques the diff
 
