@@ -1,6 +1,6 @@
 # Loop protocol — shared reference
 
-This file is the shared cross-loop protocol reference, loaded at Step 0 by `hyper-plan-loop`; other loop skills bind to it as they're updated. Each consuming loop's local `failure-protocol.md` is the binding layer that names the teammate role, the reply-token shape, the anchored-reply acceptance rule, and the post-MESSAGE-ACCEPTED validation stage. Consult the loop's local `failure-protocol.md` for those values.
+This file is the shared cross-loop protocol reference, loaded at Step 0 by `hyper-plan-loop` and `hyper-implement-loop`; other loop skills bind to it as they're updated. Each consuming loop's local `failure-protocol.md` is the binding layer that names the teammate role, the reply-token shape, the anchored-reply acceptance rule, and the post-MESSAGE-ACCEPTED validation stage. Consult the loop's local `failure-protocol.md` for those values.
 
 ## §A — Agent-teams tool contract
 
