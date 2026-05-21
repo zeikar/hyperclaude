@@ -484,6 +484,12 @@ else
   miss "hyper-implement-loop SKILL.md: stale 'awaiting_planner_reply' field name present"
 fi
 
+if grep -q 'expected_request_id' "$il_skill" 2>/dev/null; then
+  ok "hyper-implement-loop SKILL.md: 'expected_request_id' field present"
+else
+  miss "hyper-implement-loop SKILL.md: 'expected_request_id' field missing"
+fi
+
 if grep -q 'solicit_sent_at' "$il_skill" 2>/dev/null; then
   ok "hyper-implement-loop SKILL.md: 'solicit_sent_at' field present"
 else
@@ -501,6 +507,29 @@ if grep -q 'request-id:' "$il_fp" 2>/dev/null; then
 else
   miss "hyper-implement-loop failure-protocol.md: 'request-id:' gate binding missing"
 fi
+
+if grep -q 'request_id_counter' "$il_fp" 2>/dev/null; then
+  ok "hyper-implement-loop failure-protocol.md: 'request_id_counter' field reference present"
+else
+  miss "hyper-implement-loop failure-protocol.md: 'request_id_counter' field reference missing"
+fi
+
+if grep -q 'expected_request_id' "$il_fp" 2>/dev/null; then
+  ok "hyper-implement-loop failure-protocol.md: 'expected_request_id' field reference present"
+else
+  miss "hyper-implement-loop failure-protocol.md: 'expected_request_id' field reference missing"
+fi
+
+if grep -q 'awaiting_reply' "$il_fp" 2>/dev/null; then
+  ok "hyper-implement-loop failure-protocol.md: 'awaiting_reply' field reference present"
+else
+  miss "hyper-implement-loop failure-protocol.md: 'awaiting_reply' field reference missing"
+fi
+# Note: solicit_sent_at is intentionally NOT checked in failure-protocol.md.
+# It's a shared-§E-only field used inside the stale-idle guard pseudo-code;
+# the local binding routes through §E without needing to reference it by name.
+# SKILL.md does reference solicit_sent_at (in the Step 7 mint paragraph) and
+# that assertion is above ('hyper-implement-loop SKILL.md: solicit_sent_at field present').
 
 if ! grep -q 'request-id:' agents/fixer.md 2>/dev/null; then
   ok "agents/fixer.md: 'request-id:' NOT encoded in general agent (loop-injected only)"
