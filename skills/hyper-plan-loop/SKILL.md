@@ -19,7 +19,7 @@ Skip when:
 
 ## Failure & recovery protocol — read first
 
-`references/failure-protocol.md` carries the recovery procedures invoked at this skill's decision points: §1 anchored-gate corrective, §2 unsolicited-message protocol, §3 revise-validation redo pipeline, §4 teardown recovery, §5 full anti-pattern list. These are load-bearing, not optional troubleshooting — Step 0 makes Reading it mandatory before the loop starts, so the full protocol is in context when its conditions arise.
+`${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` carries the shared cross-loop protocol — team contract shapes (§A), unsolicited-message protocol skeleton (§B), teardown procedure (§C), shared anti-patterns (§D), abstract request-id state machine (§E). `references/failure-protocol.md` (sibling of this file) is the plan-loop binding layer: it names this loop's reply-token shape (`WROTE: <id> <path>`), accept regex, post-acceptance file/structure validation, and plan-loop-specific anti-patterns. Step 0 makes Reading BOTH mandatory before the loop starts.
 
 ## Agent-teams tool contract
 
@@ -35,17 +35,12 @@ This skill uses the experimental agent-teams tools. The per-run team name is pas
 **Planner request id.** Every lead→planner solicitation carries a per-run, lead-owned, monotonically increasing integer id. The lead is the SOLE id source — the planner only echoes it. The counter increments on EVERY solicitation: spawn = 1, each Step 7 revise = +1, each Step 7a cleanup = +1, AND every §1/§3 corrective redo — anchored-gate corrective AND file-check corrective alike — gets its OWN new id (a corrective is a fresh solicitation; reusing the prior id reintroduces the blind spot). The `shutdown_request` object message is EXEMPT (no id).
 
 The lead must retain the following run-state across turns and never conflate these fields:
+
 - `team_name` — the per-run unique team name.
 - `plan_path` — the resolved canonical plan path from Step 1.
-- `request_id_counter` — the last id minted (initialized to `0`; incremented on every solicitation as above).
-- `expected_request_id` — the id of the outstanding solicitation the lead is currently waiting on; `null` when the lead is not awaiting any reply (e.g. while running Codex review).
-- `awaiting_planner_reply` — boolean: `true` ONLY between minting a solicitation and accepting its reply.
-- `solicit_sent_at` — UTC wall-clock timestamp captured by the lead IMMEDIATELY BEFORE invoking the SendMessage carrying the current outstanding solicitation: run `date -u +%FT%TZ` (via the Bash tool) as the LAST tool call before that SendMessage and store its output verbatim. The assistant-turn start timestamp is NOT a valid substitute — a long turn can elapse minutes (typically a Codex review) between turn-start and the next SendMessage, during which a payload-less idle could be emitted with `idle.timestamp > assistant-turn-start` but still `< actual-SendMessage time`, leaving the guard mis-comparing and the stale-idle race unplugged. `null` when not awaiting. Used by `references/failure-protocol.md` §6 Phase 2 to distinguish a stale prior-round idle (`idle.timestamp < solicit_sent_at`) from a true post-solicit silence — the dogfooded failure mode this field was added to plug.
-- `review_iteration` — bridge re-invocation count, independent of the id counter.
+- `awaiting_reply`, `request_id_counter`, `expected_request_id`, `solicit_sent_at`, `review_iteration` — these are the cross-loop state-machine fields. Lifecycle and semantics (mint protocol, MESSAGE ACCEPTED / POST-ACCEPTANCE VALIDATION ACCEPTED acceptance stages, Phase 1 / Phase 2 routing, stale-recovery) are defined in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E (single source of truth); this loop binds to them by name.
 
-The request-id counter and `review_iteration` are SEPARATE counters: the id bumps on every solicitation including correctives; the iteration only on bridge re-invocation.
-
-On minting any solicitation: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true`, and immediately before the SendMessage call, capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (the field-definition rule above is binding — assistant-turn start is NOT valid); the two acceptance stages **MESSAGE ACCEPTED** (clears `expected_request_id`/`awaiting_planner_reply`/`solicit_sent_at`) and **PLAN VALIDATION ACCEPTED** (file/structure check), the not-awaiting `id <= request_id_counter` = stale / `id > request_id_counter` = protocol-violation rules, and the full two-phase state machine are specified in `references/failure-protocol.md` §6 (authoritative — not duplicated here).
+Mint protocol, lifecycle, and phase classification: see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E. The `references/failure-protocol.md` (sibling) carries the plan-loop binding declarations (reply-token shape `WROTE: <id> <path>`, exact-path accept regex, file/structure post-acceptance validation).
 
 ## How to invoke
 
@@ -59,7 +54,7 @@ On minting any solicitation: `request_id_counter += 1`, `expected_request_id = r
 
 ### Step 0 — Read the failure & recovery protocol
 
-Before any team creation, Read `references/failure-protocol.md` (sibling of this file) into context. It is **mandatory** — the loop's failure branches reference its sections by number and the lead must follow them verbatim when reached.
+Before any team creation, Read both protocol files into context: (1) `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` — the shared cross-loop protocol; (2) `references/failure-protocol.md` (sibling of this file) — the plan-loop binding + plan-loop-specific recoveries. Both are mandatory — the loop's failure branches reference sections by number (shared §A–§E and local §1–§5) and the lead must follow them verbatim when reached.
 
 ### Step 1 — Resolve task + slug + plan path
 
@@ -92,7 +87,7 @@ Then:
 TeamCreate({ team_name: "<the run-unique name computed above>", description: "plan generation + Codex plan-review revise loop" })
 ```
 
-Initialize and record the following run-state fields alongside `team_name` (the Step 3 spawn will mint id `1`): `request_id_counter = 0`, `expected_request_id = null`, `awaiting_planner_reply = false`, `solicit_sent_at = null`.
+Initialize and record the following run-state fields alongside `team_name` (the Step 3 spawn will mint id `1`): `request_id_counter = 0`, `expected_request_id = null`, `awaiting_reply = false`, `solicit_sent_at = null`.
 
 Failure handling:
 
@@ -121,7 +116,7 @@ The `prompt` string MUST contain:
 - **Task** — verbatim.
 - **Research context** — full contents of ALL matched research artifacts inline (there may be a Codex + Claude pair), if any were found in Step 1. Do not make the planner re-read them.
 - **Output format** — a multi-task plan with `## Task N: <title>` headings. Each task block: **Files to create / modify** (exact paths), **Steps** (`[ ]`-checkboxes, 2–5 min each), **Verification** (a command or observable change), **Commit message** (one line, conventional-commits). No frontmatter — plan body only; the skill owns the file name.
-- **Write-file mode** — the exact resolved plan path from Step 1, stated literally, with an explicit instruction: use the `Write` tool to write the full plan to THAT EXACT path yourself (never a different path, never a `-v2.md` sibling), then reply with exactly `WROTE: 1 <that exact path>` and NOTHING else — no plan body, no summary of changes, no preamble. (The spawn mints request id `1`: the lead sets `request_id_counter = 1`, `expected_request_id = 1`, `awaiting_planner_reply = true`, and immediately before the Agent-spawn call captures `solicit_sent_at` via a Bash `date -u +%FT%TZ`; the planner must echo that id verbatim.)
+- **Write-file mode** — the exact resolved plan path from Step 1, stated literally, with an explicit instruction: use the `Write` tool to write the full plan to THAT EXACT path yourself (never a different path, never a `-v2.md` sibling), then reply with exactly `WROTE: 1 <that exact path>` and NOTHING else — no plan body, no summary of changes, no preamble. (The spawn mints request id `1`: the lead sets `request_id_counter = 1`, `expected_request_id = 1`, `awaiting_reply = true`, and immediately before the Agent-spawn call captures `solicit_sent_at` via a Bash `date -u +%FT%TZ`; the planner must echo that id verbatim.)
 - **Reply transport (MANDATORY)** — that `WROTE:` reply MUST be delivered by calling `SendMessage({ to: "team-lead", summary: "Plan written request 1", message: "WROTE: 1 <that exact path>" })`. Plain assistant text is NOT visible to the lead, and going idle only emits a payload-less idle notification — so if you merely print `WROTE:` and idle WITHOUT the SendMessage call, the lead never receives the confirmation and the loop stalls until a corrective round-trip. Call `SendMessage` first, then idle. Every later solicitation carries its own id; the planner must echo THAT id verbatim in its reply (e.g. `WROTE: 2 <path>` for id `2`), and the `summary` echoes `request <id>` for human mailbox debugging (the message body stays authoritative). This applies identically to every later revise-round reply.
 - **Idle / no-resend discipline** — after replying `WROTE: <id> <path>`, go idle and wait; do NOT resend, re-announce, or nag. The lead will next contact you only via SendMessage carrying revise findings or a `shutdown_request`, and may take several minutes running Codex review between turns (this is normal). Never re-emit a prior reply.
 - State that the planner stays alive as a teammate, will receive Codex feedback in later turns, and must retain its full planning context.
@@ -135,9 +130,9 @@ The lead no longer Writes the plan — the planner writes the canonical file its
 **Anchored reply gate (id-first summary)** — applies to EVERY planner reply in write-file mode (the initial write, any retry, every Step 7 revise redo, and every Step 7a cleanup reply and redo alike). Classification is id-first, phase-first:
 
 1. **First operation:** parse the leading `WROTE: <integer>` token from the trimmed reply and capture `<reqid>`. Everything after that token is the path payload.
-2. **Classify by `awaiting_planner_reply` FIRST, then by id, BEFORE any exact-path or no-prose check.**
-   - **Not awaiting** (`awaiting_planner_reply == false`): a `WROTE:` with `id <= request_id_counter` is stale/duplicate — ignore SILENTLY (NEVER compare to `expected_request_id`; it is `null` then; NO §2 idle-correction for the stale `WROTE:` itself). Any non-`WROTE:` wake routes via Step 4a/§2.
-   - **Awaiting** (`awaiting_planner_reply == true`): an older id (`reqid < expected_request_id`) is a stale leftover — ignore content, do NOT run the §1 corrective for it, apply the stale-recovery sub-step; a matching id (`reqid == expected_request_id`) enforces the exact accept regex `^WROTE: <expected id> <exact resolved plan path from Step 1>\s*$` (path = entire remaining string, verbatim) plus no-prose rule — on pass → **MESSAGE ACCEPTED** (clear `expected_request_id`, `awaiting_planner_reply`, and `solicit_sent_at`); a future id (`reqid > expected_request_id`) is a protocol violation → Step 8 teardown then STOP.
+2. **Classify by `awaiting_reply` FIRST, then by id, BEFORE any exact-path or no-prose check.**
+   - **Not awaiting** (`awaiting_reply == false`): a `WROTE:` with `id <= request_id_counter` is stale/duplicate — ignore SILENTLY (NEVER compare to `expected_request_id`; it is `null` then; NO §2 idle-correction for the stale `WROTE:` itself). Any non-`WROTE:` wake routes via Step 4a/§2.
+   - **Awaiting** (`awaiting_reply == true`): an older id (`reqid < expected_request_id`) is a stale leftover — ignore content, do NOT run the §1 corrective for it, apply the stale-recovery sub-step; a matching id (`reqid == expected_request_id`) enforces the exact accept regex `^WROTE: <expected id> <exact resolved plan path from Step 1>\s*$` (path = entire remaining string, verbatim) plus no-prose rule — on pass → **MESSAGE ACCEPTED** (clear `expected_request_id`, `awaiting_reply`, and `solicit_sent_at`); a future id (`reqid > expected_request_id`) is a protocol violation → Step 8 teardown then STOP.
 3. After MESSAGE ACCEPTED, run the file/structure check (= **PLAN VALIDATION ACCEPTED** stage). On any body echo, added prose, preamble, or a different path at the matching-id step → §1 corrective + escalation.
 
 **File check (only after the gate passes):** confirm the file is non-empty via the Bash tool:
@@ -156,7 +151,7 @@ Full two-phase state machine, the two acceptance stages, and the stale-recovery 
 
 While the planner is live and BEFORE Step 8 teardown, the only planner message the lead expects is the anchored `WROTE:` reply to the lead's most recent SendMessage (spawn, revise, or corrective). Any other inbound planner message — duplicate body, `RESEND:`-style re-emit, nag, or anything arriving when the lead solicited nothing (including a message auto-delivered after a long Codex-review turn) — is **unsolicited**. Handle it per `references/failure-protocol.md` §2. This lead-side rule is **mandatory** — prompt-only idle discipline (Step 3) is insufficient. The teardown exchange is exempt (a `shutdown_response` after `shutdown_request` is expected, never a violation).
 
-**Phase-aware cross-reference:** while AWAITING (`awaiting_planner_reply == true`), a `WROTE:` whose `reqid < expected_request_id` is handled by §6's stale branch (ignore content + stale-recovery sub-step), NOT routed through §2; while NOT awaiting (`awaiting_planner_reply == false`), a `WROTE:` with `id <= request_id_counter` is ignored SILENTLY (NO §2 idle-correction for the stale `WROTE:` itself), while all non-`WROTE:` traffic IS routed through Step 4a/§2; §2 still governs the post-corrective idle case. See `references/failure-protocol.md` §6 (state machine) and §2 (interplay).
+**Phase-aware cross-reference:** while AWAITING (`awaiting_reply == true`), a `WROTE:` whose `reqid < expected_request_id` is handled by §6's stale branch (ignore content + stale-recovery sub-step), NOT routed through §2; while NOT awaiting (`awaiting_reply == false`), a `WROTE:` with `id <= request_id_counter` is ignored SILENTLY (NO §2 idle-correction for the stale `WROTE:` itself), while all non-`WROTE:` traffic IS routed through Step 4a/§2; §2 still governs the post-corrective idle case. See `references/failure-protocol.md` §6 (state machine) and §2 (interplay).
 
 ### Step 5 — Plan-review iteration 1 (fresh)
 
@@ -190,7 +185,7 @@ Three successful severity outcomes; the conservative failure branch below is unc
 
 The lead never Reads the plan body into its context here (that would reintroduce the token cost this skill is designed to avoid). Validation is filesystem-level only.
 
-Before sending, increment the id: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true`; immediately before the SendMessage call, capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (the field-definition rule above is binding — assistant-turn start is NOT valid). Pass that new id in the message and in the reply instruction.
+Before sending, increment the id: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_reply = true`; immediately before the SendMessage call, capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (the field-definition rule above is binding — assistant-turn start is NOT valid). Pass that new id in the message and in the reply instruction.
 
 Send the findings to the still-live planner:
 
@@ -206,7 +201,7 @@ SendMessage({
 
 Do NOT re-send the task or research — the planner still holds that context.
 
-**§3 corrective id note:** any §3 redo-pipeline corrective (see `references/failure-protocol.md` §3) also mints its OWN new incremented id (the full mint protocol applies, same as the increment-before-send above: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true`, and `solicit_sent_at` captured via Bash `date -u +%FT%TZ` immediately before the SendMessage call) before sending — the redo reply must echo that newest id, not the failed solicitation's id.
+**§3 corrective id note:** any §3 redo-pipeline corrective (see `references/failure-protocol.md` §3) also mints its OWN new incremented id (the full mint protocol applies, same as the increment-before-send above: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_reply = true`, and `solicit_sent_at` captured via Bash `date -u +%FT%TZ` immediately before the SendMessage call) before sending — the redo reply must echo that newest id, not the failed solicitation's id.
 
 **Revise-validation** — every revise reply must pass, in order: (1) **anchored reply gate** (Step 4) → (2) **structure `ok`/`bad` check**. The single-redo budget, corrective wording, and terminal STOP are specified in `references/failure-protocol.md` §3 — follow it verbatim. The structure check is a one-liner that prints only `ok` or `bad`:
 
@@ -228,7 +223,7 @@ Entered only on Step 6 branch (c): zero Blocker/Major, concrete actionable Minor
 
 **Cap accounting:** this cleanup re-review is the single non-gated review outside the 10-review cap (Step 8); it never affects the Blocker/Major cap-exhaust path.
 
-1. **SendMessage the Minor findings to the still-live planner.** Before sending, increment the id: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true`; immediately before the SendMessage call, capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (the field-definition rule above is binding — assistant-turn start is NOT valid). Send verbatim concrete Minor `### Issues` findings PLUS the relevant actionable `### Verdict` directive text. Do NOT re-send the task or research (planner holds context). Pass that new id in the message and in the reply instruction. Use the SAME reply-transport, anchored reply gate (Step 4), structure `ok`/`bad` check, and single-redo pipeline as Step 7 — reuse the `references/failure-protocol.md` §3 pipeline exactly — do not restate it. (A §3 terminal outcome here proceeds to Step 8 teardown → STOP — Step 8 is mandatory on every post-spawn stop; do not fall through to the passing-reply path below.) SendMessage shape:
+1. **SendMessage the Minor findings to the still-live planner.** Before sending, increment the id: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_reply = true`; immediately before the SendMessage call, capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (the field-definition rule above is binding — assistant-turn start is NOT valid). Send verbatim concrete Minor `### Issues` findings PLUS the relevant actionable `### Verdict` directive text. Do NOT re-send the task or research (planner holds context). Pass that new id in the message and in the reply instruction. Use the SAME reply-transport, anchored reply gate (Step 4), structure `ok`/`bad` check, and single-redo pipeline as Step 7 — reuse the `references/failure-protocol.md` §3 pipeline exactly — do not restate it. (A §3 terminal outcome here proceeds to Step 8 teardown → STOP — Step 8 is mandatory on every post-spawn stop; do not fall through to the passing-reply path below.) SendMessage shape:
 
    ```
    SendMessage({
@@ -240,7 +235,7 @@ Entered only on Step 6 branch (c): zero Blocker/Major, concrete actionable Minor
 
    (Replace `<id>` with the actual integer just minted.)
 
-   **§3 corrective id note:** any §3 redo-pipeline corrective (see `references/failure-protocol.md` §3) also mints its OWN new incremented id (the full mint protocol applies, same as the increment-before-send above: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true`, and `solicit_sent_at` captured via Bash `date -u +%FT%TZ` immediately before the SendMessage call) before sending — the redo reply must echo that newest id, not the failed solicitation's id.
+   **§3 corrective id note:** any §3 redo-pipeline corrective (see `references/failure-protocol.md` §3) also mints its OWN new incremented id (the full mint protocol applies, same as the increment-before-send above: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_reply = true`, and `solicit_sent_at` captured via Bash `date -u +%FT%TZ` immediately before the SendMessage call) before sending — the redo reply must echo that newest id, not the failed solicitation's id.
 
 2. **On a passing reply (gate + structure `ok`),** increment the iteration counter and re-invoke the bridge EXACTLY ONCE via the Bash tool with `timeout: 600000`:
 
