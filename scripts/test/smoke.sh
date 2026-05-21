@@ -455,6 +455,60 @@ else
 fi
 
 echo
+echo "==> hyper-implement-loop reqid promotion assertions"
+
+il_skill="skills/hyper-implement-loop/SKILL.md"
+il_fp="skills/hyper-implement-loop/references/failure-protocol.md"
+
+if grep -q '\${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md' "$il_skill" 2>/dev/null; then
+  ok "hyper-implement-loop SKILL.md: references shared loop-protocol at Step 0"
+else
+  miss "hyper-implement-loop SKILL.md: does not reference shared loop-protocol"
+fi
+
+if grep -q 'request_id_counter' "$il_skill" 2>/dev/null; then
+  ok "hyper-implement-loop SKILL.md: 'request_id_counter' run-state field present"
+else
+  miss "hyper-implement-loop SKILL.md: 'request_id_counter' run-state field missing"
+fi
+
+if grep -q 'awaiting_reply' "$il_skill" 2>/dev/null; then
+  ok "hyper-implement-loop SKILL.md: 'awaiting_reply' field name present"
+else
+  miss "hyper-implement-loop SKILL.md: 'awaiting_reply' field name missing"
+fi
+
+if ! grep -q 'awaiting_planner_reply' "$il_skill" 2>/dev/null; then
+  ok "hyper-implement-loop SKILL.md: stale 'awaiting_planner_reply' field name absent"
+else
+  miss "hyper-implement-loop SKILL.md: stale 'awaiting_planner_reply' field name present"
+fi
+
+if grep -q 'solicit_sent_at' "$il_skill" 2>/dev/null; then
+  ok "hyper-implement-loop SKILL.md: 'solicit_sent_at' field present"
+else
+  miss "hyper-implement-loop SKILL.md: 'solicit_sent_at' field missing"
+fi
+
+if grep -q 'request-id:' "$il_skill" 2>/dev/null; then
+  ok "hyper-implement-loop SKILL.md: 'request-id:' fixer spawn-prompt prefix present"
+else
+  miss "hyper-implement-loop SKILL.md: 'request-id:' fixer spawn-prompt prefix missing"
+fi
+
+if grep -q 'request-id:' "$il_fp" 2>/dev/null; then
+  ok "hyper-implement-loop failure-protocol.md: 'request-id:' gate binding present"
+else
+  miss "hyper-implement-loop failure-protocol.md: 'request-id:' gate binding missing"
+fi
+
+if ! grep -q 'request-id:' agents/fixer.md 2>/dev/null; then
+  ok "agents/fixer.md: 'request-id:' NOT encoded in general agent (loop-injected only)"
+else
+  miss "agents/fixer.md: 'request-id:' encoded in general agent (Major #3 invariant violated)"
+fi
+
+echo
 echo "==> Summary"
 echo "  passed: $pass"
 echo "  failed: $fail"
@@ -561,5 +615,15 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
 If any of the above fails, STOP and fix before shipping.
 ====================================================================
 NOTE
+
+echo
+echo "==> manual acceptance recommended for Phase B reqid promotion"
+echo "   1. Author a tiny throwaway plan (one task) under .hyperclaude/plans/"
+echo "   2. Run /hyperclaude:hyper-implement-loop <that-plan-path> in a fresh Claude Code session"
+echo "      with CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1."
+echo "   3. Confirm: every fixer reply (visible in the agent-teams mailbox) begins with"
+echo "      'request-id: <integer>'; the integer matches the lead's most recent findings id."
+echo "   4. Confirm: the loop reaches Step 9 final report without an unsolicited-message escalation."
+echo "   5. If anything diverges, the deferred implement-loop-reqid-followup race is not fully resolved."
 
 [ "$fail" -eq 0 ]

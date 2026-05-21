@@ -89,6 +89,8 @@ After the automated checks it prints a manual acceptance checklist for running e
 
 Phase A adds shared-loop-protocol static assertions: existence of `references/loop-protocol.md`, presence of `PHASE 1` / `PHASE 2` / `stale-recovery` markers, absence of loop-specific tokens (`WROTE:`, role names like `planner`/`fixer` — the binding-hole invariant), and a check that `skills/hyper-plan-loop/SKILL.md` Step 0 references the shared file via `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
 
+Phase B adds `==> hyper-implement-loop reqid promotion assertions` to smoke, statically checking that implement-loop's `SKILL.md` and `references/failure-protocol.md` carry the run-state fields (`request_id_counter` / `expected_request_id` / `awaiting_reply` / `solicit_sent_at`) and the `request-id: <id>` reply-prefix contract, and that `agents/fixer.md` does NOT carry the prefix (the prefix is loop-injected, not agent-baked). Smoke also prints a manual end-to-end acceptance banner.
+
 ## Local plugin install (for dogfooding)
 
 Symlink the repo into Claude Code's plugin cache so edits are picked up live. Use the version from [.claude-plugin/plugin.json](../.claude-plugin/plugin.json) as the leaf directory name:
