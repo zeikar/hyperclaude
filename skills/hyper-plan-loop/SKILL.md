@@ -160,7 +160,7 @@ While the planner is live and BEFORE Step 8 teardown, the only planner message t
 
 ### Step 5 — Plan-review iteration 1 (fresh)
 
-**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **5 severity-gated reviews** (iter 1 fresh + at most **4 revise rounds**), plus at most ONE final Minor-cleanup re-review (the separate non-gated Step 7a one). `review_iteration` is independent of `request_id_counter` — the id increments on every solicitation including correctives; `review_iteration` only on bridge re-invocation (see the run-state fields in the "Agent-teams tool contract" section).
+**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **10 severity-gated reviews** (iter 1 fresh + at most **9 revise rounds**), plus at most ONE final Minor-cleanup re-review (the separate non-gated Step 7a one). `review_iteration` is independent of `request_id_counter` — the id increments on every solicitation including correctives; `review_iteration` only on bridge re-invocation (see the run-state fields in the "Agent-teams tool contract" section).
 
 Invoke via the Bash tool with `timeout: 600000`:
 
@@ -226,7 +226,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<
 
 Entered only on Step 6 branch (c): zero Blocker/Major, concrete actionable Minor remains. Runs exactly once, then hard-stops at Step 8 teardown → Step 9. **Never loops back to Step 6 or Step 7.**
 
-**Cap accounting:** this cleanup re-review is the single non-gated review outside the 5-review cap (Step 8); it never affects the Blocker/Major cap-exhaust path.
+**Cap accounting:** this cleanup re-review is the single non-gated review outside the 10-review cap (Step 8); it never affects the Blocker/Major cap-exhaust path.
 
 1. **SendMessage the Minor findings to the still-live planner.** Before sending, increment the id: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_planner_reply = true`; immediately before the SendMessage call, capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (the field-definition rule above is binding — assistant-turn start is NOT valid). Send verbatim concrete Minor `### Issues` findings PLUS the relevant actionable `### Verdict` directive text. Do NOT re-send the task or research (planner holds context). Pass that new id in the message and in the reply instruction. Use the SAME reply-transport, anchored reply gate (Step 4), structure `ok`/`bad` check, and single-redo pipeline as Step 7 — reuse the `references/failure-protocol.md` §3 pipeline exactly — do not restate it. (A §3 terminal outcome here proceeds to Step 8 teardown → STOP — Step 8 is mandatory on every post-spawn stop; do not fall through to the passing-reply path below.) SendMessage shape:
 
@@ -256,7 +256,7 @@ Entered only on Step 6 branch (c): zero Blocker/Major, concrete actionable Minor
 
 ### Step 8 — Cap + teardown
 
-Cap at **5 severity-gated reviews, plus at most ONE final Minor-cleanup re-review** (iter 1 fresh + at most 4 resumed revise rounds as the severity-gated portion; the cleanup re-review from Step 7a is the separate non-gated one). `review_iteration` is independent of `request_id_counter` — the id increments on every solicitation including correctives; `review_iteration` only on bridge re-invocation (see the run-state fields in the "Agent-teams tool contract" section).
+Cap at **10 severity-gated reviews, plus at most ONE final Minor-cleanup re-review** (iter 1 fresh + at most 9 resumed revise rounds as the severity-gated portion; the cleanup re-review from Step 7a is the separate non-gated one). `review_iteration` is independent of `request_id_counter` — the id increments on every solicitation including correctives; `review_iteration` only on bridge re-invocation (see the run-state fields in the "Agent-teams tool contract" section).
 
 On cap-reached with Blocker/Major still open: FIRST capture the cap report details (iterations consumed, residual Blocker/Major findings, plan path left in its latest revised state), THEN run teardown, THEN emit the named-loop report (**"hyper-plan-loop revise loop"**).
 
@@ -276,7 +276,7 @@ After successful teardown, report:
 
 - The plan path.
 - Whether the slug was reused from research artifact(s) or freshly derived.
-- Review iterations consumed (on branch (c), this count INCLUDES the final cleanup re-review — it is the one non-severity-gated review that sits OUTSIDE the 5-review cap (it does not count against it)).
+- Review iterations consumed (on branch (c), this count INCLUDES the final cleanup re-review — it is the one non-severity-gated review that sits OUTSIDE the 10-review cap (it does not count against it)).
 - The final Codex verdict (this bullet is the SINGLE source of the latest Codex verdict; do NOT restate it in the cleanup bullet below).
 - **Cleanup outcome and residuals:** report ONE of the following:
   - Branch (b) path: the one-shot Minor-cleanup pass was skipped (either zero actionable Minor existed, or the Minor was non-actionable / ambiguous and not sent to the planner); state any residual Minor findings from the last review as informational.

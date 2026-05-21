@@ -125,7 +125,7 @@ While the fixer is live and BEFORE Step 8 teardown, the only fixer message the l
 
 ### Step 5 — Code-review iteration 1 (fresh)
 
-**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **3 total Codex reviews**, i.e. at most **2 fix rounds**.
+**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **6 total Codex reviews**, i.e. at most **5 fix rounds**.
 
 **Why `--base main` is the right target across rounds:** the bridge's `--base` target reviews the *effective worktree vs main* — committed-since-main PLUS the uncommitted overlay — so the fixer's uncommitted fix-round edits are always in scope on every resumed `--base main` review. This is exactly why Step 7 keeps `--base main` (never `--commit <sha>`) and why no per-round commit is needed for the next review to see the fix.
 
@@ -152,7 +152,7 @@ Read the artifact body and judge by **meaning**, not regex. The fresh `code-revi
 
 ### Step 7 — Fix via the live fixer, then re-review
 
-First check the cap: if the iteration counter is already at 3 (3 total Codex reviews consumed), do NOT send findings or fix — go directly to Step 8 (cap reached).
+First check the cap: if the iteration counter is already at 6 (6 total Codex reviews consumed), do NOT send findings or fix — go directly to Step 8 (cap reached).
 
 Send the blocking findings to the still-live fixer:
 
@@ -180,7 +180,7 @@ Always pass `--resume auto` from iteration 2 onward; `--base main` is REQUIRED o
 
 ### Step 8 — Cap + teardown
 
-Cap at **3 total Codex reviews** (iter 1 fresh + at most 2 resumed fix rounds).
+Cap at **6 total Codex reviews** (iter 1 fresh + at most 5 resumed fix rounds).
 
 On cap-reached with blocking findings still open: FIRST capture the cap report details (iterations consumed, residual blocking findings, working tree left in fixer's latest state, all `reviewArtifacts[]` paths), THEN run teardown, THEN emit the named-loop report (**"hyper-implement-loop fix loop"**).
 

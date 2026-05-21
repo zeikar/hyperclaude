@@ -358,16 +358,16 @@ else
   miss "hyper-plan-loop SKILL.md: Step 7a section header missing"
 fi
 
-if grep -q "5 severity-gated reviews" "$skill_file" 2>/dev/null; then
-  ok "hyper-plan-loop SKILL.md: '5 severity-gated reviews' cap wording present"
+if grep -q "10 severity-gated reviews" "$skill_file" 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: '10 severity-gated reviews' cap wording present"
 else
-  miss "hyper-plan-loop SKILL.md: '5 severity-gated reviews' cap wording missing"
+  miss "hyper-plan-loop SKILL.md: '10 severity-gated reviews' cap wording missing"
 fi
 
-if ! grep -q "5 total Codex reviews" "$skill_file" 2>/dev/null; then
-  ok "hyper-plan-loop SKILL.md: stale '5 total Codex reviews' phrase absent"
+if ! grep -q "10 total Codex reviews" "$skill_file" 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: stale '10 total Codex reviews' phrase absent"
 else
-  miss "hyper-plan-loop SKILL.md: unqualified '5 total Codex reviews' phrase found (stale)"
+  miss "hyper-plan-loop SKILL.md: unqualified '10 total Codex reviews' phrase found (stale)"
 fi
 
 if ! grep -q "Treating Minor findings as blocking" "$skill_file" 2>/dev/null; then
@@ -474,9 +474,9 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      `code-review --base main`, then the fixer↔code-review loop runs,
      that the fixer agent applies Codex findings via a semantic
      finding-map (not a raw diff), that the loop is bounded by the
-     review cap (3 total Codex reviews maximum), and that the loop
+     review cap (6 total Codex reviews maximum), and that the loop
      reaches a terminal state (clean exit on no blocking findings, or
-     the 3-review cap reached, ending in a successful TeamDelete).
+     the 6-review cap reached, ending in a successful TeamDelete).
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
