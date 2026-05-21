@@ -402,6 +402,59 @@ else
 fi
 
 echo
+echo "==> shared loop-protocol static content assertions"
+
+shared_proto="references/loop-protocol.md"
+
+if [ -f "$shared_proto" ]; then
+  ok "shared loop-protocol: file exists at references/loop-protocol.md"
+else
+  miss "shared loop-protocol: file missing at references/loop-protocol.md"
+fi
+
+if grep -q "PHASE 1" "$shared_proto" 2>/dev/null; then
+  ok "shared loop-protocol: 'PHASE 1' marker present"
+else
+  miss "shared loop-protocol: 'PHASE 1' marker missing"
+fi
+
+if grep -q "PHASE 2" "$shared_proto" 2>/dev/null; then
+  ok "shared loop-protocol: 'PHASE 2' marker present"
+else
+  miss "shared loop-protocol: 'PHASE 2' marker missing"
+fi
+
+if grep -q "stale-recovery" "$shared_proto" 2>/dev/null; then
+  ok "shared loop-protocol: 'stale-recovery' marker present"
+else
+  miss "shared loop-protocol: 'stale-recovery' marker missing"
+fi
+
+if grep -q "awaiting_reply" "$shared_proto" 2>/dev/null; then
+  ok "shared loop-protocol: 'awaiting_reply' field name present"
+else
+  miss "shared loop-protocol: 'awaiting_reply' field name missing"
+fi
+
+if ! grep -q "WROTE:" "$shared_proto" 2>/dev/null; then
+  ok "shared loop-protocol: 'WROTE:' token absent (binding-hole invariant)"
+else
+  miss "shared loop-protocol: 'WROTE:' token present (binding-hole invariant violated)"
+fi
+
+if grep -q "loop-bound" "$shared_proto" 2>/dev/null; then
+  ok "shared loop-protocol: 'loop-bound' binding-hole markers present"
+else
+  miss "shared loop-protocol: 'loop-bound' binding-hole markers missing"
+fi
+
+if grep -q '\${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md' skills/hyper-plan-loop/SKILL.md 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: references shared loop-protocol at Step 0"
+else
+  miss "hyper-plan-loop SKILL.md: does not reference shared loop-protocol"
+fi
+
+echo
 echo "==> Summary"
 echo "  passed: $pass"
 echo "  failed: $fail"

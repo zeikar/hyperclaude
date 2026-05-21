@@ -87,6 +87,8 @@ The unit tests cover argument parsing, slug derivation, frontmatter rendering, f
 
 After the automated checks it prints a manual acceptance checklist for running each slash command end-to-end inside Claude Code — those steps are not automated. The checklist includes `/hyperclaude:hyper-setup` as the first step (verify prerequisites before running gates).
 
+Phase A adds shared-loop-protocol static assertions: existence of `references/loop-protocol.md`, presence of `PHASE 1` / `PHASE 2` / `stale-recovery` markers, absence of loop-specific tokens (`WROTE:`, role names like `planner`/`fixer` — the binding-hole invariant), and a check that `skills/hyper-plan-loop/SKILL.md` Step 0 references the shared file via `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
+
 ## Local plugin install (for dogfooding)
 
 Symlink the repo into Claude Code's plugin cache so edits are picked up live. Use the version from [.claude-plugin/plugin.json](../.claude-plugin/plugin.json) as the leaf directory name:

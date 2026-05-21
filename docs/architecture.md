@@ -34,6 +34,7 @@ hyperclaude/
 │   ├── hyper-tdd/               helper — TDD discipline
 │   └── hyper-debug/             helper — debugging discipline
 ├── agents/                      sub-Claude personas (planner, implementer, verifier, documenter, researcher, fixer)
+├── references/                  plugin-wide reference content not owned by any single skill (currently: loop-protocol.md — Step-0 base for hyper-plan-loop)
 ├── hooks/                       event-bound hook scripts (SessionStart)
 ├── scripts/
 │   ├── codex-bridge.mjs         CLI entry; re-exports the helpers below

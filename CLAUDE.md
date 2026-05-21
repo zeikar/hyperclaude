@@ -70,6 +70,7 @@ If you add a new spawn path, re-check both argv shapes. New flags must be added 
 - **Agents** (`agents/<name>.md`) — sub-Claude personas with restricted `tools:` lists. Used by skills, never the other way around.
 - **Hooks** (`hooks/*.mjs`, registered in `hooks/hooks.json`) — currently one: SessionStart reminder that injects `templates/hooks/session-start-reminder.md` plus an optional `.hyperclaude/` snapshot footer.
 - **Templates** (`templates/codex/*.md`, `templates/hooks/*.md`) — prompt bodies loaded at runtime with `{{UPPERCASE_KEY}}` substitution.
+- **Shared protocol references** (`references/loop-protocol.md`) — plugin-wide reference content loaded by skills' Step 0 alongside their loop-specific `failure-protocol.md`. Currently used by `hyper-plan-loop`; the shared base is the eventual binding target for `hyper-implement-loop` and a future `hyper-docs-loop`.
 
 All four modes use a fresh prompt template (`code-review` uses `templates/codex/code-review.md`) and bump `template-version` when changing them; the resumed variants (`*-resumed.md`) are unversioned in frontmatter.
 
@@ -84,6 +85,7 @@ All four modes use a fresh prompt template (`code-review` uses `templates/codex/
 | `scripts/codex-bridge.mjs`, `scripts/codex/*.mjs` | `docs/architecture.md`, `docs/decisions.md` |
 | `skills/<any>/SKILL.md` | `docs/gates-and-agents.md`, `docs/workflow.md` |
 | `agents/<any>.md` | `docs/gates-and-agents.md` |
+| `references/loop-protocol.md` | `docs/architecture.md`, `docs/gates-and-agents.md`, `docs/decisions.md` |
 | `hooks/*.mjs`, `templates/hooks/*.md` | `docs/architecture.md` (SessionStart hook section) |
 | `templates/codex/*.md` (incl. `code-review.md`) | `docs/architecture.md`, `docs/development.md` (template-version section); a code-review prompt/spawn change also touches `docs/decisions.md`, `docs/workflow.md`, `docs/gates-and-agents.md`, `README.md`, and `skills/hyper-implement-loop/*` (the loop parses the code-review contract) |
 | `scripts/test/smoke.sh`, `tests/*.mjs` | `docs/development.md` |
