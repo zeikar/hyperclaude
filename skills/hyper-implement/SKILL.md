@@ -153,3 +153,5 @@ After all tasks:
   - Mechanical (1-2 files, exact spec): haiku
   - Standard (multi-file, integration): sonnet
   - Architectural / judgment-heavy: opus
+
+  **Apply the SAME tier to the spec / quality reviewer dispatches in Step 3.2 and 3.3.** They're `general-purpose` subagents that otherwise inherit the lead's model, which over-pays on mechanical / standard tasks. Pass `model:` on the Agent call to match the implementer tier you just chose. Verifier (Step 3.4) stays on its frontmatter default — no override.
