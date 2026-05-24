@@ -28,15 +28,22 @@ export async function readTemplateFile(name) {
 // Throws when frontmatter is missing, `template-version` is missing, or its
 // value is not a positive integer — fresh templates MUST declare their version.
 export function splitTemplateFrontmatter(text, nameForError = 'template') {
-  if (typeof text !== 'string' || !text.startsWith('---\n')) {
-    throw new Error(`${nameForError}: missing leading frontmatter (must start with '---\\n' + template-version)`);
+  if (typeof text !== 'string') {
+    throw new Error(`${nameForError}: missing leading frontmatter (must start with '---' + template-version)`);
   }
-  const close = text.indexOf('\n---\n', 4);
+  // Normalize CRLF → LF so a Windows / Git autocrlf checkout parses the same
+  // way as a Unix checkout. parseFrontmatter() is already CRLF-tolerant; this
+  // helper must match.
+  const norm = text.replace(/\r\n/g, '\n');
+  if (!norm.startsWith('---\n')) {
+    throw new Error(`${nameForError}: missing leading frontmatter (must start with '---' + template-version)`);
+  }
+  const close = norm.indexOf('\n---\n', 4);
   if (close === -1) {
     throw new Error(`${nameForError}: unterminated frontmatter (no closing '---' line)`);
   }
-  const fmText = text.slice(0, close + 5); // include the closing "---\n"
-  const body = text.slice(close + 5);
+  const fmText = norm.slice(0, close + 5); // include the closing "---\n"
+  const body = norm.slice(close + 5);
   const match = fmText.match(/^template-version:\s*(\d+)\s*$/m);
   if (!match) {
     throw new Error(`${nameForError}: frontmatter missing 'template-version: <positive integer>'`);

@@ -109,6 +109,13 @@ test('splitTemplateFrontmatter: throws when template-version missing', () => {
   );
 });
 
+test('splitTemplateFrontmatter: tolerates CRLF (Windows / Git autocrlf checkouts)', () => {
+  const text = '---\r\ntemplate-version: 3\r\n---\r\nbody line\r\nsecond line';
+  const { version, body } = splitTemplateFrontmatter(text);
+  assert.equal(version, 3);
+  assert.equal(body, 'body line\nsecond line');
+});
+
 test('splitTemplateFrontmatter: throws when template-version is not a positive integer', () => {
   assert.throws(
     () => splitTemplateFrontmatter('---\ntemplate-version: abc\n---\nbody'),
