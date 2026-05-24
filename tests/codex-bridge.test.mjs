@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, verifyReviewTarget, renderDocsReviewFrontmatter, fmString, renderFailureBody, renderFileListBlock, renderDiffBaseBlock, readTemplateFile, parseFrontmatter, loadResumeContext, discoverResumeArtifact, defaultModeDir, buildTargetInstruction } from '../scripts/codex-bridge.mjs';
+import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, verifyReviewTarget, renderDocsReviewFrontmatter, fmString, renderFailureBody, renderFileListBlock, renderDiffBaseBlock, readTemplateFile, readTemplateWithVersion, splitTemplateFrontmatter, parseFrontmatter, loadResumeContext, discoverResumeArtifact, defaultModeDir, buildTargetInstruction } from '../scripts/codex-bridge.mjs';
 import { mkdirSync } from 'node:fs';
 
 test('slugify: simple ASCII task', () => {
@@ -88,6 +88,47 @@ import { parseArgs, buildInvocation } from '../scripts/codex-bridge.mjs';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, renameSync } from 'node:fs';
 import os from 'node:os';
+
+// ── splitTemplateFrontmatter / readTemplateWithVersion ───────────────────────
+
+test('splitTemplateFrontmatter: extracts version and body', () => {
+  const text = '---\ntemplate-version: 7\n---\nbody line\nsecond line';
+  const { version, body } = splitTemplateFrontmatter(text);
+  assert.equal(version, 7);
+  assert.equal(body, 'body line\nsecond line');
+});
+
+test('splitTemplateFrontmatter: throws when missing frontmatter', () => {
+  assert.throws(() => splitTemplateFrontmatter('no frontmatter here'), /missing leading frontmatter/);
+});
+
+test('splitTemplateFrontmatter: throws when template-version missing', () => {
+  assert.throws(
+    () => splitTemplateFrontmatter('---\nother-key: 1\n---\nbody'),
+    /missing 'template-version/
+  );
+});
+
+test('splitTemplateFrontmatter: throws when template-version is not a positive integer', () => {
+  assert.throws(
+    () => splitTemplateFrontmatter('---\ntemplate-version: abc\n---\nbody'),
+    /missing 'template-version/
+  );
+  assert.throws(
+    () => splitTemplateFrontmatter('---\ntemplate-version: 0\n---\nbody'),
+    /must be a positive integer/
+  );
+});
+
+test('readTemplateWithVersion: actual templates declare positive-integer versions', async () => {
+  // Sanity-check the templates shipped with the plugin — every fresh template
+  // must declare template-version so the artifact frontmatter is filled.
+  for (const name of ['research', 'plan-review', 'code-review', 'docs-review']) {
+    const { version, body } = await readTemplateWithVersion(name);
+    assert.ok(Number.isInteger(version) && version >= 1, `${name}: version must be positive integer, got ${version}`);
+    assert.ok(body.length > 0 && !body.startsWith('---\n'), `${name}: body must follow the frontmatter`);
+  }
+});
 
 // `path` and `fileURLToPath` were imported in Task 2's initial test setup.
 const BRIDGE = path.join(
@@ -719,6 +760,7 @@ test('renderCodeReviewFrontmatter: starts with --- and ends with ---\\n followed
     gitHead: 'unknown',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     title: null,
     cwd: '/tmp',
     codexThreadId: null,
@@ -738,6 +780,7 @@ test('renderCodeReviewFrontmatter: base-ref variant has required fields and temp
     gitHead: 'abc1234567890abcd1234567890abcd1234567890',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     title: null,
     cwd: '/tmp',
     codexThreadId: null,
@@ -764,6 +807,7 @@ test('renderCodeReviewFrontmatter: template-version: 1 emitted IMMEDIATELY AFTER
     gitHead: 'unknown',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.130.0',
+    templateVersion: 1,
     title: null,
     cwd: '/tmp',
     codexThreadId: null,
@@ -785,6 +829,7 @@ test('renderCodeReviewFrontmatter: does not emit codex-subcommand field', () => 
     gitHead: 'unknown',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.130.0',
+    templateVersion: 1,
     title: null,
     cwd: '/tmp',
     codexThreadId: 'thread-abc123',
@@ -807,6 +852,7 @@ test('renderCodeReviewFrontmatter: commit variant uses commit field, not base-re
     gitHead: 'unknown',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     title: null,
     cwd: '/tmp',
     codexThreadId: null,
@@ -826,6 +872,7 @@ test('renderCodeReviewFrontmatter: uncommitted variant has neither base-ref nor 
     gitHead: 'unknown',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     title: null,
     cwd: '/tmp',
     codexThreadId: null,
@@ -845,6 +892,7 @@ test('renderCodeReviewFrontmatter: title field present when provided (JSON-strin
     gitHead: 'unknown',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     title: 'my review title',
     cwd: '/tmp',
     codexThreadId: null,
@@ -863,6 +911,7 @@ test('renderCodeReviewFrontmatter: title field absent when not provided', () => 
     gitHead: 'unknown',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     title: null,
     cwd: '/tmp',
     codexThreadId: null,
@@ -881,6 +930,7 @@ test('renderCodeReviewFrontmatter: git-head written as JSON-stringified string',
     gitHead: 'unknown',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     title: null,
     cwd: '/tmp',
     codexThreadId: null,
@@ -898,6 +948,7 @@ test('renderCodeReviewFrontmatter: git-head written as JSON-stringified string',
     gitHead: sha,
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     title: null,
     cwd: '/tmp',
     codexThreadId: null,
@@ -916,6 +967,7 @@ test('renderCodeReviewFrontmatter: base-ref JSON-stringified to handle slashes',
     gitHead: 'unknown',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     title: null,
     cwd: '/tmp',
     codexThreadId: null,
@@ -1351,6 +1403,7 @@ test('renderDocsReviewFrontmatter: starts with --- and ends with ---\\n followed
     diffBase: null,
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
   });
   assert.match(fm, /^---\n/);
   assert.match(fm, /\n---\n$/);
@@ -1363,6 +1416,7 @@ test('renderDocsReviewFrontmatter: has required fields and no task/codex-subcomm
     diffBase: null,
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     cwd: '/tmp',
     gitHead: 'unknown',
     codexThreadId: null,
@@ -1389,6 +1443,7 @@ test('renderDocsReviewFrontmatter: diff-base present when provided', () => {
     diffBase: 'main',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     cwd: '/tmp',
     gitHead: 'unknown',
     codexThreadId: null,
@@ -1405,6 +1460,7 @@ test('renderDocsReviewFrontmatter: diff-base absent when not provided', () => {
     diffBase: null,
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     cwd: '/tmp',
     gitHead: 'unknown',
     codexThreadId: null,
@@ -1421,6 +1477,7 @@ test('renderDocsReviewFrontmatter: docs-target JSON-stringified to handle spaces
     diffBase: null,
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     cwd: '/tmp',
     gitHead: 'unknown',
     codexThreadId: null,
@@ -1556,6 +1613,7 @@ test('renderCodeReviewFrontmatter: new fields cwd, git-head, codex-resume-status
     slug: 'vs-main',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     gitHead: 'abc1234567890abcd1234567890abcd1234567890',
     reviewTarget: 'base',
     baseRef: 'main',
@@ -1576,6 +1634,7 @@ test('renderCodeReviewFrontmatter: codex-thread-id omitted when null, present wh
     slug: 'vs-main',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     gitHead: 'unknown',
     reviewTarget: 'base',
     baseRef: 'main',
@@ -1592,6 +1651,7 @@ test('renderCodeReviewFrontmatter: codex-thread-id omitted when null, present wh
     slug: 'vs-main',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     gitHead: 'unknown',
     reviewTarget: 'base',
     baseRef: 'main',
@@ -1610,6 +1670,7 @@ test('renderCodeReviewFrontmatter: base-ref and commit migrated to fmString', ()
     slug: 'vs-main',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     gitHead: 'unknown',
     reviewTarget: 'base',
     baseRef: 'origin/feature: new feature',
@@ -1630,6 +1691,7 @@ test('renderDocsReviewFrontmatter: new fields cwd, git-head, codex-resume-status
     diffBase: null,
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     cwd: '/Users/test/project',
     gitHead: 'abc1234567890abcd1234567890abcd1234567890',
     codexThreadId: null,
@@ -1648,6 +1710,7 @@ test('renderDocsReviewFrontmatter: codex-thread-id omitted when null, present wh
     diffBase: null,
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     cwd: '/tmp',
     gitHead: 'unknown',
     codexThreadId: null,
@@ -1662,6 +1725,7 @@ test('renderDocsReviewFrontmatter: codex-thread-id omitted when null, present wh
     diffBase: null,
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     cwd: '/tmp',
     gitHead: 'unknown',
     codexThreadId: 'thread-ghi789',
@@ -1678,6 +1742,7 @@ test('renderDocsReviewFrontmatter: docs-target and diff-base migrated to fmStrin
     diffBase: 'origin/develop',
     generated: '2026-05-10T10:15:00.000Z',
     codexVersion: '0.128.0',
+    templateVersion: 1,
     cwd: '/tmp',
     gitHead: 'unknown',
     codexThreadId: null,

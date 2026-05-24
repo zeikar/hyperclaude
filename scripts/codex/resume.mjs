@@ -6,6 +6,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from './frontmatter.mjs';
+import { readTemplateWithVersion } from './templates.mjs';
 
 // defaultModeDir: maps a mode to its conventional output directory under
 // .hyperclaude/. Mirrors the implicit mapping in buildInvocation.
@@ -71,12 +72,18 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
       return { error: 'prior artifact docs-target/diff-base differs from current' };
     }
   } else if (expectedMode === 'code-review') {
-    // Deliberately code-review-scoped: only code-review now renders a custom
-    // prompt template, so only its prior artifacts carry template-version.
-    // plan-review/docs-review/research branches intentionally have NO such gate.
-    const CODE_REVIEW_TEMPLATE_VERSION = 1; // keep == frontmatter.mjs renderCodeReviewFrontmatter (see CLAUDE.md)
+    // code-review is the only mode whose --resume enforces a template-version
+    // match — the expected value is sourced from templates/codex/code-review.md
+    // frontmatter (no hardcoded constant). plan-review/docs-review/research
+    // intentionally have NO such gate.
+    let expectedVersion;
+    try {
+      expectedVersion = (await readTemplateWithVersion('code-review')).version;
+    } catch (err) {
+      return { error: `cannot read current code-review template: ${err.message}` };
+    }
     const tv = fm['template-version'];
-    if (tv === undefined || String(tv) !== String(CODE_REVIEW_TEMPLATE_VERSION)) {
+    if (tv === undefined || String(tv) !== String(expectedVersion)) {
       return { error: 'prior code-review artifact predates the custom-prompt template (no/old template-version); not resumable' };
     }
     // title is purely cosmetic — does NOT participate in identity (it does not

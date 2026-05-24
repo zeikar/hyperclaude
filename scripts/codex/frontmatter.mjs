@@ -33,7 +33,7 @@ export function renderFrontmatter({
 }
 
 export function renderCodeReviewFrontmatter({
-  slug, generated, codexVersion, gitHead, reviewTarget, baseRef, commit, title,
+  slug, generated, codexVersion, templateVersion, gitHead, reviewTarget, baseRef, commit, title,
   cwd, codexThreadId, codexResumeStatus, codexResumedFrom,
 }) {
   const lines = ['---'];
@@ -41,8 +41,9 @@ export function renderCodeReviewFrontmatter({
   lines.push(`slug: ${slug}`);
   lines.push(`generated: ${generated}`);
   lines.push(`codex-version: ${codexVersion}`);
-  // template-version: keep in lock-step with templates/codex/code-review.md and resume.mjs CODE_REVIEW_TEMPLATE_VERSION (see CLAUDE.md)
-  lines.push('template-version: 1');
+  // template-version is sourced from templates/codex/code-review.md frontmatter
+  // (see readTemplateWithVersion); resume.mjs compares the same value.
+  lines.push(`template-version: ${templateVersion}`);
   lines.push(fmString('git-head', gitHead));
   if (reviewTarget === 'base') lines.push(fmString('base-ref', baseRef));
   if (reviewTarget === 'commit') lines.push(fmString('commit', commit));
@@ -57,7 +58,7 @@ export function renderCodeReviewFrontmatter({
 }
 
 export function renderDocsReviewFrontmatter({
-  slug, generated, codexVersion, docsTarget, diffBase,
+  slug, generated, codexVersion, templateVersion, docsTarget, diffBase,
   cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
 }) {
   const lines = ['---'];
@@ -65,7 +66,8 @@ export function renderDocsReviewFrontmatter({
   lines.push(`slug: ${slug}`);
   lines.push(`generated: ${generated}`);
   lines.push(`codex-version: ${codexVersion}`);
-  lines.push('template-version: 1');
+  // template-version sourced from templates/codex/docs-review.md frontmatter.
+  lines.push(`template-version: ${templateVersion}`);
   lines.push(fmString('docs-target', docsTarget));
   if (diffBase) lines.push(fmString('diff-base', diffBase));
   lines.push(fmString('cwd', cwd));

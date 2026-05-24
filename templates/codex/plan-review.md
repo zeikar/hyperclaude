@@ -1,3 +1,6 @@
+---
+template-version: 2
+---
 You are a senior reviewer critiquing an implementation plan written by Claude (a different agent). Find what's wrong or risky in the plan AS WRITTEN — not what could be "stronger."
 
 ## Plan under review

@@ -87,9 +87,9 @@ Fresh `code-review` spawns a regular `codex --search exec --sandbox read-only -`
 
 **Base target = committed-since-base PLUS uncommitted overlay:** for `--base <ref>` the target is the *effective worktree vs base* — `git diff <base>...HEAD` plus the uncommitted overlay (`git diff`, `--cached`, untracked). A commit-only diff was **rejected** because `hyper-implement-loop` re-runs `code-review --base main --resume auto` after the `fixer` leaves edits *uncommitted*; a commit-only base diff would hide them and the loop could never converge. (`--commit` reads the historical commit; `--uncommitted` the overlay only.)
 
-Sub-decisions: **(a)** web search stays enabled (`--search` as in every mode); the template only *discourages* web use — no hermetic mode, filesystem read-only is the only hard sandbox. **(b)** `renderCodeReviewFrontmatter()` emits `template-version: 1` and resume enforces a `CODE_REVIEW_TEMPLATE_VERSION` match in `scripts/codex/resume.mjs`; legacy native artifacts carry no match and are not resumable. **(c)** `--title` is metadata only (frontmatter key + heading) — no longer an argv argument.
+Sub-decisions: **(a)** web search stays enabled (`--search` as in every mode); the template only *discourages* web use — no hermetic mode, filesystem read-only is the only hard sandbox. **(b)** `templates/codex/code-review.md` declares its `template-version` in its own leading frontmatter; the bridge propagates it into artifact frontmatter and the resume gate enforces a match against the current template's declared version — legacy native artifacts carry no match and are not resumable. **(c)** `--title` is metadata only (frontmatter key + heading) — no longer an argv argument.
 
-**Lock-step cost:** the code-review prompt has **three** version-coupled points — `templates/codex/code-review.md`, `template-version: 1` in `renderCodeReviewFrontmatter()`, `CODE_REVIEW_TEMPLATE_VERSION` in `scripts/codex/resume.mjs`. Bump all three together.
+**Lock-step cost (resolved v0.16.0):** `template-version` previously lived in three places (prompt body, `renderCodeReviewFrontmatter()`, `CODE_REVIEW_TEMPLATE_VERSION` constant in `scripts/codex/resume.mjs`). It now lives in ONE place — the template file's own frontmatter — and is read via `readTemplateWithVersion()` everywhere it's needed.
 
 ### MIN_CODEX is 0.130
 

@@ -161,7 +161,7 @@ mode: research | plan-review | code-review | docs-review
 slug: <kebab-case>
 generated: <ISO-8601 timestamp>
 codex-version: <semver from `codex --version`>
-template-version: 1                    # research / docs-review / code-review (plan-review emits 2 as of v0.16.0)
+template-version: 1                    # sourced from the fresh template's own frontmatter (plan-review currently emits 2)
 task: |-                               # research / plan-review only — block scalar
   <task text or plan path>
 cwd: "<absolute path>"                 # always

@@ -18,7 +18,8 @@ import {
 } from './codex/frontmatter.mjs';
 import { getGitHead, verifyReviewTarget } from './codex/git.mjs';
 import {
-  loadTemplate, readTemplateFile, renderFileListBlock, renderDiffBaseBlock,
+  loadTemplate, readTemplateFile, readTemplateWithVersion,
+  splitTemplateFrontmatter, renderFileListBlock, renderDiffBaseBlock,
 } from './codex/templates.mjs';
 import { parseArgs } from './codex/args.mjs';
 import { buildInvocation } from './codex/paths.mjs';
@@ -35,7 +36,8 @@ export {
   fmString, renderFrontmatter, renderCodeReviewFrontmatter,
   renderDocsReviewFrontmatter, parseFrontmatter,
   getGitHead, verifyReviewTarget,
-  loadTemplate, readTemplateFile, renderFileListBlock, renderDiffBaseBlock,
+  loadTemplate, readTemplateFile, readTemplateWithVersion,
+  splitTemplateFrontmatter, renderFileListBlock, renderDiffBaseBlock,
   parseArgs, buildInvocation,
   renderFailureBody,
   getCodexVersion, parseCodexJsonl, runCodexExec, runCodexResume,
@@ -134,9 +136,10 @@ async function main(argv) {
   }
   const inv = buildInvocation({ args });
   if (args.dryRun) {
-    // Fail fast if the prompt template is missing — better to find out now.
+    // Fail fast if the prompt template is missing OR its frontmatter is
+    // malformed — better to find out at dry-run time than after spawning Codex.
     try {
-      await readTemplateFile(args.mode);
+      await readTemplateWithVersion(args.mode);
     } catch (err) {
       process.stdout.write(JSON.stringify({
         ok: false,
@@ -292,10 +295,17 @@ async function main(argv) {
       diffOutput = r.stdout;
     }
 
-    // Step 6: load template (fresh vs resume).
+    // Step 6: load template (fresh vs resume). The fresh template's frontmatter
+    // is the canonical source for `template-version`, recorded in the artifact
+    // regardless of resume/fresh path; the *-resumed.md body has no frontmatter.
     let templateText;
+    let templateVersion;
     try {
-      templateText = await readTemplateFile(resumeContext ? 'docs-review-resumed' : 'docs-review');
+      const fresh = await readTemplateWithVersion('docs-review');
+      templateVersion = fresh.version;
+      templateText = resumeContext
+        ? await readTemplateFile('docs-review-resumed')
+        : fresh.body;
     } catch (err) {
       process.stdout.write(JSON.stringify({
         ok: false,
@@ -340,6 +350,7 @@ async function main(argv) {
       slug: inv.slug,
       generated: new Date().toISOString(),
       codexVersion: v.version,
+      templateVersion,
       docsTarget: args.docsPath ?? args.docsDir,
       diffBase: args.diffBase,
       cwd: process.cwd(),
@@ -433,7 +444,23 @@ async function main(argv) {
 
     const targetInstruction = buildTargetInstruction(args);
 
-    // Spawn: resume path uses runCodexResume; fresh path uses runCodexExec.
+    // Load the fresh template upfront for `template-version` (recorded in the
+    // artifact regardless of resume/fresh path); resume path swaps the body for
+    // the *-resumed.md continuation prompt (frontmatter-less by design).
+    let templateVersion;
+    let freshBody;
+    try {
+      const fresh = await readTemplateWithVersion('code-review');
+      templateVersion = fresh.version;
+      freshBody = fresh.body;
+    } catch (err) {
+      process.stdout.write(JSON.stringify({
+        ok: false,
+        error: `failed to read prompt template: ${err.message}`,
+      }) + '\n');
+      process.exit(1);
+    }
+
     let result;
     if (resumeContext) {
       let resumeTemplateText;
@@ -449,17 +476,7 @@ async function main(argv) {
       const prompt = loadTemplate(resumeTemplateText, { TARGET_INSTRUCTION: targetInstruction });
       result = await runCodexResume(resumeContext.threadId, prompt, args.timeout);
     } else {
-      let templateText;
-      try {
-        templateText = await readTemplateFile('code-review');
-      } catch (err) {
-        process.stdout.write(JSON.stringify({
-          ok: false,
-          error: `failed to read prompt template: ${err.message}`,
-        }) + '\n');
-        process.exit(1);
-      }
-      const prompt = loadTemplate(templateText, { TARGET_INSTRUCTION: targetInstruction });
+      const prompt = loadTemplate(freshBody, { TARGET_INSTRUCTION: targetInstruction });
       const argv = ['exec', '--sandbox', 'read-only', '-'];
       result = await runCodexExec(argv, prompt, args.timeout);
     }
@@ -475,6 +492,7 @@ async function main(argv) {
       slug: inv.slug,
       generated: new Date().toISOString(),
       codexVersion: v.version,
+      templateVersion,
       gitHead,
       reviewTarget: args.reviewTarget,
       baseRef: args.baseRef,
@@ -589,10 +607,17 @@ async function main(argv) {
     }
   }
 
+  // Fresh template carries the canonical template-version in its frontmatter;
+  // it's recorded in the artifact even on the resume path (the *-resumed.md
+  // body is frontmatter-less by design and continues the fresh prompt).
   let templateText;
+  let templateVersion;
   try {
-    const templateName = (args.mode === 'plan-review' && resumeContext) ? 'plan-review-resumed' : args.mode;
-    templateText = await readTemplateFile(templateName);
+    const fresh = await readTemplateWithVersion(args.mode);
+    templateVersion = fresh.version;
+    templateText = (args.mode === 'plan-review' && resumeContext)
+      ? await readTemplateFile('plan-review-resumed')
+      : fresh.body;
   } catch (err) {
     process.stdout.write(JSON.stringify({
       ok: false,
@@ -633,9 +658,7 @@ async function main(argv) {
     slug: inv.slug ?? '',
     generated: new Date().toISOString(),
     codexVersion: v.version,
-    // plan-review prompt was reframed in v0.16.0 (anti-over-engineering rubric);
-    // research prompt is unchanged. Keep this split until research bumps too.
-    templateVersion: args.mode === 'plan-review' ? 2 : 1,
+    templateVersion,
     planPath: args.mode === 'plan-review' ? args.planPath : undefined,
     cwd: process.cwd(),
     gitHead: getGitHead(),
