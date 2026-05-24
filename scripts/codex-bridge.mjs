@@ -633,7 +633,9 @@ async function main(argv) {
     slug: inv.slug ?? '',
     generated: new Date().toISOString(),
     codexVersion: v.version,
-    templateVersion: 1,
+    // plan-review prompt was reframed in v0.16.0 (anti-over-engineering rubric);
+    // research prompt is unchanged. Keep this split until research bumps too.
+    templateVersion: args.mode === 'plan-review' ? 2 : 1,
     planPath: args.mode === 'plan-review' ? args.planPath : undefined,
     cwd: process.cwd(),
     gitHead: getGitHead(),
