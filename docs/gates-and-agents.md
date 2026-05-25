@@ -16,14 +16,14 @@ Commands are explicitly-invoked slash commands (`/hyperclaude:<name>`), distinct
 - **Mechanics:** a command (not a skill/gate) that runs one local Node probe (`scripts/setup-doctor.mjs`) via inline bash.
 - **Reads:** host environment (Node.js version, `codex` on PATH, `git` on PATH, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var).
 - **Writes:** nothing — report only, no `.hyperclaude/` artifact.
-- **Use when:** before first use to verify that Node 18+, codex-cli >= 0.130.0, and git are installed; also surfaces whether `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set (required by `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-auto` which chains both).
+- **Use when:** before first use to verify that Node 18+, codex-cli >= 0.130.0, and git are installed; also surfaces whether `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set (required by `hyper-plan-loop`, `hyper-implement-loop`, `hyper-docs-loop`, and `hyper-auto` which chains both implement and plan loops).
 - **Source:** [commands/hyper-setup.md](../commands/hyper-setup.md).
 
 ---
 
-## Gate skills (9)
+## Gate skills (10)
 
-A gate skill mediates a step in the cycle that produces a canonical `.hyperclaude/` artifact (or, in the doc-sync case, the doc edits themselves). Four shell out to the Codex bridge directly; `hyper-plan` and `hyper-docs-sync` orchestrate Claude-side work — `hyper-plan` dispatches the `planner` agent, and `hyper-docs-sync` pairs with `hyper-docs-review` for the Codex critic step. `hyper-plan-loop` is a hybrid: it spawns a persistent `planner` teammate for Claude-side revision while calling the bridge directly for each Codex review turn. `hyper-implement-loop` is also a hybrid: it creates the team first (the `TeamCreate` probe is what makes an agent-teams-unavailable host stop as a clean no-op), runs `hyper-implement` (with its optional final code-review suppressed), then spawns a persistent `fixer` teammate — only after implementation finishes — and runs fix rounds against the live `fixer` while calling the bridge directly for each Codex code-review turn. `hyper-auto` is the composition layer: it produces no artifact of its own, chaining `hyper-plan-loop` into `hyper-implement-loop` so the inner loops' artifacts (plans / plan-reviews / code-reviews) emerge from the run.
+A gate skill mediates a step in the cycle that produces a canonical `.hyperclaude/` artifact (or, in the doc-sync case, the doc edits themselves). Four shell out to the Codex bridge directly; `hyper-plan` and `hyper-docs-sync` orchestrate Claude-side work — `hyper-plan` dispatches the `planner` agent, and `hyper-docs-sync` pairs with `hyper-docs-review` for the Codex critic step. `hyper-plan-loop` is a hybrid: it spawns a persistent `planner` teammate for Claude-side revision while calling the bridge directly for each Codex review turn. `hyper-implement-loop` is also a hybrid: it creates the team first (the `TeamCreate` probe is what makes an agent-teams-unavailable host stop as a clean no-op), runs `hyper-implement` (with its optional final code-review suppressed), then spawns a persistent `fixer` teammate — only after implementation finishes — and runs fix rounds against the live `fixer` while calling the bridge directly for each Codex code-review turn. `hyper-docs-loop` mirrors the same hybrid shape for docs: it creates the team first, spawns a persistent `documenter` teammate, then alternates between Codex `docs-review` turns and findings-driven SendMessage rounds against the live documenter; only `### Findings` items gate fix rounds (the `### Gaps` / `### Broken Or Suspect Links` / `### Cross-Doc Inconsistencies` sections are reported but never auto-fixed). `hyper-auto` is the composition layer: it produces no artifact of its own, chaining `hyper-plan-loop` into `hyper-implement-loop` so the inner loops' artifacts (plans / plan-reviews / code-reviews) emerge from the run.
 
 ### `hyper-research` — pre-implementation research
 
@@ -131,6 +131,16 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 - **Use when:** after `hyper-docs-sync`, or any time a documentation accuracy gate is wanted.
 - **Source:** [skills/hyper-docs-review/SKILL.md](../skills/hyper-docs-review/SKILL.md), template [templates/codex/docs-review.md](../templates/codex/docs-review.md).
 
+### `hyper-docs-loop` — autonomous docs-hardening loop
+
+- **Slash:** `/hyperclaude:hyper-docs-loop [target]` — same target grammar as `hyper-docs-review` (empty → `docs/` directory; `.md` file → single-file mode; existing directory → directory mode).
+- **Mechanics:** team-based docs-hardening loop. The skill creates the team FIRST via the `TeamCreate` probe (requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`; an unavailable host therefore stops as a clean no-op). It then spawns the [`documenter`](#documenter) agent once as a persistent teammate — same agent the `hyper-docs-sync` flow uses, dispatched in this loop with a structured-findings reply contract (the agent stays loop-agnostic; the per-finding schema and `request-id: <id>` prefix live ONLY in the SKILL.md spawn-prompt, not in the agent file). Then it invokes Codex `docs-review` directly via the bridge for that first review, sends blocking `### Findings` bullets to the still-live documenter via SendMessage, and repeats until no blocking findings remain (judged semantically — accuracy / drift / actively misleading claims block; pure prose-polish nits do not) or a 6-review cap is reached. Only the `### Findings` section is gating; `### Gaps`, `### Broken Or Suspect Links`, and `### Cross-Doc Inconsistencies` are reported in the final Step 9 summary but never auto-fixed (those sections need human judgment). The reviewer is always the Codex bridge — NOT a team agent — preserving the "Claude builds, Codex reviews" invariant. (At Step 0 the lead Reads both the shared `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` — agent-teams contract, unsolicited-message protocol, teardown, abstract request-id state machine — and the loop-specific `skills/hyper-docs-loop/references/failure-protocol.md` — structured-schema reply with `request-id: <id>` prefix, semantic finding-map validation, docs-loop-specific anti-patterns.)
+- **Writes:** the doc edits themselves (uncommitted), plus one `.hyperclaude/docs-reviews/<timestamp>-<slug>.md` per Codex review iteration.
+- **No baseline sync:** docs-loop is review ↔ fix only. If you want code-change-driven syncing first, run `/hyperclaude:hyper-docs-sync` separately before invoking this skill (keeping the two flows separate avoids conflating the code-diff-driven sync with the docs-target-driven review).
+- **Use when:** docs accuracy needs to converge in one gesture (after a non-trivial code change, or as a periodic accuracy check).
+- **Skip when:** a single doc edit is enough (edit directly); the experimental agent-teams feature is unavailable (skill stops with documented fallback message — use `/hyperclaude:hyper-docs-review` + manual edits).
+- **Source:** [skills/hyper-docs-loop/SKILL.md](../skills/hyper-docs-loop/SKILL.md).
+
 ### Distinction at a glance
 
 | Skill | Who acts | What is reviewed |
@@ -144,6 +154,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 | `hyper-code-review` | Codex | a code diff |
 | `hyper-docs-sync` | Claude (via `documenter` agent) | edits docs to match code |
 | `hyper-docs-review` | Codex | docs (optionally with code-diff context) |
+| `hyper-docs-loop` | Claude (persistent documenter teammate) + Codex (bridge) | autonomous docs-hardening loop; reviewer is always Codex |
 
 ---
 
@@ -212,6 +223,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 
 - **Tools:** `Read, Edit, Write, Glob, Grep, Bash`.
 - **Job:** edit a documentation file in-place to reflect code changes (UPDATE mode), or scaffold a new file from a code path (CREATE mode). Minimal edits, no scope creep, no prose polish. Receives target path, aggregated diff/excerpts, and mapping rationale from `hyper-docs-sync`.
+- **Dispatched by:** `hyper-docs-sync` (one fresh dispatch per affected doc, UPDATE/CREATE mode) **and** `hyper-docs-loop` (spawned once as a persistent team teammate; every fix round reuses its retained context via SendMessage, replies follow the loop's structured per-finding schema with a `request-id: <id>` first-line prefix — that loop contract lives in the spawning skill's SKILL.md, not in this agent file).
 - **Source:** [agents/documenter.md](../agents/documenter.md).
 
 ### `researcher`
@@ -239,6 +251,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 | Need to confirm tests / build pass | `verifier` agent |
 | Code change might affect docs | `/hyperclaude:hyper-docs-sync` |
 | Docs need accuracy gate | `/hyperclaude:hyper-docs-review` |
+| Want autonomous docs-review → fix loop in one gesture | `/hyperclaude:hyper-docs-loop` (requires experimental agent-teams) |
 | Code diff needs Codex review | `/hyperclaude:hyper-code-review` |
 | About to write behavior-bearing code | apply `hyper-tdd` |
 | Test failed unexpectedly | apply `hyper-debug` |

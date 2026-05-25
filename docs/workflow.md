@@ -2,7 +2,7 @@
 
 The end-to-end cycle hyperclaude is built around. This is the dogfooding loop the author actually runs to ship its own releases.
 
-Before running any gate for the first time, run `/hyperclaude:hyper-setup` to diagnose host prerequisites (Node 18+, codex-cli >= 0.130.0, git, and the optional `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var for `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-auto` which chains both).
+Before running any gate for the first time, run `/hyperclaude:hyper-setup` to diagnose host prerequisites (Node 18+, codex-cli >= 0.130.0, git, and the optional `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var for `hyper-plan-loop`, `hyper-implement-loop`, `hyper-docs-loop`, and `hyper-auto` which chains plan + implement loops).
 
 For per-skill mechanics, see [gates-and-agents.md](gates-and-agents.md). For the bridge details, see [architecture.md](architecture.md).
 
@@ -132,6 +132,8 @@ Default: top-level `.md` files in `docs/`. Variants:
 Writes `.hyperclaude/docs-reviews/<timestamp>-<slug>.md`. Scope is strict: accuracy / drift / completeness / broken links / cross-doc inconsistencies. NOT prose or style — the documenter agent owns those.
 
 Fix accuracy issues before merging or shipping.
+
+**Autonomous alternative:** `/hyperclaude:hyper-docs-loop [target]` combines steps 6–7 partially — it does NOT run `hyper-docs-sync` first (the code-diff-driven sync and the docs-target-driven review are kept separate; run `hyper-docs-sync` manually first if you want a baseline). Once invoked, the loop spawns the `documenter` agent as a persistent team teammate, runs Codex `docs-review` via the bridge, sends blocking `### Findings` to the documenter via SendMessage, and repeats until no blocking findings remain (6-review cap). ONLY the `### Findings` section drives fix rounds; `### Gaps`, `### Broken Or Suspect Links`, and `### Cross-Doc Inconsistencies` are reported but never auto-fixed (those sections need human judgment). Both `hyper-docs-review` + manual edits and `hyper-docs-loop` are available; use whichever fits your workflow. `hyper-docs-loop` requires Claude Code's experimental agent-teams feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). (Implementation note: `hyper-docs-loop`'s lead↔documenter protocol is bound to the shared `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` base — same shared file `hyper-plan-loop` and `hyper-implement-loop` use. The documenter's reply contract is `request-id: <id>` on the first non-blank line of the structured findings schema; this is loop-injected via the Step 4 spawn prompt, not encoded in `agents/documenter.md` — that agent stays loop-agnostic.)
 
 ## Resuming a review
 

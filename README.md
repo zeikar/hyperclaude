@@ -26,7 +26,7 @@ research → plan → plan-review → implement → code-review → docs-sync �
 Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex        user
 ```
 
-The `refine` / `fix` arcs are what `hyper-plan-loop` and `hyper-implement-loop` automate — a Claude-side teammate revises while Codex stays the reviewer, looping until no blocking findings remain. Gates write trace artifacts under `.hyperclaude/` (gitignore-friendly); `hyper-docs-sync` and `hyper-implement` edit the working tree directly. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, slug/artifact conventions, and `--resume`.
+The `refine` / `fix` arcs are what `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop` automate — a Claude-side teammate (`planner` / `fixer` / `documenter`) revises while Codex stays the reviewer, looping until no blocking findings remain. Gates write trace artifacts under `.hyperclaude/` (gitignore-friendly); `hyper-docs-sync`, `hyper-docs-loop`, and `hyper-implement` edit the working tree directly. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, slug/artifact conventions, and `--resume`.
 
 ## Full automation: `hyper-auto`
 
@@ -95,6 +95,7 @@ External dependencies: Claude Code plugin runtime, `codex-cli >= 0.130.0` with t
    # Or let the loops self-converge:
    /hyperclaude:hyper-plan-loop add OAuth login to the API   # plan → review → revise, looped
    /hyperclaude:hyper-implement-loop <plan path>             # implement → code-review → fix, looped
+   /hyperclaude:hyper-docs-loop                              # docs → review → fix, looped (default: docs/)
    /hyperclaude:hyper-auto add OAuth login to the API        # plan-loop → implement-loop, end-to-end
    ```
 

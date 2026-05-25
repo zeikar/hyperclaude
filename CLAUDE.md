@@ -66,11 +66,11 @@ If you add a new spawn path, re-check both argv shapes. New flags must be added 
 ## Layers
 
 - **Commands** (`commands/<name>.md`) — explicitly-invoked slash commands (`/hyperclaude:<name>`), distinct from description-triggered Skills. Auto-discovered by Claude Code; no manifest entry required. The only command is `hyper-setup`: a local prerequisite probe that never spawns Codex or agents — it runs `scripts/setup-doctor.mjs` and reports the result.
-- **Skills** (`skills/<name>/SKILL.md`) — what Claude reads on the matching trigger. Each skill is one markdown file with YAML frontmatter (`name`, `description`). Skills call the bridge via `Bash` and dispatch agents via the `Agent` tool. A skill MAY also spawn an agent as a persistent team teammate for stateful multi-turn loops (currently only `hyper-plan-loop`); this uses Claude Code's experimental agent-teams feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`).
+- **Skills** (`skills/<name>/SKILL.md`) — what Claude reads on the matching trigger. Each skill is one markdown file with YAML frontmatter (`name`, `description`). Skills call the bridge via `Bash` and dispatch agents via the `Agent` tool. A skill MAY also spawn an agent as a persistent team teammate for stateful multi-turn loops (`hyper-plan-loop`, `hyper-implement-loop`, `hyper-docs-loop`); this uses Claude Code's experimental agent-teams feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`).
 - **Agents** (`agents/<name>.md`) — sub-Claude personas with restricted `tools:` lists. Used by skills, never the other way around.
 - **Hooks** (`hooks/*.mjs`, registered in `hooks/hooks.json`) — currently one: SessionStart reminder that injects `templates/hooks/session-start-reminder.md` plus an optional `.hyperclaude/` snapshot footer.
 - **Templates** (`templates/codex/*.md`, `templates/hooks/*.md`) — prompt bodies loaded at runtime with `{{UPPERCASE_KEY}}` substitution.
-- **Shared protocol references** (`references/loop-protocol.md`) — plugin-wide reference content loaded by skills' Step 0 alongside their loop-specific `failure-protocol.md`. Currently used by `hyper-plan-loop` and `hyper-implement-loop`; the shared base is the eventual binding target for a future `hyper-docs-loop` as well.
+- **Shared protocol references** (`references/loop-protocol.md`) — plugin-wide reference content loaded by skills' Step 0 alongside their loop-specific `failure-protocol.md`. Used by `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop`.
 
 All four modes use a fresh prompt template (`code-review` uses `templates/codex/code-review.md`) and bump `template-version` when changing them; the resumed variants (`*-resumed.md`) are unversioned in frontmatter.
 

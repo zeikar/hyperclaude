@@ -203,6 +203,8 @@ for f in \
   skills/hyper-code-review/SKILL.md \
   skills/hyper-docs-sync/SKILL.md \
   skills/hyper-docs-review/SKILL.md \
+  skills/hyper-docs-loop/SKILL.md \
+  skills/hyper-docs-loop/references/failure-protocol.md \
   agents/documenter.md \
   agents/fixer.md \
   agents/implementer.md \
@@ -538,6 +540,72 @@ else
 fi
 
 echo
+echo "==> hyper-docs-loop binding assertions"
+
+dl_skill="skills/hyper-docs-loop/SKILL.md"
+dl_fp="skills/hyper-docs-loop/references/failure-protocol.md"
+
+if grep -q '\${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md' "$dl_skill" 2>/dev/null; then
+  ok "hyper-docs-loop SKILL.md: references shared loop-protocol at Step 0"
+else
+  miss "hyper-docs-loop SKILL.md: does not reference shared loop-protocol"
+fi
+
+if grep -q 'request_id_counter' "$dl_skill" 2>/dev/null; then
+  ok "hyper-docs-loop SKILL.md: 'request_id_counter' run-state field present"
+else
+  miss "hyper-docs-loop SKILL.md: 'request_id_counter' run-state field missing"
+fi
+
+if grep -q 'awaiting_reply' "$dl_skill" 2>/dev/null; then
+  ok "hyper-docs-loop SKILL.md: 'awaiting_reply' field name present"
+else
+  miss "hyper-docs-loop SKILL.md: 'awaiting_reply' field name missing"
+fi
+
+if grep -q 'expected_request_id' "$dl_skill" 2>/dev/null; then
+  ok "hyper-docs-loop SKILL.md: 'expected_request_id' field present"
+else
+  miss "hyper-docs-loop SKILL.md: 'expected_request_id' field missing"
+fi
+
+if grep -q 'solicit_sent_at' "$dl_skill" 2>/dev/null; then
+  ok "hyper-docs-loop SKILL.md: 'solicit_sent_at' field present"
+else
+  miss "hyper-docs-loop SKILL.md: 'solicit_sent_at' field missing"
+fi
+
+if grep -q 'request-id:' "$dl_skill" 2>/dev/null; then
+  ok "hyper-docs-loop SKILL.md: 'request-id:' documenter spawn-prompt prefix present"
+else
+  miss "hyper-docs-loop SKILL.md: 'request-id:' documenter spawn-prompt prefix missing"
+fi
+
+if grep -q '"documenter"' "$dl_skill" 2>/dev/null; then
+  ok "hyper-docs-loop SKILL.md: documenter is the teammate role"
+else
+  miss "hyper-docs-loop SKILL.md: documenter teammate role binding missing"
+fi
+
+if grep -q 'request-id:' "$dl_fp" 2>/dev/null; then
+  ok "hyper-docs-loop failure-protocol.md: 'request-id:' gate binding present"
+else
+  miss "hyper-docs-loop failure-protocol.md: 'request-id:' gate binding missing"
+fi
+
+if grep -q 'documenter' "$dl_fp" 2>/dev/null; then
+  ok "hyper-docs-loop failure-protocol.md: documenter role binding present"
+else
+  miss "hyper-docs-loop failure-protocol.md: documenter role binding missing"
+fi
+
+if ! grep -q 'request-id:' agents/documenter.md 2>/dev/null; then
+  ok "agents/documenter.md: 'request-id:' NOT encoded in general agent (loop-injected only)"
+else
+  miss "agents/documenter.md: 'request-id:' encoded in general agent (loop-agnostic invariant violated)"
+fi
+
+echo
 echo "==> Summary"
 echo "  passed: $pass"
 echo "  failed: $fail"
@@ -614,6 +682,22 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      review cap (6 total Codex reviews maximum), and that the loop
      reaches a terminal state (clean exit on no blocking findings, or
      the 6-review cap reached, ending in a successful TeamDelete).
+     If agent teams are unavailable: verify it prints the documented
+     graceful-fallback message and leaves no team behind.
+     One branch always applies — this check is required either way.
+
+  9b. Run:
+       /hyperclaude:hyper-docs-loop docs/
+     If agent teams are available: verify the documenter is spawned
+     once as a teammate, that Codex docs-review runs against
+     `--docs-dir docs/` on each iteration, that ONLY blocking
+     `### Findings` items drive fix rounds (Gaps / Broken Or Suspect
+     Links / Cross-Doc Inconsistencies are reported but never sent to
+     the documenter), that documenter replies are prefixed with
+     `request-id: <integer>` and carry the per-finding structured
+     schema (`finding:` / `status:` / `files-changed:` / `verification:`
+     / `notes:`), and that the loop reaches a terminal state bounded by
+     the 6-review cap ending in a successful TeamDelete.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.

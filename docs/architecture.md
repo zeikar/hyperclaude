@@ -11,7 +11,7 @@ hyperclaude wires four things together:
 - **Agents** — sub-Claude personas with restricted tool sets. Each is one `<name>.md` under [agents/](../agents/).
 - **Bridge** — [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs), a Node 18+ stdlib script that shells out to `codex` and writes structured output under `.hyperclaude/`.
 
-There is no daemon, no MCP server, no shared process state — with two documented exceptions: `hyper-plan-loop` spawns a `planner` agent as a persistent team teammate (via Claude Code's experimental agent-teams feature) that retains context across revise iterations for the duration of the loop, and `hyper-implement-loop` spawns a `fixer` agent as a persistent team teammate in the same way for its implement-hardening loop. In `hyper-plan-loop`, the persistent planner teammate also writes the plan file directly at the lead-resolved path (caller-directed write-file mode), eliminating per-iteration plan-body round-trips. This write-file behavior is scoped to `hyper-plan-loop`; the fixer in `hyper-implement-loop` applies edits in place (no canonical output file) and delivers results via `SendMessage` — it does NOT use caller-directed write-file mode. Other agents' existing tool permissions and dispatch semantics are unchanged; stock `hyper-plan` still has the skill own the Write. All other skills and agents are stateless and fresh-per-task. The bridge runs on demand; skills and agents are static markdown. The primary persisted state is `.hyperclaude/` artifacts — gate runs produce one markdown file each, read back by `--resume` for thread-id discovery.
+There is no daemon, no MCP server, no shared process state — with three documented exceptions, all in the autonomous-loop family: `hyper-plan-loop` spawns a `planner` agent as a persistent team teammate (via Claude Code's experimental agent-teams feature) that retains context across revise iterations for the duration of the loop; `hyper-implement-loop` spawns a `fixer` agent as a persistent team teammate in the same way for its implement-hardening loop; and `hyper-docs-loop` spawns the `documenter` agent (the same agent `hyper-docs-sync` normally dispatches stateless-per-doc) as a persistent team teammate for its docs-hardening loop. In `hyper-plan-loop`, the persistent planner teammate also writes the plan file directly at the lead-resolved path (caller-directed write-file mode), eliminating per-iteration plan-body round-trips. This write-file behavior is scoped to `hyper-plan-loop`; the fixer in `hyper-implement-loop` and the documenter in `hyper-docs-loop` apply edits in place (no canonical output file) and deliver results via `SendMessage` — they do NOT use caller-directed write-file mode. Other agents' existing tool permissions and dispatch semantics are unchanged; stock `hyper-plan` still has the skill own the Write, and `hyper-docs-sync` still dispatches `documenter` stateless-per-doc in its UPDATE/CREATE mode. All other skills and agents are stateless and fresh-per-task. The bridge runs on demand; skills and agents are static markdown. The primary persisted state is `.hyperclaude/` artifacts — gate runs produce one markdown file each, read back by `--resume` for thread-id discovery.
 
 ## Directory layout
 
@@ -30,11 +30,12 @@ hyperclaude/
 │   ├── hyper-docs-review/       gate — Codex doc accuracy review
 │   ├── hyper-plan-loop/         gate — autonomous plan-revise loop (persistent planner teammate)
 │   ├── hyper-implement-loop/    gate — autonomous implement-hardening loop (persistent fixer teammate)
+│   ├── hyper-docs-loop/         gate — autonomous docs-hardening loop (persistent documenter teammate)
 │   ├── hyper-implement/         helper — plan execution loop
 │   ├── hyper-tdd/               helper — TDD discipline
 │   └── hyper-debug/             helper — debugging discipline
 ├── agents/                      sub-Claude personas (planner, implementer, verifier, documenter, researcher, fixer)
-├── references/                  plugin-wide reference content not owned by any single skill (currently: loop-protocol.md — Step-0 base for hyper-plan-loop and hyper-implement-loop)
+├── references/                  plugin-wide reference content not owned by any single skill (currently: loop-protocol.md — Step-0 base for hyper-plan-loop, hyper-implement-loop, and hyper-docs-loop)
 ├── hooks/                       event-bound hook scripts (SessionStart)
 ├── scripts/
 │   ├── codex-bridge.mjs         CLI entry; re-exports the helpers below
@@ -79,7 +80,10 @@ Functional runtime surface stops at the directory above. Zero npm dependencies; 
    │                                  │    caller-directed write-file mode.
    │                                  │    hyper-implement-loop keeps fixer as a
    │                                  │    live teammate; fixer edits in place,
-   │                                  │    no canonical output file)
+   │                                  │    no canonical output file.
+   │                                  │    hyper-docs-loop keeps documenter as a
+   │                                  │    live teammate; documenter edits in
+   │                                  │    place, no canonical output file)
    └──────────┬───────────────────────┘
               │ skills (not agents) shell out
               ▼

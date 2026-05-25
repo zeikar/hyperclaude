@@ -91,11 +91,13 @@ Phase A adds shared-loop-protocol static assertions: existence of `references/lo
 
 Phase B adds `==> hyper-implement-loop reqid promotion assertions` to smoke, statically checking that implement-loop's `SKILL.md` carries the four run-state field references (`request_id_counter` / `expected_request_id` / `awaiting_reply` / `solicit_sent_at`) and the `request-id: <id>` reply-prefix contract; that `references/failure-protocol.md` carries the `request-id: <id>` gate binding plus the three field references it actually routes by (`request_id_counter` / `expected_request_id` / `awaiting_reply`; `solicit_sent_at` is a shared-§E-only field referenced inside the stale-idle guard pseudo-code, not in the local binding); and that `agents/fixer.md` does NOT carry the prefix (the prefix is loop-injected, not agent-baked). Smoke also prints a manual end-to-end acceptance banner.
 
+`hyper-docs-loop` adds `==> hyper-docs-loop binding assertions` to smoke, mirroring the implement-loop checks: `SKILL.md` carries the four run-state fields plus `request-id:` prefix and the `documenter` teammate role; `references/failure-protocol.md` carries the `request-id:` gate binding and the documenter role binding; and `agents/documenter.md` does NOT carry the `request-id:` prefix (the prefix is loop-injected, not agent-baked, so `documenter` stays reusable by both `hyper-docs-sync` and `hyper-docs-loop`). A manual acceptance bullet (9b) is added to the end-to-end checklist.
+
 ## Local plugin install (for dogfooding)
 
 Symlink the repo into Claude Code's plugin cache so edits are picked up live. Use the version from [.claude-plugin/plugin.json](../.claude-plugin/plugin.json) as the leaf directory name:
 
-Note: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is optional and only needed to dogfood `hyper-plan-loop` (the autonomous plan-revise loop skill), `hyper-implement-loop` (the autonomous implement-hardening loop skill), and `hyper-auto` (which chains both inner loops and inherits the requirement). All other skills work without it.
+Note: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is optional and only needed to dogfood `hyper-plan-loop` (the autonomous plan-revise loop skill), `hyper-implement-loop` (the autonomous implement-hardening loop skill), `hyper-docs-loop` (the autonomous docs-hardening loop skill), and `hyper-auto` (which chains plan + implement inner loops and inherits the requirement). All other skills work without it.
 
 ```bash
 version=$(node -e 'console.log(require("./.claude-plugin/plugin.json").version)')
