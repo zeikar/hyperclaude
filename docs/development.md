@@ -85,7 +85,7 @@ The unit tests cover argument parsing, slug derivation, frontmatter rendering, f
 - When `codex` is on PATH, runs three Codex 0.130 surface probes: `codex exec resume --help`, `codex exec resume --help -c sandbox_mode=read-only` (verifies the `-c sandbox_mode=read-only` config key is accepted on the resume path), and `codex --search exec --help` (verifies the global `--search` flag is accepted before the subcommand — required since every bridge spawn now includes `--search`; this probe also covers the fresh code-review surface, which is `codex --search exec --sandbox read-only -` like the other fresh modes). Each probe failure prints an upgrade hint.
 - When `claude` is on PATH, runs `claude plugin validate .` to catch manifest drift.
 
-After the automated checks it prints a manual acceptance checklist for running each slash command end-to-end inside Claude Code — those steps are not automated. The checklist includes `/hyperclaude:hyper-setup` as the first step (verify prerequisites before running gates).
+After the automated checks it prints a manual acceptance checklist for running each slash command end-to-end inside Claude Code — those steps are not automated. `/hyperclaude:hyper-setup` is the last step in the printed checklist (step 11).
 
 Phase A adds shared-loop-protocol static assertions: existence of `references/loop-protocol.md`, presence of `PHASE 1` / `PHASE 2` / `stale-recovery` markers, absence of loop-specific tokens (`WROTE:`, role names like `planner`/`fixer` — the binding-hole invariant), and a check that `skills/hyper-plan-loop/SKILL.md` Step 0 references the shared file via `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
 
@@ -169,4 +169,4 @@ The smoke script's "manual checklist" walks through running each slash command e
 bash scripts/test/smoke.sh
 ```
 
-Then follow the printed checklist (hyper-setup → research → plan-review → code-review → docs-sync → docs-review). Stop and fix at the first failure.
+Then follow the printed checklist (research → plan → plan-review → code-review → docs-sync → docs-review → plan-loop → implement-loop → docs-loop → hyper-auto → hyper-setup). Stop and fix at the first failure.

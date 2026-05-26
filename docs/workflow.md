@@ -16,7 +16,7 @@ research → plan → plan-review → implement → code-review → docs-sync �
 Codex     Claude     Codex     Claude(+agents) Codex      Claude       Codex        user
 ```
 
-Each step has a single concrete trigger and a single concrete output. Slugs propagate so a release's research, plan, and review can be paired by name.
+Each step has a single concrete trigger; most produce one output file per bridge call, but default research produces a Codex+Claude pair and loop skills accumulate multiple per-iteration artifacts. Slugs propagate so a release's research, plan, and review can be paired by name.
 
 ---
 
@@ -230,4 +230,4 @@ Each Codex gate is one `codex` invocation. The bridge passes `--sandbox read-onl
 
 Every invocation (all modes, fresh and resume) runs with live web search enabled via the global `--search` flag, so Codex may fetch external content (official docs, changelogs, live references) while it has your task or code context. This is intentional and does NOT relax the read-only filesystem sandbox.
 
-Default per-call timeout is 300s. Default per-mode size guards: docs-review docs payload ≤ 200KB, docs-review diff ≤ 500KB. See [architecture.md](architecture.md) for the rest.
+Default per-call timeout is 600s. Default per-mode size guards: docs-review docs payload ≤ 200KB, docs-review diff ≤ 500KB. See [architecture.md](architecture.md) for the rest.

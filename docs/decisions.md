@@ -54,7 +54,7 @@ Coverage is uneven by intent: `ENOENT`/`EISDIR` are friendly-mapped only for the
 
 `hyper-research` runs **both** the Codex path and the Claude (`researcher` agent) path in parallel by default, producing two files; a single path runs only on explicit request. The bridge is intentionally untouched (it is the design invariant): the Codex artifact keeps the default `<ts>-<slug>.md`, the Claude one takes a `-claude` suffix, and both carry an identical frontmatter `slug:` — traceability is the shared slug, not the filename, so the "one slug per research→plan→plan-review trace" convention is unchanged.
 
-Still additive, not a replacement: Codex always runs (the critic step holds the "Claude builds, Codex critiques" invariant); Claude is an extra lens. `codex-version: claude` distinguishes the Claude-authored artifact; both write the same always-present frontmatter keys so plan/plan-review treat either identically. Note: the `researcher` agent's `WebFetch` on known URLs is *not* parity with Codex's live `--search` crawl — the Claude path is for known-reference lookups, not open-ended search.
+Still additive, not a replacement: by default, Codex runs (the critic step holds the "Claude builds, Codex critiques" invariant); Claude is an extra lens. An explicit "Claude only / no-Codex" request skips Codex entirely. `codex-version: claude` distinguishes the Claude-authored artifact; both write the same always-present frontmatter keys so plan/plan-review treat either identically. Note: the `researcher` agent's `WebFetch` on known URLs is *not* parity with Codex's live `--search` crawl — the Claude path is for known-reference lookups, not open-ended search.
 
 ### Codex is always invoked with `--search`
 
