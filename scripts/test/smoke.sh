@@ -355,22 +355,22 @@ echo "==> hyper-plan-loop static content assertions"
 skill_file="skills/hyper-plan-loop/SKILL.md"
 fp_file="skills/hyper-plan-loop/references/failure-protocol.md"
 
-if grep -q "### Step 7a" "$skill_file" 2>/dev/null; then
-  ok "hyper-plan-loop SKILL.md: Step 7a section header present"
+if ! grep -q "### Step 7a" "$skill_file" 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: legacy Step 7a section header absent (loop is sibling-loop parity, no Minor-cleanup branch)"
 else
-  miss "hyper-plan-loop SKILL.md: Step 7a section header missing"
+  miss "hyper-plan-loop SKILL.md: legacy Step 7a section header still present (should be removed)"
 fi
 
-if grep -q "10 severity-gated reviews" "$skill_file" 2>/dev/null; then
-  ok "hyper-plan-loop SKILL.md: '10 severity-gated reviews' cap wording present"
+if grep -q "10 total reviews" "$skill_file" 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: '10 total reviews' cap wording present"
 else
-  miss "hyper-plan-loop SKILL.md: '10 severity-gated reviews' cap wording missing"
+  miss "hyper-plan-loop SKILL.md: '10 total reviews' cap wording missing"
 fi
 
-if ! grep -q "10 total Codex reviews" "$skill_file" 2>/dev/null; then
-  ok "hyper-plan-loop SKILL.md: stale '10 total Codex reviews' phrase absent"
+if ! grep -q "10 severity-gated reviews" "$skill_file" 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: stale '10 severity-gated reviews' wording absent"
 else
-  miss "hyper-plan-loop SKILL.md: unqualified '10 total Codex reviews' phrase found (stale)"
+  miss "hyper-plan-loop SKILL.md: stale '10 severity-gated reviews' wording still present"
 fi
 
 if ! grep -q "Treating Minor findings as blocking" "$skill_file" 2>/dev/null; then
@@ -397,10 +397,16 @@ else
   miss "hyper-plan-loop failure-protocol.md: stale fragment 'Only Blocker/Major gate the loop' still present"
 fi
 
-if grep -q "Treating an actionable Minor" "$fp_file" 2>/dev/null; then
-  ok "hyper-plan-loop failure-protocol.md: new qualified anti-pattern 'Treating an actionable Minor' present"
+if ! grep -q "Treating an actionable Minor" "$fp_file" 2>/dev/null; then
+  ok "hyper-plan-loop failure-protocol.md: legacy 'Treating an actionable Minor' anti-pattern absent (replaced with non-blocking-findings rule)"
 else
-  miss "hyper-plan-loop failure-protocol.md: new qualified anti-pattern 'Treating an actionable Minor' missing"
+  miss "hyper-plan-loop failure-protocol.md: legacy 'Treating an actionable Minor' anti-pattern still present"
+fi
+
+if grep -q "Treating non-blocking findings as revise targets" "$fp_file" 2>/dev/null; then
+  ok "hyper-plan-loop failure-protocol.md: new 'Treating non-blocking findings as revise targets' anti-pattern present"
+else
+  miss "hyper-plan-loop failure-protocol.md: new 'Treating non-blocking findings as revise targets' anti-pattern missing"
 fi
 
 echo
@@ -706,11 +712,12 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
        /hyperclaude:hyper-auto <small task description>
      If agent teams are available: verify that the skill chains
      hyper-plan-loop → hyper-implement-loop in one gesture — plan-loop
-     runs to terminal state first, and ONLY a clean exit (no Blocker /
-     Major; cleanup branch ok) advances into implement-loop with the
-     canonical plan path. Verify the safety boundary: artificially
-     induce or simulate a plan-loop non-clean terminal (cap-reached or
-     revise-regression) and confirm implement-loop is NOT invoked.
+     runs to terminal state first, and ONLY a clean exit (no blocking
+     findings) advances into implement-loop with the canonical plan
+     path. Verify the safety boundary: artificially induce or simulate
+     a plan-loop non-clean terminal (cap-reached with blocking still
+     open, bridge failure, etc.) and confirm implement-loop is NOT
+     invoked.
      Verify the final report relays both phases' Step 9 facts (no
      invented fields), with the composed-flow exception: plan-loop's
      clean-exit "Next step: /hyperclaude:hyper-implement <plan path>"

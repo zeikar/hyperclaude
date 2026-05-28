@@ -5,7 +5,7 @@ description: Use when a plan should be produced and critic-hardened in one gestu
 
 # hyper-plan-loop
 
-Autonomous plan-hardening gate. Creates a per-run team, spawns the `planner` agent as a persistent teammate, writes its plan to `.hyperclaude/plans/<YYYYMMDD-HHMM>-<slug>.md`, runs Codex `plan-review` through the bridge, and revises via the still-live planner until Codex returns no Blocker/Major or the cap is hit; when only a concrete actionable Minor remains, the loop runs a one-shot Minor-cleanup pass before teardown. The planner is spawned **once**; every revise round reuses its retained context via SendMessage. The reviewer is always the Codex bridge, never a teammate — this preserves the "Claude builds, Codex reviews" invariant.
+Autonomous plan-hardening gate. Creates a per-run team, spawns the `planner` agent as a persistent teammate, writes its plan to `.hyperclaude/plans/<YYYYMMDD-HHMM>-<slug>.md`, runs Codex `plan-review` through the bridge, and revises via the still-live planner until Codex returns no blocking findings (judged by meaning, not Codex severity labels) or the cap is hit. The planner is spawned **once**; every revise round reuses its retained context via SendMessage. The reviewer is always the Codex bridge, never a teammate — this preserves the "Claude builds, Codex reviews" invariant.
 
 ## When to use
 
@@ -32,7 +32,7 @@ This skill uses the experimental agent-teams tools. The per-run team name is pas
 - A teammate's `shutdown_response` or idle-termination notification is auto-delivered as a new turn — there is no poll/wait tool. **But the idle notification is a payload-less wake signal (`{type:"idle_notification",...}`) — it does NOT carry the teammate's reply text.** The `WROTE:` confirmation arrives ONLY if the planner explicitly `SendMessage`s it to the lead (Step 3 reply-transport rule); a planner that prints `WROTE:` as plain text and idles delivers an empty notification and the lead must fall back to the corrective round-trip. Idle teammates keep their process + context alive between turns; a later SendMessage wakes them with context intact — this is the property the revise loop depends on.
 - **Plan ownership:** the planner writes the canonical plan file itself via caller-directed write-file mode (its Step 3 prompt carries the exact resolved path). The lead never Writes or Reads the plan body on the normal path — it does only a quiet `ok`/`bad` structure check, and only Reads the body for human-facing failure diagnostics. Every write-file-mode reply (initial, retry, revise redo) is gated to `WROTE: <reqid> <path>`-only (Step 4 anchored gate). Unsolicited planner messages follow the lead-side protocol (`references/failure-protocol.md` §2) — prompt-only idle discipline is insufficient.
 
-**Planner request id.** Every lead→planner solicitation carries a per-run, lead-owned, monotonically increasing integer id. The lead is the SOLE id source — the planner only echoes it. The counter increments on EVERY solicitation: spawn = 1, each Step 7 revise = +1, each Step 7a cleanup = +1, AND every §1/§3 corrective redo — anchored-gate corrective AND file-check corrective alike — gets its OWN new id (a corrective is a fresh solicitation; reusing the prior id reintroduces the blind spot). The `shutdown_request` object message is EXEMPT (no id).
+**Planner request id.** Every lead→planner solicitation carries a per-run, lead-owned, monotonically increasing integer id. The lead is the SOLE id source — the planner only echoes it. The counter increments on EVERY solicitation: spawn = 1, each Step 7 revise = +1, AND every §1/§3 corrective redo — anchored-gate corrective AND file-check corrective alike — gets its OWN new id (a corrective is a fresh solicitation; reusing the prior id reintroduces the blind spot). The `shutdown_request` object message is EXEMPT (no id).
 
 The lead must retain the following run-state across turns and never conflate these fields:
 
@@ -127,7 +127,7 @@ The `prompt` string MUST contain:
 
 The lead no longer Writes the plan — the planner writes the canonical file itself (caller-directed write-file mode, Step 3). The lead only verifies.
 
-**Anchored reply gate (id-first summary)** — applies to EVERY planner reply in write-file mode (the initial write, any retry, every Step 7 revise redo, and every Step 7a cleanup reply and redo alike). Classification is id-first, phase-first:
+**Anchored reply gate (id-first summary)** — applies to EVERY planner reply in write-file mode (the initial write, any retry, and every Step 7 revise redo). Classification is id-first, phase-first:
 
 1. **First operation:** parse the leading `WROTE: <integer>` token from the trimmed reply and capture `<reqid>`. Everything after that token is the path payload.
 2. **Classify by `awaiting_reply` FIRST, then by id, BEFORE any exact-path or no-prose check.**
@@ -155,7 +155,7 @@ While the planner is live and BEFORE Step 8 teardown, the only planner message t
 
 ### Step 5 — Plan-review iteration 1 (fresh)
 
-**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **10 severity-gated reviews** (iter 1 fresh + at most **9 revise rounds**), plus at most ONE final Minor-cleanup re-review (the separate non-gated Step 7a one). `review_iteration` is independent of `request_id_counter` — the id increments on every solicitation including correctives; `review_iteration` only on bridge re-invocation (see the run-state fields in the "Agent-teams tool contract" section).
+**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **10 total reviews** (iter 1 fresh + at most **9 resumed revise rounds**). `review_iteration` is independent of `request_id_counter` — the id increments on every solicitation including correctives; `review_iteration` only on bridge re-invocation (see the run-state fields in the "Agent-teams tool contract" section).
 
 Invoke via the Bash tool with `timeout: 600000`:
 
@@ -169,31 +169,28 @@ On any non-`ok:true`, Bash timeout, or JSON parse failure → Step 8 teardown, t
 
 ### Step 6 — Severity gate
 
-Read the artifact body and judge by **meaning**, not regex. The plan-review template emits `### Issues` with `- **Blocker** — …` / `- **Major** — …` / `- **Minor** — …` bullets plus `### Verdict`.
+Read the artifact body and judge by **meaning**, not regex. The plan-review template emits `### Issues` with `- **Blocker** — …` / `- **Major** — …` / `- **Minor** — …` bullets plus `### Verdict` — but classify by meaning, not by the severity word Codex attached: a finding **blocks** if it concerns **plan-level correctness, wrong file paths, broken task ordering, unverifiable steps, or missing required behavior the implementer would inherit** (regardless of severity label). Pure **style / "consider X" / "could be slightly clearer" / vague nits do NOT block.**
 
-Three successful severity outcomes; the conservative failure branch below is unchanged:
+- Any blocking finding → revise (Step 7).
+- No blocking findings (style/nits only, or an approving verdict) → exit loop (Step 8 teardown → Step 9). Non-blocking findings are reported, never gating.
 
-- **(a)** Any Blocker or Major → revise (Step 7).
-- **(b)** Zero Blocker/Major AND no concrete actionable Minor cleanup (pure approve, OR Minor mentioned only vaguely with no identifiable executable change) → exit loop now (Step 8 teardown → Step 9).
-- **(c)** Zero Blocker/Major AND a concrete, executable Minor-grade cleanup remains → run the new Step 7a final-cleanup pass exactly once, then unconditionally Step 8 teardown → Step 9. Never return to Step 6. (See Step 7a — runs exactly once, then hard-stops; the loop never recurses on Minor.)
+**Conservative branch:** if severity cannot be confidently judged by meaning (no recognizable `### Issues` / `### Verdict` structure, truncated body, etc.) — do NOT assume "no blocking findings": instead Step 8 teardown, then STOP with a named-loop report (**"hyper-plan-loop unparseable review, iter N"**) surfacing the artifact path for manual triage.
 
-**Branch (b)-vs-(c) detection:** judge by meaning (not a regex count) by reading BOTH the `### Issues` Minor bullets AND the `### Verdict` text. Branch (c) fires ONLY if either names a **concrete**, executable Minor-grade change the planner can act on without guessing. If the Verdict only says "ship after small fixes" (or similar) but neither Issues nor Verdict identifies a specific actionable change, this is branch (b) — exit and report the residual as "non-actionable / ambiguous Minor (not sent to planner)" in Step 9; do NOT send a vague directive to the planner.
+### Step 7 — Revise via the live planner, then re-review
 
-**Conservative branch:** if severity cannot be confidently judged by meaning (no recognizable `### Issues` / `### Verdict` structure, truncated body, etc.), do NOT assume "no Blocker/Major" — instead Step 8 teardown, then STOP with a named-loop report (**"hyper-plan-loop unparseable review, iter N"**) surfacing the artifact path for manual triage.
-
-### Step 7 — Revise via the live planner, then re-review (Blocker/Major only; Step 7a is the Minor-only counterpart, bounded to one occurrence)
+First check the cap: if the iteration counter is already at 10 (10 total Codex reviews consumed), do NOT send findings or revise — go directly to Step 8 (cap reached).
 
 The lead never Reads the plan body into its context here (that would reintroduce the token cost this skill is designed to avoid). Validation is filesystem-level only.
 
 Before sending, increment the id: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_reply = true`; immediately before the SendMessage call, capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (the field-definition rule above is binding — assistant-turn start is NOT valid). Pass that new id in the message and in the reply instruction.
 
-Send the findings to the still-live planner:
+Send the blocking findings to the still-live planner:
 
 ```
 SendMessage({
   to: "planner",
   summary: "Revise plan request <id>",
-  message: "<verbatim Blocker/Major findings + relevant ### Verdict text when it explains the required direction; instruct: first Read <the exact resolved plan path> to refresh, then revise and re-Write THAT SAME path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else — no plan body, no preamble>"
+  message: "<verbatim blocking findings + relevant ### Verdict text when it explains the required direction; instruct: first Read <the exact resolved plan path> to refresh, then revise and re-Write THAT SAME path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else — no plan body, no preamble>"
 })
 ```
 
@@ -217,43 +214,13 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<
 
 `--plan-path` is REQUIRED on every iteration including resumes (`plan-review --resume auto` alone is invalid). Always pass `--resume auto` from iteration 2 onward. Re-parse per Step 5's JSON rules, then loop back to Step 6.
 
-### Step 7a — Final Minor-cleanup pass (exactly once)
-
-Entered only on Step 6 branch (c): zero Blocker/Major, concrete actionable Minor remains. Runs exactly once, then hard-stops at Step 8 teardown → Step 9. **Never loops back to Step 6 or Step 7.**
-
-**Cap accounting:** this cleanup re-review is the single non-gated review outside the 10-review cap (Step 8); it never affects the Blocker/Major cap-exhaust path.
-
-1. **SendMessage the Minor findings to the still-live planner.** Before sending, increment the id: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_reply = true`; immediately before the SendMessage call, capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (the field-definition rule above is binding — assistant-turn start is NOT valid). Send verbatim concrete Minor `### Issues` findings PLUS the relevant actionable `### Verdict` directive text. Do NOT re-send the task or research (planner holds context). Pass that new id in the message and in the reply instruction. Use the SAME reply-transport, anchored reply gate (Step 4), structure `ok`/`bad` check, and single-redo pipeline as Step 7 — reuse the `references/failure-protocol.md` §3 pipeline exactly — do not restate it. (A §3 terminal outcome here proceeds to Step 8 teardown → STOP — Step 8 is mandatory on every post-spawn stop; do not fall through to the passing-reply path below.) SendMessage shape:
-
-   ```
-   SendMessage({
-     to: "planner",
-     summary: "Apply Codex Minor cleanup request <id>",
-     message: "<verbatim Minor ### Issues findings + relevant ### Verdict directive text; instruct: first Read <the exact resolved plan path> to refresh, then revise and re-Write THAT SAME path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else — no plan body, no preamble>"
-   })
-   ```
-
-   (Replace `<id>` with the actual integer just minted.)
-
-   **§3 corrective id note:** any §3 redo-pipeline corrective (see `references/failure-protocol.md` §3) also mints its OWN new incremented id (the full mint protocol applies, same as the increment-before-send above: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_reply = true`, and `solicit_sent_at` captured via Bash `date -u +%FT%TZ` immediately before the SendMessage call) before sending — the redo reply must echo that newest id, not the failed solicitation's id.
-
-2. **On a passing reply (gate + structure `ok`),** increment the iteration counter and re-invoke the bridge EXACTLY ONCE via the Bash tool with `timeout: 600000`:
-
-   ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<same path>" --resume auto
-   ```
-
-   `--plan-path` is REQUIRED; `--resume auto` always (this is iteration ≥2). Re-parse per Step 5's JSON rules; on `ok:true`, Read the artifact at `path` with the Read tool (required input for the Step 7a.3 classification). On any non-`ok:true`, Bash timeout, or parse failure → Step 8 teardown, then STOP with a named-loop report (**"hyper-plan-loop bridge failure, iter N"**) — same as Step 5's bridge-failure path.
-
-3. **Final-review classification (REPORTING ONLY — never re-revise).** Read the cleanup re-review artifact by meaning and extract, for Step 9's report ONLY: the final Codex verdict, and whether it introduced a NEW Blocker/Major (revise regression) or left only residual Minor. This is a read for reporting — it does NOT route back to Step 6 or Step 7 and never triggers another revision. If the cleanup artifact's structure is unparseable (no recognizable `### Issues` / `### Verdict`, truncated body), do NOT treat it as success — carry an explicit **"final cleanup re-review unparseable"** flag into Step 9 and report it loudly there (still hard-stop; never re-revise).
-
-4. **Hard stop regardless of classification.** Proceed unconditionally to Step 8 teardown → Step 9. NEVER loop back to Step 6 or Step 7. Even a NEW Blocker/Major found in Step 7a.3 above does NOT cause another revise — it is reported loudly in Step 9 and the loop terminates.
-
 ### Step 8 — Cap + teardown
 
-Cap at **10 severity-gated reviews, plus at most ONE final Minor-cleanup re-review** (iter 1 fresh + at most 9 resumed revise rounds as the severity-gated portion; the cleanup re-review from Step 7a is the separate non-gated one). `review_iteration` is independent of `request_id_counter` — the id increments on every solicitation including correctives; `review_iteration` only on bridge re-invocation (see the run-state fields in the "Agent-teams tool contract" section).
+Cap at **10 total reviews** (iter 1 fresh + at most 9 resumed revise rounds). `review_iteration` is independent of `request_id_counter` — the id increments on every solicitation including correctives; `review_iteration` only on bridge re-invocation (see the run-state fields in the "Agent-teams tool contract" section).
 
-On cap-reached with Blocker/Major still open: FIRST capture the cap report details (iterations consumed, residual Blocker/Major findings, plan path left in its latest revised state), THEN run teardown, THEN emit the named-loop report (**"hyper-plan-loop revise loop"**).
+On cap-reached, FIRST capture the cap report details (iterations consumed, residual blocking findings from the latest review, plan path left in its latest revised state), THEN run teardown, THEN emit the named-loop report (**"hyper-plan-loop revise loop"**): the loop ran out of rounds before Codex stopped flagging plan-level correctness/path/ordering/missing-behavior issues. The plan path needs manual triage.
+
+(Cap is only reachable via Step 7, which only runs when the latest review had blocking findings — so cap-reached always means "blocking findings still open." A run where Codex returns non-blocking-only at any iteration exits cleanly via Step 6 before the cap can trip.)
 
 **Teardown is MANDATORY on EVERY exit path once the Step 3 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure (anchored gate / unsolicited-message protocol), planner-write failure, planner-format failure, plus any other unexpected tool error while the planner teammate is live. Run teardown FIRST, then report/STOP — never before.
 
@@ -271,17 +238,12 @@ After successful teardown, report:
 
 - The plan path.
 - Whether the slug was reused from research artifact(s) or freshly derived.
-- Review iterations consumed (on branch (c), this count INCLUDES the final cleanup re-review — it is the one non-severity-gated review that sits OUTSIDE the 10-review cap (it does not count against it)).
-- The final Codex verdict (this bullet is the SINGLE source of the latest Codex verdict; do NOT restate it in the cleanup bullet below).
-- **Cleanup outcome and residuals:** report ONE of the following:
-  - Branch (b) path: the one-shot Minor-cleanup pass was skipped (either zero actionable Minor existed, or the Minor was non-actionable / ambiguous and not sent to the planner); state any residual Minor findings from the last review as informational.
-  - Branch (c) clean path: the one-shot Minor-cleanup pass was applied; state any residual Minor findings from the cleanup re-review as informational.
-  - Branch (c) with the "final cleanup re-review unparseable" flag set: the one-shot Minor-cleanup pass was applied but the final cleanup re-review could not be classified — report this loudly.
-  - Branch (c) with a NEW Blocker/Major from the cleanup re-review: **WARNING — revise regression detected.** The one-shot Minor-cleanup pass was applied but the cleanup re-review surfaced a new Blocker/Major. Do NOT duplicate the Codex verdict here — state only that a regression was found and see the terminal-state next-step below.
-
-- **Next step** — conditional on branch and final cleanup re-review outcome:
-  - If branch (b), OR branch (c) with the final cleanup re-review reporting NO Blocker/Major → recommend: `Next step: /hyperclaude:hyper-implement <plan path>`.
-  - If branch (c) and the final cleanup re-review surfaced a NEW Blocker/Major, OR the "final cleanup re-review unparseable" flag is set → **terminal revise-regression state**: the plan is left in its last revised form at the reported plan path. Do NOT recommend implementation. Direct the user to inspect that plan path and restart the plan/review flow from the original task context using `/hyperclaude:hyper-plan` + `/hyperclaude:hyper-plan-review` manually (do NOT tell them to re-run `/hyperclaude:hyper-plan-loop` with the plan path — that skill takes a task description, not an existing plan path).
+- Review iterations consumed.
+- The final Codex verdict.
+- Residual non-blocking findings (informational, never gating).
+- **Next step:**
+  - Clean exit (loop converged) → recommend: `Next step: /hyperclaude:hyper-implement <plan path>`.
+  - Cap-reached (blocking findings still open) → do NOT recommend implementation. Direct the user to inspect the plan path and decide whether to revise manually (via `/hyperclaude:hyper-plan` + `/hyperclaude:hyper-plan-review`) or re-run `/hyperclaude:hyper-plan-loop` with the original task description (this skill takes a task description, not an existing plan path).
 
 ## Anti-patterns
 
@@ -292,5 +254,5 @@ Core invariants (full list in `references/failure-protocol.md` §5):
 - Reading the plan body into lead context each revise round, or accepting any non-`WROTE:` reply as success.
 - Writing `<plan>-v2.md` (or any) sibling files. Always overwrite the same plan path; `--resume` keys on it.
 - Skipping `shutdown_request` + `TeamDelete`, or calling `TeamDelete` before the teammate is down; stopping silently at the cap.
-- Treating an actionable Minor as a recursive revise target. Under Step 6 branch (c) an actionable Minor triggers the one-shot Step 7a cleanup exactly once (then hard-stop); recursing on Minor — re-entering revise after the 7a re-review, or looping 7a back to Step 6/7 — is forbidden.
+- Treating non-blocking findings as revise targets. Step 6 classifies by **meaning** — style nits, vague "consider X" suggestions, and pure prose-polish do NOT block, regardless of what severity label Codex attached. Only plan-level correctness / wrong paths / broken ordering / unverifiable steps / missing required behavior gate the loop.
 - Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.

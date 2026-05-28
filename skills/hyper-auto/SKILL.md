@@ -25,12 +25,11 @@ Invoke `/hyperclaude:hyper-plan-loop <task>` with the user's task description ve
 
 ### Step 2 — Branch on plan-loop's terminal state
 
-- **Clean exit** (no Blocker/Major; includes the optional Minor-cleanup pass terminating cleanly) → capture the plan path from the loop's report, proceed to Step 3.
-- **Cap reached** with Blocker/Major still open → STOP. Surface plan-loop's terminal report verbatim. Do NOT proceed.
-- **Terminal revise-regression** (Step 7a's regression branch after Minor-cleanup) → STOP. Same handling.
+- **Clean exit** (no blocking findings — plan-loop converged) → capture the plan path from the loop's report, proceed to Step 3.
+- **Cap reached** (plan-loop's "revise loop" report — blocking findings still open after the 10-review budget) → STOP. Surface plan-loop's terminal report verbatim. Do NOT proceed.
 - **Any other terminal failure** (bridge failure, planner-write/format failure, reply-contract failure, unparseable review, etc.) → STOP, surface the underlying report verbatim.
 
-Implementing on a non-converged plan wastes the implement-loop budget on a known-broken input — this is the safety boundary.
+Implementing on a plan with unresolved blocking findings wastes the implement-loop budget on a known-broken input — this is the safety boundary.
 
 ### Step 3 — Run hyper-implement-loop
 
@@ -40,15 +39,14 @@ Invoke `/hyperclaude:hyper-implement-loop <plan-path-from-Step-1>` with the cano
 
 Relay both phases' Step 9 terminal facts so the user can audit the full chain. Do not paraphrase or invent fields — but apply ONE composed-flow exception:
 
-- **Suppress `hyper-plan-loop`'s clean-exit "Next step: /hyperclaude:hyper-implement <plan path>" recommendation.** That line (see [skills/hyper-plan-loop/SKILL.md:288](../hyper-plan-loop/SKILL.md)) fires on a standalone clean plan-loop exit; under `hyper-auto`, Step 3 has already executed the implement phase, so relaying it verbatim would tell the user to re-implement an already-implemented plan. Drop that bullet from the relayed plan-loop report.
-- **Plan-loop's other directives are untouched.** The "terminal revise-regression" guidance is not reached here because Step 2 stops the chain before Step 3 in that case — but if surfaced for any reason, relay it verbatim.
+- **Suppress `hyper-plan-loop`'s "Next step: /hyperclaude:hyper-implement <plan path>" recommendation.** That line fires on a clean plan-loop exit; under `hyper-auto`, Step 3 has already executed the implement phase, so relaying it verbatim would tell the user to re-implement an already-implemented plan. Drop that bullet from the relayed plan-loop report.
 
 **Plan-loop bullets to relay** (Step 9 of `hyper-plan-loop`, minus the suppressed Next-step):
 - The plan path.
 - Slug-source (research-reused vs freshly-derived).
 - Review iterations consumed.
 - The final Codex verdict.
-- Cleanup outcome and residuals.
+- Residual non-blocking findings (informational, never gating).
 
 **Implement-loop bullets to relay** (Step 9 of `hyper-implement-loop`, verbatim):
 - All `reviewArtifacts[]` paths.
@@ -60,7 +58,7 @@ Relay both phases' Step 9 terminal facts so the user can audit the full chain. D
 
 ## Anti-patterns
 
-- Proceeding to implement-loop when plan-loop hit cap-reached or terminal revise-regression. The plan still has open Blockers/Majors — the implement-loop is not the place to compensate.
+- Proceeding to implement-loop when plan-loop hit cap-reached ("revise loop" report). The plan still has unresolved blocking findings — the implement-loop is not the place to compensate.
 - Calling this skill when a plan already exists. Use `hyper-implement-loop` directly; running plan-loop on a plan-shaped task description duplicates work.
 - Hiding the intermediate plan-loop failure under a generic "auto failed" message — always surface the underlying terminal state so the user can diagnose.
 - Modifying the plan between Step 1 and Step 3. The implement-loop receives the canonical plan-loop output as-is; out-of-band edits break the audit trail.

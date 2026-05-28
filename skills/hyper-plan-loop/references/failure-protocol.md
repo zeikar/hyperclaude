@@ -15,7 +15,7 @@ These fill the shared `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` bindin
 
 ## §1 — Anchored reply gate: corrective + escalation
 
-The anchored reply gate (SKILL.md Step 4) is the accept condition for EVERY planner reply in write-file mode (initial write, any retry, every Step 7 revise redo, every Step 7a cleanup reply and redo). The gate definition stays in SKILL.md; this section is the failure handling.
+The anchored reply gate (SKILL.md Step 4) is the accept condition for EVERY planner reply in write-file mode (initial write, any retry, and every Step 7 revise redo). The gate definition stays in SKILL.md; this section is the failure handling.
 
 On any body echo, added prose, preamble, or a different path: mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective message that carries the new id:
 
@@ -59,9 +59,7 @@ There is no no-op / unchanged-plan detection. A planner that replies `WROTE:` bu
 
 If `bad` (the planner clobbered the canonical path with malformed content, OR the file is missing/unreadable): mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective `SendMessage` (with `summary: "... request <id>"`) instructing the planner to redo the revision and re-Write the exact resolved plan path, passing the new id and requiring `WROTE: <that new id> <exact resolved path>`. That corrective's reply re-enters the FULL pipeline from step (1): id-first parse → anchored reply gate → structure `ok`/`bad` check — the gate now expects that NEWEST `expected_request_id`. If the redo is still `bad` at the structure step → Step 8 teardown, then STOP (**"hyper-plan-loop planner format, iter N"**), surfacing the resolved plan path for manual triage. The loop does NOT auto-restore — the plan file is left as the planner last wrote it; `/hyperclaude:hyper-plan` regenerates it in one step. Only Read the full file into lead context for that human-facing failure diagnostic — never on the success path.
 
-On `ok`: return to the **caller's** success continuation, not unconditionally Step 7's. **Step 7** increments the iteration, re-invokes the bridge with `--resume auto`, then loops back to Step 6 (the normal Blocker/Major loop). **Step 7a** instead returns to its own Step 7a.2 (exactly one re-review) then Step 7a.3–7a.4 hard-stop — it NEVER enters Step 6 or the Step 7 loop. The §3 redo pipeline is shared; its success exit is caller-scoped.
-
-Step 7a has exactly one planner round, which invokes this same redo pipeline (anchored gate → structure check → single redo) — no separate pipeline, no duplicated rules.
+On `ok`: Step 7 increments the iteration, re-invokes the bridge with `--resume auto`, then loops back to Step 6.
 
 ## §4 — Teardown recovery (Step 8 `TeamDelete` failure)
 
@@ -79,7 +77,7 @@ Plan-loop-specific:
 - Accepting any non-`WROTE:` reply (body echo, prose, preamble, wrong path) as success. The anchored gate is exact-match only.
 - Proceeding to Codex review on a `bad` (malformed) just-written file instead of running the §3 corrective + terminal STOP first.
 - Writing the wrong base path. The resolved plan path is a Step 1 concept; Step 2 is team creation only — never derive the path from Step 2.
-- Treating an actionable Minor as a recursive revise target. Under Step 6 branch (c) an actionable Minor triggers the one-shot Step 7a cleanup **exactly once** (then hard-stop); recursing on Minor — re-entering revise after the 7a re-review, or looping 7a back to Step 6/7 — is forbidden.
+- Treating non-blocking findings as revise targets. Step 6 classifies by **meaning** (correctness, wrong paths, broken ordering, unverifiable steps, missing required behavior) — pure style nits, vague "consider X" suggestions, and prose-polish do NOT gate the loop regardless of which severity word Codex attached. Trust the meaning judgment; do not invent revisions for non-blocking findings.
 - Omitting `--plan-path` or `--resume auto` on iteration 2+. `--plan-path` is required every iteration; `--resume auto` from iteration 2 onward.
 - Stopping silently at the cap. Always emit the named cap report (after teardown).
 - Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.
