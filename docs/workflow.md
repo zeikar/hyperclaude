@@ -74,7 +74,7 @@ For each `## Task N:` in the plan, this skill:
 4. Dispatches the `verifier` agent if tests / build steps are involved.
 5. Marks the task complete and moves on.
 
-Fix loops happen inline — reviewer ❌ → implementer fixes → re-review. The skill does not pause for user input between tasks; it executes the whole plan.
+Fix loops happen inline — reviewer ❌ → implementer fixes → re-review. The skill does not pause for user input between tasks; it executes the whole plan. On full completion it archives the executed plan to `.hyperclaude/plans/done/`, so a finished plan stops surfacing as the SessionStart "Active plan".
 
 When to skip the skill: one-step plans (just dispatch `implementer` directly), tightly-coupled tasks that benefit from shared context, or fast prototyping.
 

@@ -132,7 +132,20 @@ After all tasks:
 - All tasks are now committed on the feature branch (one commit per task, minus skipped no-change tasks). Run `bash scripts/test/smoke.sh` (or whatever the plan defines as final acceptance) and confirm 0 failures.
 - If `/hyperclaude:hyper-code-review` is available, run it for a Codex-side review of the entire diff. Useful catch for cross-task issues.
 - If the plan's final task includes a tag step (`git tag -a vX.Y.Z`), do NOT push it; leave that to the user.
-- Report the feature branch name and the per-task commit SHAs (and any "no file changes" skips). Do NOT push the branch — pushing stays a user action.
+- **Archive the plan — only when the whole plan is truly done.** "Done" means ALL of: every task block executed (committed or skipped-no-change); the final acceptance above passed; AND, *if* the optional `/hyperclaude:hyper-code-review` above actually ran, it returned no Blocker/Major findings. This is NOT the plan's checkbox count (audit / no-op tasks never get a `- [x]`, so a fully-executed plan can still show unchecked boxes). Archive **only a canonical plan** — one whose resolved path is a direct child of `.hyperclaude/plans/`. An explicit `$ARGUMENTS` plan that lives outside that dir is left where it is (moving it would be destructive and would violate the "only `plans/` is archived" contract). Move it with a plain `mv` (`.hyperclaude/` is gitignored, so `git mv` fails):
+
+  ```bash
+  plan="<resolved plan path>"
+  case "$plan" in
+    .hyperclaude/plans/*.md|*/.hyperclaude/plans/*.md)
+      mkdir -p .hyperclaude/plans/done && mv "$plan" .hyperclaude/plans/done/ ;;
+    *)
+      echo "Plan is outside .hyperclaude/plans/ (explicit external path) — left in place, not archived." ;;
+  esac
+  ```
+
+  Both the Step 1 newest-plan auto-pick (`*.md` is non-recursive) and the SessionStart snapshot ignore the `done/` subdir for free, so an executed plan stops being surfaced as the "Active plan". Skip this archive on any early STOP (BLOCKED, ambiguity, red acceptance, or open Blocker/Major code-review findings) — leave the plan in `.hyperclaude/plans/` so a resumed run can pick it up. Only `plans/` is archived; `research/` and `*-reviews/` stay put (the snapshot shows newest-only, and `--resume` depends on prior review artifacts remaining in place).
+- Report the feature branch name, the per-task commit SHAs (and any "no file changes" skips), and the archived plan path. Do NOT push the branch — pushing stays a user action.
 
 ## Rules
 
