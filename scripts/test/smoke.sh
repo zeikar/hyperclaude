@@ -266,7 +266,7 @@ if node -e '
   const footer = additionalContext.slice(template.length);
 
   // Determine whether .hyperclaude/ currently holds any artifacts.
-  const sections = ["plans", "research", "plan-reviews", "code-reviews", "docs-reviews"];
+  const sections = ["plans", "epics", "research", "plan-reviews", "code-reviews", "docs-reviews"];
   let hasArtifacts = false;
   for (const s of sections) {
     const dir = path.join(".hyperclaude", s);

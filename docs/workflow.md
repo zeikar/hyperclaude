@@ -42,6 +42,8 @@ Dispatches the `planner` agent and writes the result to `.hyperclaude/plans/<YYY
 
 You can still dispatch the `planner` agent directly, or write the plan inline, when the skill's defaults don't fit. Plans are markdown with `## Task N: <title>` headings, files-to-create/modify, step checkboxes, verification commands, and a commit message line.
 
+**Oversized tasks → epic roadmap.** If the task is too big for one cohesive plan (would exceed ~10–12 tasks, or spans independent milestones), the planner returns an **epic roadmap** (`## Milestone N:` headings) instead of one giant plan. The skill writes it with a `tier: epic` frontmatter marker to `.hyperclaude/epics/<timestamp>-<slug>.md`, then auto-expands **Milestone 1** into a runnable detailed plan at the canonical `.hyperclaude/plans/<timestamp>-<slug>.md` (the roadmap lives in `epics/`, so there's no collision and the Milestone-1 plan keeps the shared slug). You review/critique/implement that Milestone-1 plan as usual; `/hyperclaude:hyper-implement` refuses the `tier: epic` roadmap by design (and the roadmap lives outside `plans/`, so the newest-plan auto-pick never grabs it). Later milestones: re-run `/hyperclaude:hyper-plan <Milestone K scope>` — currently a standalone plan with its own slug and no automatic epic-dependency linkage (carry the roadmap's `Depends on:` context over yourself); epic-aware re-expansion is a planned follow-up. Vocabulary: epic → milestone → task. This keeps every plan — and every plan-review — small instead of slow.
+
 `.hyperclaude/` is gitignored by convention — plans are working artifacts, lifted into the spec / README only when load-bearing.
 
 ## 3. Plan review — Codex critiques the plan
@@ -52,7 +54,7 @@ You can still dispatch the `planner` agent directly, or write the plan inline, w
 
 Auto-discovers the most recent plan in `.hyperclaude/plans/`. Writes `.hyperclaude/plan-reviews/<timestamp>-<slug>.md` with Issues (Blocker / Major / Minor), Improvements, and Verdict.
 
-Iterate: refine the plan, re-run `hyper-plan-review`. One or two refinement passes is normal; more than three usually means the plan was scoped too large — split it.
+Iterate: refine the plan, re-run `hyper-plan-review`. One or two refinement passes is normal; more than three usually means the plan was scoped too large — split it (or let `hyper-plan` do it: an oversized task yields a `tier: epic` roadmap plus a runnable Milestone-1 plan, so each review stays small — see step 2).
 
 Do NOT proceed to implement while Blocker-severity issues are unresolved.
 

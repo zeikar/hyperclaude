@@ -34,6 +34,10 @@ In priority order:
 
 3. If nothing found, tell the user: "No plan file found. Write your plan to `.hyperclaude/plans/<slug>.md` first." Stop.
 
+### Step 1.5 — Reject epic roadmaps
+
+Read the resolved plan's opening lines. If the file begins with a YAML frontmatter block containing `tier: epic`, it is an epic **roadmap**, not an executable task plan (`hyper-plan` emits these for oversized tasks, under `.hyperclaude/epics/`). **STOP** before any branch or git work and tell the user: "This is an epic roadmap (`tier: epic`), not an executable task plan. Expand a milestone into a detailed plan first — `/hyperclaude:hyper-plan <milestone title>` — then run hyper-implement on that detailed plan." Plans without `tier: epic` frontmatter (all detailed plans, including the auto-expanded Milestone-1 plan) proceed normally. Roadmaps live in `.hyperclaude/epics/`, not `.hyperclaude/plans/`, so the newest-plan auto-pick in Step 1 never selects one — this guard only fires when a roadmap path is passed explicitly.
+
 ### Step 2 — Parse and track
 
 Read the plan with the Read tool. Extract every `## Task N: <title>` section with its full text — files-to-create/modify, step-by-step checkboxes, verification commands, commit message.

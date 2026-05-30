@@ -97,7 +97,7 @@ Functional runtime surface stops at the directory above. Zero npm dependencies; 
    └──────────────────────────────────┘
               │
               ▼
-   .hyperclaude/{research,plans,plan-reviews,code-reviews,docs-reviews}/
+   .hyperclaude/{research,plans,epics,plan-reviews,code-reviews,docs-reviews}/
 ```
 
 Direction:
@@ -233,6 +233,7 @@ Codex gates and Claude-authored plans write artifacts to `.hyperclaude/` in the 
 .hyperclaude/
 ├── research/        Codex research outputs (research mode)
 ├── plans/           Claude-authored implementation plans (manual; the slug feeds plan-reviews/)
+├── epics/           Claude-authored epic roadmaps (tier: epic) for oversized tasks; hyper-implement refuses these
 ├── plan-reviews/    Codex critiques of plans (plan-review mode)
 ├── code-reviews/    Codex code-review outputs (code-review mode)
 └── docs-reviews/    Codex docs accuracy outputs (docs-review mode)

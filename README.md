@@ -54,7 +54,7 @@ hyper-setup   gates + orchestr.   planner / implementer
            always read-only sandbox)
                     │
                     ▼
-   .hyperclaude/{research,plans,plan-reviews,
+   .hyperclaude/{research,plans,epics,plan-reviews,
                  code-reviews,docs-reviews}/
 
 Hooks — SessionStart reminder, fires independently
