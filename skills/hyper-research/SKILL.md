@@ -103,10 +103,10 @@ This path runs Claude-native research via the `researcher` agent. It uses `WebFe
 5. Collect the always-present frontmatter values with one short Node one-liner (keeps `cwd`/`git-head` JSON-quoted the same way the bridge's renderer does):
 
    ```bash
-   node -e 'const c=require("child_process");let h;try{h=c.execSync("git rev-parse HEAD").toString().trim();}catch(e){h="unknown";}let pv="unknown";try{pv=require(process.env.CLAUDE_PLUGIN_ROOT+"/.claude-plugin/plugin.json").version||"unknown";}catch(e){}console.log(JSON.stringify({generated:new Date().toISOString(),pluginVersion:pv,cwd:process.cwd(),gitHead:h}))'
+   node -e 'const c=require("child_process");let h;try{h=c.execSync("git rev-parse HEAD").toString().trim();}catch(e){h="unknown";}console.log(JSON.stringify({generated:new Date().toISOString(),cwd:process.cwd(),gitHead:h}))'
    ```
 
-6. Write the artifact with the Write tool to the path from step 3. Frontmatter is ONLY the always-present keys, in this order (do NOT byte-match `renderFrontmatter()` and do NOT add Codex-only conditional keys like `codex-thread-id`):
+6. Write the artifact with the Write tool to the path from step 3. Frontmatter is ONLY the keys below, in this order (do NOT byte-match `renderFrontmatter()`, do NOT add Codex-only conditional keys like `codex-thread-id`, and do NOT author `plugin-version` — the PostToolUse stamp hook adds it after the write):
 
    ```
    ---
@@ -115,7 +115,6 @@ This path runs Claude-native research via the `researcher` agent. It uses `WebFe
      <task, each line 2-space indented>
    slug: <slug>
    generated: <generated ISO from the one-liner>
-   plugin-version: <pluginVersion from the one-liner>
    codex-version: claude
    template-version: 1
    cwd: <JSON-quoted cwd from the one-liner>
@@ -137,4 +136,4 @@ A research file has YAML frontmatter followed by markdown sections (Prior Art / 
 
 The default (parallel) run produces a **Codex + Claude pair**: `.hyperclaude/research/<timestamp>-<slug>.md` (Codex) and `.hyperclaude/research/<timestamp>-<slug>-claude.md` (Claude). Both files carry an **identical frontmatter `slug:`** — that shared slug is the canonical trace key, not the filename. A single-path run produces only the one corresponding file.
 
-Every research file has the same always-present frontmatter keys (mode, task, slug, generated, plugin-version, codex-version, template-version, cwd, git-head, codex-resume-status) and the same section structure. The Codex artifact's `codex-version` is the Codex CLI version and it may add Codex-only conditional keys (e.g. `codex-thread-id`); the Claude artifact's `codex-version` is `claude` and it omits those conditional keys. Downstream consumers match on frontmatter `slug:` and may find BOTH files of a pair.
+Every research file has the same always-present frontmatter keys (mode, task, slug, generated, plugin-version, codex-version, template-version, cwd, git-head, codex-resume-status) and the same section structure. `plugin-version` is present on both, but by different means: the bridge writes it into the Codex artifact, while the Claude artifact gets it from the PostToolUse stamp hook post-write (so it lands as the first frontmatter key, not mid-block). The Codex artifact's `codex-version` is the Codex CLI version and it may add Codex-only conditional keys (e.g. `codex-thread-id`); the Claude artifact's `codex-version` is `claude` and it omits those conditional keys. Downstream consumers match on frontmatter `slug:` and may find BOTH files of a pair.
