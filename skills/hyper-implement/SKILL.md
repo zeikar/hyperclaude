@@ -132,19 +132,20 @@ After all tasks:
 - All tasks are now committed on the feature branch (one commit per task, minus skipped no-change tasks). Run `bash scripts/test/smoke.sh` (or whatever the plan defines as final acceptance) and confirm 0 failures.
 - If `/hyperclaude:hyper-code-review` is available, run it for a Codex-side review of the entire diff. Useful catch for cross-task issues.
 - If the plan's final task includes a tag step (`git tag -a vX.Y.Z`), do NOT push it; leave that to the user.
-- **Archive the plan — only when the whole plan is truly done.** "Done" means ALL of: every task block executed (committed or skipped-no-change); the final acceptance above passed; AND, *if* the optional `/hyperclaude:hyper-code-review` above actually ran, it returned no Blocker/Major findings. This is NOT the plan's checkbox count (audit / no-op tasks never get a `- [x]`, so a fully-executed plan can still show unchecked boxes). Archive **only a canonical plan** — one whose resolved path is a direct child of `.hyperclaude/plans/`. An explicit `$ARGUMENTS` plan that lives outside that dir is left where it is (moving it would be destructive and would violate the "only `plans/` is archived" contract). Move it with a plain `mv` (`.hyperclaude/` is gitignored, so `git mv` fails):
+- **Archive the plan — standalone runs only, when the plan is truly done.** "Done" = every task block executed (committed or skipped-no-change) AND the final acceptance above passed AND, *if* the optional `/hyperclaude:hyper-code-review` above ran, it returned no Blocker/Major findings. This is NOT the plan's checkbox count (audit / no-op tasks never get a `- [x]`, so a fully-executed plan can still show unchecked boxes). **Nested-run exception:** when `hyper-implement-loop` invokes this skill it suppresses the optional final code-review above — in that mode also **skip this archive**. The loop owns archival and runs it only after its own authoritative Codex review converges clean, so a cap / residual-blocker exit correctly leaves the plan active. Archive **only a canonical plan** — resolved path is a direct child of `.hyperclaude/plans/`; an explicit `$ARGUMENTS` path elsewhere is left untouched (moving it would be destructive and would violate the "only `plans/` is archived" contract). Use a plain `mv` (`.hyperclaude/` is gitignored, so `git mv` fails):
 
   ```bash
   plan="<resolved plan path>"
-  case "$plan" in
-    .hyperclaude/plans/*.md|*/.hyperclaude/plans/*.md)
-      mkdir -p .hyperclaude/plans/done && mv "$plan" .hyperclaude/plans/done/ ;;
-    *)
-      echo "Plan is outside .hyperclaude/plans/ (explicit external path) — left in place, not archived." ;;
-  esac
+  plans_dir=$(cd .hyperclaude/plans 2>/dev/null && pwd)
+  plan_parent=$(cd "$(dirname "$plan")" 2>/dev/null && pwd)
+  if [ -n "$plans_dir" ] && [ "$plan_parent" = "$plans_dir" ]; then
+    mkdir -p .hyperclaude/plans/done && mv "$plan" .hyperclaude/plans/done/
+  else
+    echo "Plan is not a direct child of .hyperclaude/plans/ — left in place, not archived."
+  fi
   ```
 
-  Both the Step 1 newest-plan auto-pick (`*.md` is non-recursive) and the SessionStart snapshot ignore the `done/` subdir for free, so an executed plan stops being surfaced as the "Active plan". Skip this archive on any early STOP (BLOCKED, ambiguity, red acceptance, or open Blocker/Major code-review findings) — leave the plan in `.hyperclaude/plans/` so a resumed run can pick it up. Only `plans/` is archived; `research/` and `*-reviews/` stay put (the snapshot shows newest-only, and `--resume` depends on prior review artifacts remaining in place).
+  The guard compares resolved parent dirs, so a path under `plans/done/` or `plans/<subdir>/` (or any external dir) is left alone — only a true `.hyperclaude/plans/<file>.md` plan moves. Both the Step 1 newest-plan auto-pick (`*.md` is non-recursive) and the SessionStart snapshot ignore the `done/` subdir for free, so an executed plan stops being surfaced as the "Active plan". Skip the archive on any early STOP (BLOCKED, ambiguity, red acceptance, open Blocker/Major findings). Only `plans/` is archived; `research/` and `*-reviews/` stay put (the snapshot shows newest-only, and `--resume` depends on prior review artifacts remaining in place).
 - Report the feature branch name, the per-task commit SHAs (and any "no file changes" skips), and the archived plan path. Do NOT push the branch — pushing stays a user action.
 
 ## Rules
