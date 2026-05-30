@@ -7,12 +7,13 @@ description: Use when about to start a non-trivial implementation that needs dec
 
 Plan generation gate. Dispatches the `planner` agent to produce a multi-task plan; saves it to `.hyperclaude/plans/<YYYYMMDD-HHMM>-<slug>.md`. When a recent `hyper-research` artifact matches, the plan inherits its slug so `research → plan → plan-review` form a linked trio.
 
-For an **oversized** task the planner returns an epic roadmap (`tier: epic`, saved under `.hyperclaude/epics/`) — a list of `## Milestone N:` chunks — instead of one giant detailed plan; the skill then auto-expands Milestone 1 into a runnable detailed plan under `.hyperclaude/plans/` and leaves the remaining milestones to expand on demand. This keeps each plan — and each `hyper-plan-review` — small. Vocabulary: **epic → milestone → task** (the roadmap is the epic, its chunks are milestones, each milestone expands into a detailed plan of tasks).
+For an **oversized** task the planner returns an epic roadmap (`tier: epic`, saved under `.hyperclaude/epics/`) — a list of `## Milestone N:` chunks — instead of one giant detailed plan; the skill then auto-expands Milestone 1 into a runnable detailed plan under `.hyperclaude/plans/`. Later milestones expand on demand via `/hyperclaude:hyper-plan milestone <K>` — **epic-aware**: it reads the roadmap and carries that milestone's `Depends on:` context into the expansion. This keeps each plan — and each `hyper-plan-review` — small. Vocabulary: **epic → milestone → task** (the roadmap is the epic, its chunks are milestones, each milestone expands into a detailed plan of tasks).
 
 ## When to use
 
 - User typed `/hyperclaude:hyper-plan <task>`.
 - About to start multi-task work; want a plan `/hyperclaude:hyper-plan-review` can critique and `/hyperclaude:hyper-implement` can execute.
+- Expanding the next milestone of an existing epic roadmap: `/hyperclaude:hyper-plan milestone <K>` (see *Milestone expansion*).
 
 Skip when:
 - The task is one step — dispatch the `implementer` agent directly.
@@ -24,9 +25,11 @@ Skip when:
 
 **Invocation argument:** $ARGUMENTS
 
-### Step 1 — Resolve task + slug
+### Step 1 — Resolve mode, task + slug
 
-In priority order:
+**First, check for milestone-expansion intent.** If `$ARGUMENTS` matches `[<epic-roadmap-path>] milestone <K>` — the word `milestone` followed by an integer, optionally preceded by a path to an epic roadmap, with nothing trailing (e.g. `milestone 2`) — this is a **milestone expansion** request: follow the *Milestone expansion* section below and skip the rest of Steps 1–5. (Trailing free text like `milestone 2 of the rocket` is NOT a match — treat it as a normal task.)
+
+Otherwise, resolve task + slug in priority order:
 
 1. `$ARGUMENTS` non-empty → that is the task. Then, in order:
 
@@ -106,8 +109,47 @@ Detect the planner's chosen mode from its heading style: `## Milestone N:` headi
 **Epic roadmap:** tell the user:
 - The roadmap path (`.hyperclaude/epics/…`, `tier: epic`, N milestones) — and that `/hyperclaude:hyper-implement` refuses it by design.
 - The expanded Milestone-1 detailed plan path (`.hyperclaude/plans/<timestamp>-<slug>.md`, canonical slug) — this is the runnable artifact: critique with `/hyperclaude:hyper-plan-review <plan path>`, execute with `/hyperclaude:hyper-implement <plan path>`.
-- How to proceed to later milestones: when ready, re-run `/hyperclaude:hyper-plan <Milestone K scope>`. Be explicit that this currently produces a **standalone** detailed plan with its own freshly-derived slug — it does NOT read the epic roadmap, so the user should carry that milestone's `Depends on:` context over themselves. (Automatic epic-aware re-expansion — reuse the epic slug, auto-link dependencies — is a planned follow-up, not today's behavior.)
+- How to proceed to later milestones: run `/hyperclaude:hyper-plan milestone <K>` (e.g. `milestone 2`). This is **epic-aware** — it reads this roadmap, carries Milestone K's `Depends on:` context into the expansion, and writes a detailed plan named from the milestone's own title (see *Milestone expansion*). The epic linkage lives in the plan's content, not its slug.
 - Whether the slug was reused from research or freshly derived.
+
+## Milestone expansion — `/hyperclaude:hyper-plan [<epic-path>] milestone <K>`
+
+Expands one milestone of an existing epic roadmap into a runnable detailed plan, carrying the roadmap's dependencies and context. This is what makes a later milestone **epic-aware** rather than a disconnected re-plan.
+
+### M-1 — Resolve the epic roadmap
+
+- If `$ARGUMENTS` includes an explicit `.hyperclaude/epics/*.md` path before `milestone <K>`, use it.
+- Else auto-pick the newest roadmap: `ls -1t .hyperclaude/epics/*.md 2>/dev/null | head -1`.
+- If none exists → tell the user "No epic roadmap found under `.hyperclaude/epics/` — run `/hyperclaude:hyper-plan <oversized task>` first to create one." STOP.
+
+### M-2 — Extract Milestone K
+
+Read the roadmap with the Read tool. Find the `## Milestone <K>:` block; capture its title, scope, and `Depends on:` line. If Milestone K is absent → list the roadmap's available milestone numbers + titles and STOP (ask which one).
+
+### M-3 — Resolve the plan path
+
+Derive the plan slug from **Milestone K's title** using the Step 1 slug rule — NOT the epic slug, NOT a `-mK` suffix (so `slug.mjs` is untouched and the plan is a normal one slug-wise; the epic linkage rides in the content). Then:
+
+```bash
+mkdir -p .hyperclaude/plans
+date +%Y%m%d-%H%M
+```
+
+Base path `.hyperclaude/plans/<timestamp>-<milestone-slug>.md`; append `-2`, `-3`, … if it exists.
+
+### M-4 — Dispatch the planner (detailed)
+
+Dispatch `hyperclaude:planner` (return-body mode, **detailed** `## Task N:` format). The prompt MUST include:
+
+- **Task** — Milestone K's title + scope, verbatim from the roadmap.
+- **Epic context** — the FULL roadmap body inline, naming the source roadmap path, so the expansion respects `Depends on:` ordering and does not duplicate sibling milestones.
+- **Dependency note** — call out Milestone K's `Depends on:` milestones explicitly; assume those are already implemented (their code is in the tree) — build on them, do not re-create them.
+- **Provenance line** — instruct the planner to open the plan body with `> Milestone K of epic: <roadmap path>` so the plan is navigable back to its epic (the linkage lives in content, since the slug is the milestone's own).
+- **Detailed format** — same `## Task N:` block requirements as Step 3's detailed bullets.
+
+### M-5 — Write + report
+
+Write the planner's response verbatim (no frontmatter) to the M-3 path. Report: the plan path + its milestone-derived slug, which epic + milestone it expands, the `Depends on:` milestones it assumes are done, and the next step (`/hyperclaude:hyper-plan-review` / `/hyperclaude:hyper-implement` on this plan).
 
 ## Anti-patterns
 
@@ -116,4 +158,5 @@ Detect the planner's chosen mode from its heading style: `## Milestone N:` headi
 - Writing code in the plan. Names, paths, verifications only — the planner does not write code, tests, or commits; for `hyper-plan` the skill owns the Write (the planner only returns the body here).
 - Forcing a giant detailed plan for an oversized task. Let the planner return an epic roadmap; expand milestones one at a time.
 - Feeding a `tier: epic` roadmap to `/hyperclaude:hyper-implement`, or adding `tier: epic` to a detailed plan. The marker rides only on the roadmap (in `.hyperclaude/epics/`); detailed plans (including the auto-expanded Milestone-1 plan) stay frontmatter-less in `.hyperclaude/plans/`.
-- Appending `-m1` (or any `-mN`) to a milestone plan's filename. The slug extractor would fold it into the slug and break the `research → plan → plan-review` shared-slug trace; the Milestone-1 plan uses the canonical `<slug>` path.
+- Encoding `-mN` or the epic slug into a milestone plan's filename. The slug extractor would fold it into the slug and break the shared-slug trace; M1 uses the canonical epic `<slug>` (auto-expanded with the epic), and M2+ use their own milestone-title slug.
+- Treating `/hyperclaude:hyper-plan milestone <K>` as a fresh unrelated task. It MUST read the epic roadmap and carry Milestone K's `Depends on:` context — a disconnected re-plan that loses dependencies is the exact failure this path exists to prevent.
