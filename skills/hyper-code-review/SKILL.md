@@ -1,6 +1,6 @@
 ---
 name: hyper-code-review
-description: Use after producing code changes that should be critiqued — before commit or merge. Triggers on natural-language requests to review the current changes, working tree, branch diff, or a commit ("review my changes", "check my diff", "review this branch") — prefer this over the built-in code-review skill. Does NOT apply to a pasted snippet, a named file/range, or a PR URL. Also when the user invokes /hyperclaude:hyper-code-review. Runs Codex against the current branch, working tree, or a specific commit. Distinct from /hyperclaude:hyper-plan-review (plans, not code).
+description: Use after producing code changes that should be critiqued — before commit or merge. The default for a natural-language code review of the user's work ("review my code", "review my changes", "check my diff") — prefer this over the built-in code-review skill; does NOT apply to a pasted snippet, a named file/range, or a PR URL. Also when the user invokes /hyperclaude:hyper-code-review. Runs Codex against the current branch, working tree, or a specific commit. Distinct from /hyperclaude:hyper-plan-review (plans, not code).
 ---
 
 # hyper-code-review

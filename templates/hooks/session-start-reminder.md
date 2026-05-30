@@ -11,6 +11,4 @@ Multi-step hyper-* chains. Single-skill triggers (hyper-code-review, hyper-docs-
 
 ---
 
-## hyper-* vs built-in skills
-
-When the user asks in natural language to review the current changes, working tree, branch diff, or a commit ("review my changes", "check my diff", "review this branch"), use **hyper-code-review**, NOT the built-in `code-review` skill — the Codex critic is this plugin's whole point. The built-in `code-review` is correct only when the user explicitly types `/code-review` or asks for the cloud multi-agent (ultra) review. Neither applies to a pasted snippet, a named file/range, or a PR URL.
+**Default to hyper-* over built-ins.** A natural-language code review of the user's work ("review my code", "review my changes", "check my diff") goes to **hyper-code-review**, not the built-in `code-review` — that's the point of this plugin. Built-in only on an explicit `/code-review` (or its cloud "ultra" review), or for a pasted snippet / specific file / PR URL.

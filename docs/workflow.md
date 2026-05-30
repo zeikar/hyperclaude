@@ -98,7 +98,7 @@ Writes `.hyperclaude/code-reviews/<timestamp>-<slug>.md`. Read findings; fix wha
 
 This is the post-implement gate. The two reviews inside `hyper-implement` catch per-task drift; this one catches cross-task issues.
 
-Natural-language requests to review your current changes ("review my changes", "check my diff") route here, not Claude Code's built-in `code-review` skill — which is reserved for an explicit `/code-review` or its cloud multi-agent (ultra) review. Pasted snippets, a named file/range, or a PR URL do not route here.
+A natural-language code review of your work ("review my code", "review my changes", "check my diff") defaults here, not to Claude Code's built-in `code-review` skill — which is reserved for an explicit `/code-review` or its cloud multi-agent (ultra) review. Pasted snippets, a named file/range, or a PR URL do not route here.
 
 ## 6. Docs sync — Claude updates docs to match code
 
