@@ -213,6 +213,7 @@ for f in \
   agents/verifier.md \
   hooks/hooks.json \
   hooks/session-start-reminder.mjs \
+  hooks/stamp-artifact.mjs \
   commands/hyper-setup.md \
   scripts/setup-doctor.mjs
 do
@@ -307,16 +308,18 @@ function checkEntry(block, expectedMatcher, expectedCmd) {
 }
 
 const sessionStartCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-reminder.mjs"';
+const stampCmd = 'node "${CLAUDE_PLUGIN_ROOT}/hooks/stamp-artifact.mjs"';
 
 const passed = plugin.hooks === undefined &&
   Array.isArray(h.SessionStart) && checkEntry(h.SessionStart[0], "startup|clear|compact", sessionStartCmd) &&
+  Array.isArray(h.PostToolUse) && checkEntry(h.PostToolUse[0], "Write", stampCmd) &&
   h.UserPromptExpansion === undefined &&
   h.Stop === undefined;
 process.exit(passed ? 0 : 1);
 NODE_EOF
 )
 if [ $? -eq 0 ]; then
-  ok "manifest wiring: plugin.json omits redundant hooks field, hooks.json shape correct (SessionStart only; no UserPromptExpansion/Stop)"
+  ok "manifest wiring: plugin.json omits redundant hooks field, hooks.json shape correct (SessionStart + PostToolUse stamp; no UserPromptExpansion/Stop)"
 else
   miss "manifest wiring assertion failed: $out"
 fi
@@ -348,6 +351,65 @@ if out=$(
   ok "SessionStart hook fail-open: missing template → suppressOutput"
 else
   miss "SessionStart hook missing-template fail-open failed: $out"
+fi
+
+echo
+echo "==> PostToolUse stamp hook"
+if node --check hooks/stamp-artifact.mjs 2>/dev/null; then
+  ok "node --check hooks/stamp-artifact.mjs"
+else
+  miss "hooks/stamp-artifact.mjs has syntax errors"
+fi
+
+# End-to-end: a Write under .hyperclaude/ gets plugin-version injected exactly
+# once (idempotent on re-fire); a Write outside .hyperclaude/ is left untouched.
+if node -e '
+  const { execSync } = require("child_process");
+  const fs = require("fs");
+  const path = require("path");
+  const os = require("os");
+  const plugin = JSON.parse(fs.readFileSync(".claude-plugin/plugin.json", "utf8"));
+  const hook = path.resolve("hooks/stamp-artifact.mjs");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stamp-"));
+  const fire = (fp) => execSync("node " + JSON.stringify(hook), {
+    input: JSON.stringify({ cwd: tmp, tool_name: "Write", tool_input: { file_path: fp } }),
+    encoding: "utf8",
+  });
+  // (a) artifact under .hyperclaude/ → stamped, exactly once.
+  const planPath = path.join(tmp, ".hyperclaude", "plans", "p.md");
+  fs.mkdirSync(path.dirname(planPath), { recursive: true });
+  fs.writeFileSync(planPath, "# Plan: x\n\n- [ ] a\n");
+  const out1 = JSON.parse(fire(planPath));
+  fire(planPath); // re-fire must not duplicate
+  const stamped = fs.readFileSync(planPath, "utf8");
+  const count = (stamped.match(/^plugin-version:/gm) || []).length;
+  const stampedOk = out1.continue === true && out1.suppressOutput === true &&
+    stamped.startsWith("---\nplugin-version: " + plugin.version + "\n") && count === 1;
+  // (b) file outside .hyperclaude/ → byte-for-byte unchanged.
+  const outsidePath = path.join(tmp, "o.md");
+  const original = "# not an artifact\n";
+  fs.writeFileSync(outsidePath, original);
+  fire(outsidePath);
+  const outsideUnchanged = fs.readFileSync(outsidePath, "utf8") === original;
+  fs.rmSync(tmp, { recursive: true, force: true });
+  process.exit(stampedOk && outsideUnchanged ? 0 : 1);
+' 2>/dev/null; then
+  ok "stamp hook: injects plugin-version into .hyperclaude/ artifact (idempotent), skips files outside .hyperclaude/"
+else
+  miss "stamp hook: stamping / idempotency / out-of-scope-skip assertion failed"
+fi
+
+if out=$(printf 'not json' | node hooks/stamp-artifact.mjs 2>/dev/null); then
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    process.exit(j.continue === true && j.suppressOutput === true ? 0 : 1);
+  '; then
+    ok "stamp hook fail-open: invalid stdin JSON → continue+suppressOutput"
+  else
+    miss "stamp hook fail-open: invalid stdin JSON assertion failed: $out"
+  fi
+else
+  miss "stamp hook fail-open: invalid stdin JSON invocation failed: $out"
 fi
 
 echo

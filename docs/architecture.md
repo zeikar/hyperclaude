@@ -36,7 +36,7 @@ hyperclaude/
 │   └── hyper-debug/             helper — debugging discipline
 ├── agents/                      sub-Claude personas (planner, implementer, verifier, documenter, researcher, fixer)
 ├── references/                  plugin-wide reference content not owned by any single skill (currently: loop-protocol.md — Step-0 base for hyper-plan-loop, hyper-implement-loop, and hyper-docs-loop)
-├── hooks/                       event-bound hook scripts (SessionStart)
+├── hooks/                       event-bound hook scripts (SessionStart reminder, PostToolUse plugin-version stamp)
 ├── scripts/
 │   ├── codex-bridge.mjs         CLI entry; re-exports the helpers below
 │   ├── setup-doctor.mjs         standalone local probe (non-bridge; never spawns Codex)
@@ -121,6 +121,16 @@ CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modu
 ### SessionStart hook
 
 The [SessionStart hook](../hooks/session-start-reminder.mjs) is template-driven: it reads [templates/hooks/session-start-reminder.md](../templates/hooks/session-start-reminder.md) at runtime and injects its contents as `additionalContext`. If the template file is missing, the hook fails open and does not raise an error. This design allows the workflow reminder text to be edited without touching code.
+
+### PostToolUse stamp hook
+
+The [stamp hook](../hooks/stamp-artifact.mjs) (`PostToolUse`, matcher `Write`) gives **Claude-authored** `.hyperclaude/` artifacts the same `plugin-version` provenance the bridge writes into its own artifacts — without depending on the model to author the line. On every `Write` it checks whether `tool_input.file_path` resolves under `<cwd>/.hyperclaude/` and ends in `.md`; if so, and the file lacks a `plugin-version:` frontmatter line, it injects one (reusing `getPluginVersion()` from [scripts/codex/plugin.mjs](../scripts/codex/plugin.mjs), so the recorded version is the loaded copy's — identical to the bridge). It is:
+
+- **Deterministic** — runs regardless of what the model "remembered"; covers plans, epic roadmaps, and the Claude-authored research artifact uniformly.
+- **Idempotent** — skips any file that already carries `plugin-version`. Bridge artifacts already do (and are written via `fs`, not the `Write` tool, so the hook never fires for them); a re-`Write` of a stamped plan is a no-op.
+- **Fail-open** — any error (bad stdin, unreadable file) exits 0 with `{continue:true,suppressOutput:true}`; it never blocks the tool flow.
+
+Consequence: a detailed plan that the planner authored frontmatter-free still ends up with a leading `---\nplugin-version: <v>\n---` block on disk. This is provenance only — it carries no `tier:` marker, so `hyper-implement`'s epic guard (which keys on `tier: epic`) is unaffected.
 
 ### Sandbox policy
 
