@@ -27,6 +27,7 @@ import { renderFailureBody } from './codex/failure.mjs';
 import {
   getCodexVersion, parseCodexJsonl, runCodexExec, runCodexResume,
 } from './codex/codex.mjs';
+import { getPluginVersion } from './codex/plugin.mjs';
 import {
   defaultModeDir, loadResumeContext, resolveResume, discoverResumeArtifact,
 } from './codex/resume.mjs';
@@ -41,9 +42,16 @@ export {
   parseArgs, buildInvocation,
   renderFailureBody,
   getCodexVersion, parseCodexJsonl, runCodexExec, runCodexResume,
+  getPluginVersion,
   defaultModeDir, loadResumeContext, discoverResumeArtifact,
   buildTargetInstruction,
 };
+
+// The hyperclaude plugin version of the LOADED copy producing this artifact.
+// Resolved once from this module's own .claude-plugin/plugin.json (see
+// getPluginVersion); recorded as `plugin-version` in every artifact's
+// frontmatter so a reader can tell which plugin build actually ran.
+const PLUGIN_VERSION = getPluginVersion();
 
 // ---------- code-review target instruction ----------
 
@@ -349,6 +357,7 @@ async function main(argv) {
     const fm = renderDocsReviewFrontmatter({
       slug: inv.slug,
       generated: new Date().toISOString(),
+      pluginVersion: PLUGIN_VERSION,
       codexVersion: v.version,
       templateVersion,
       docsTarget: args.docsPath ?? args.docsDir,
@@ -491,6 +500,7 @@ async function main(argv) {
     const fm = renderCodeReviewFrontmatter({
       slug: inv.slug,
       generated: new Date().toISOString(),
+      pluginVersion: PLUGIN_VERSION,
       codexVersion: v.version,
       templateVersion,
       gitHead,
@@ -657,6 +667,7 @@ async function main(argv) {
     task: subject,
     slug: inv.slug ?? '',
     generated: new Date().toISOString(),
+    pluginVersion: PLUGIN_VERSION,
     codexVersion: v.version,
     templateVersion,
     planPath: args.mode === 'plan-review' ? args.planPath : undefined,

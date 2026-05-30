@@ -164,6 +164,7 @@ The frontmatter shape:
 mode: research | plan-review | code-review | docs-review
 slug: <kebab-case>
 generated: <ISO-8601 timestamp>
+plugin-version: <hyperclaude version of the loaded copy that ran, or "unknown">
 codex-version: <semver from `codex --version`>
 template-version: 1                    # sourced from the fresh template's own frontmatter (plan-review currently emits 2)
 task: |-                               # research / plan-review only — block scalar

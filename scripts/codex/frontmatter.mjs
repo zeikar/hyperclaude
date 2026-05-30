@@ -7,7 +7,7 @@ export function fmString(key, value) {
 }
 
 export function renderFrontmatter({
-  mode, task, slug, generated, codexVersion, templateVersion,
+  mode, task, slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion,
   planPath, cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
 }) {
   const lines = ['---'];
@@ -19,6 +19,7 @@ export function renderFrontmatter({
   }
   lines.push(`slug: ${slug}`);
   lines.push(`generated: ${generated}`);
+  lines.push(`plugin-version: ${pluginVersion}`);
   lines.push(`codex-version: ${codexVersion}`);
   lines.push(`template-version: ${templateVersion}`);
   if (planPath) lines.push(fmString('plan-path', planPath));
@@ -33,13 +34,14 @@ export function renderFrontmatter({
 }
 
 export function renderCodeReviewFrontmatter({
-  slug, generated, codexVersion, templateVersion, gitHead, reviewTarget, baseRef, commit, title,
+  slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion, gitHead, reviewTarget, baseRef, commit, title,
   cwd, codexThreadId, codexResumeStatus, codexResumedFrom,
 }) {
   const lines = ['---'];
   lines.push('mode: code-review');
   lines.push(`slug: ${slug}`);
   lines.push(`generated: ${generated}`);
+  lines.push(`plugin-version: ${pluginVersion}`);
   lines.push(`codex-version: ${codexVersion}`);
   // template-version is sourced from templates/codex/code-review.md frontmatter
   // (see readTemplateWithVersion); resume.mjs compares the same value.
@@ -58,13 +60,14 @@ export function renderCodeReviewFrontmatter({
 }
 
 export function renderDocsReviewFrontmatter({
-  slug, generated, codexVersion, templateVersion, docsTarget, diffBase,
+  slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion, docsTarget, diffBase,
   cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
 }) {
   const lines = ['---'];
   lines.push('mode: docs-review');
   lines.push(`slug: ${slug}`);
   lines.push(`generated: ${generated}`);
+  lines.push(`plugin-version: ${pluginVersion}`);
   lines.push(`codex-version: ${codexVersion}`);
   // template-version sourced from templates/codex/docs-review.md frontmatter.
   lines.push(`template-version: ${templateVersion}`);

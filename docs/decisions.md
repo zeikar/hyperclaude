@@ -56,6 +56,10 @@ Coverage is uneven by intent: `ENOENT`/`EISDIR` are friendly-mapped only for the
 
 Still additive, not a replacement: by default, Codex runs (the critic step holds the "Claude builds, Codex critiques" invariant); Claude is an extra lens. An explicit "Claude only / no-Codex" request skips Codex entirely. `codex-version: claude` distinguishes the Claude-authored artifact; both write the same always-present frontmatter keys so plan/plan-review treat either identically. Note: the `researcher` agent's `WebFetch` on known URLs is *not* parity with Codex's live `--search` crawl — the Claude path is for known-reference lookups, not open-ended search.
 
+### `plugin-version` records the loaded copy, not the repo working tree
+
+Every artifact's frontmatter carries `plugin-version` — the hyperclaude version that actually produced it. `getPluginVersion` (`scripts/codex/plugin.mjs`) reads `.claude-plugin/plugin.json` resolved *relative to its own file via `import.meta.url`*, NOT relative to `process.cwd()`. The distinction is the whole point: when dogfooding, the running bridge is often a different on-disk copy (e.g. the installed `~/.claude/plugins/cache/.../0.17.0/`) than the repo you're editing (`0.17.2`). cwd-relative resolution would record the repo's version and hide the mismatch; `import.meta.url`-relative records the code that ran. Read failures degrade to `"unknown"` rather than throwing — provenance is non-essential, so it must never break a gate. The Claude-authored research artifact has no bridge to read its own location, so `hyper-research` reads `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` instead (same loaded copy, since the skill itself is loaded from there).
+
 ### Codex is always invoked with `--search`
 
 Every Codex spawn unconditionally prepends the global `--search` flag (before the subcommand) — no opt-in, no toggle, hardcoded in `runCodexExec` in `scripts/codex/codex.mjs`. Always-on is simpler than conditional logic and lets Codex pull live docs/changelogs during every gate. `--search` does not relax `--sandbox read-only`; the filesystem-write invariant holds in all modes and across resume.

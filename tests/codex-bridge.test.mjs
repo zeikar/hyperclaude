@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, verifyReviewTarget, renderDocsReviewFrontmatter, fmString, renderFailureBody, renderFileListBlock, renderDiffBaseBlock, readTemplateFile, readTemplateWithVersion, splitTemplateFrontmatter, parseFrontmatter, loadResumeContext, discoverResumeArtifact, defaultModeDir, buildTargetInstruction } from '../scripts/codex-bridge.mjs';
-import { mkdirSync } from 'node:fs';
+import { slugify, renderFrontmatter, loadTemplate, renderCodeReviewFrontmatter, slugifyRef, getGitHead, verifyReviewTarget, renderDocsReviewFrontmatter, fmString, renderFailureBody, renderFileListBlock, renderDiffBaseBlock, readTemplateFile, readTemplateWithVersion, splitTemplateFrontmatter, parseFrontmatter, loadResumeContext, discoverResumeArtifact, defaultModeDir, buildTargetInstruction, getPluginVersion } from '../scripts/codex-bridge.mjs';
+import { mkdirSync, readFileSync } from 'node:fs';
 
 test('slugify: simple ASCII task', () => {
   assert.equal(slugify('Add OAuth login to the API'), 'add-oauth-login-to-the');
@@ -825,6 +825,98 @@ test('renderCodeReviewFrontmatter: template-version: 1 emitted IMMEDIATELY AFTER
   const cvIdx = lines.findIndex((l) => l.startsWith('codex-version:'));
   assert.ok(cvIdx >= 0, 'codex-version line must be present');
   assert.equal(lines[cvIdx + 1], 'template-version: 1', 'template-version must be the line immediately after codex-version');
+});
+
+// ── plugin-version (provenance) ───────────────────────────────────────────────
+
+test('getPluginVersion: returns the loaded copy\'s .claude-plugin/plugin.json version', () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const manifest = JSON.parse(readFileSync(path.join(here, '..', '.claude-plugin', 'plugin.json'), 'utf8'));
+  assert.equal(getPluginVersion(), manifest.version);
+  assert.match(getPluginVersion(), /^\d+\.\d+\.\d+/);
+});
+
+test('renderFrontmatter: plugin-version emitted IMMEDIATELY BEFORE codex-version', () => {
+  const fm = renderFrontmatter({
+    mode: 'research',
+    task: 'x',
+    slug: 's',
+    generated: '2026-05-10T10:15:00.000Z',
+    pluginVersion: '0.18.0',
+    codexVersion: '0.130.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  const lines = fm.split('\n');
+  const pvIdx = lines.findIndex((l) => l.startsWith('plugin-version:'));
+  assert.ok(pvIdx >= 0, 'plugin-version line must be present');
+  assert.equal(lines[pvIdx], 'plugin-version: 0.18.0');
+  assert.equal(lines[pvIdx + 1], 'codex-version: 0.130.0', 'codex-version must immediately follow plugin-version');
+});
+
+test('renderCodeReviewFrontmatter: plugin-version present and precedes codex-version', () => {
+  const fm = renderCodeReviewFrontmatter({
+    reviewTarget: 'uncommitted',
+    baseRef: null,
+    commit: null,
+    slug: 'uncommitted',
+    gitHead: 'unknown',
+    generated: '2026-05-10T10:15:00.000Z',
+    pluginVersion: '0.18.0',
+    codexVersion: '0.130.0',
+    templateVersion: 1,
+    title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  const lines = fm.split('\n');
+  const pvIdx = lines.findIndex((l) => l.startsWith('plugin-version:'));
+  assert.equal(lines[pvIdx], 'plugin-version: 0.18.0');
+  assert.equal(lines[pvIdx + 1], 'codex-version: 0.130.0');
+});
+
+test('renderDocsReviewFrontmatter: plugin-version present and precedes codex-version', () => {
+  const fm = renderDocsReviewFrontmatter({
+    slug: 'docs',
+    generated: '2026-05-10T10:15:00.000Z',
+    pluginVersion: '0.18.0',
+    codexVersion: '0.130.0',
+    templateVersion: 1,
+    docsTarget: 'docs/',
+    diffBase: undefined,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  const lines = fm.split('\n');
+  const pvIdx = lines.findIndex((l) => l.startsWith('plugin-version:'));
+  assert.equal(lines[pvIdx], 'plugin-version: 0.18.0');
+  assert.equal(lines[pvIdx + 1], 'codex-version: 0.130.0');
+});
+
+test('renderFrontmatter: plugin-version defaults to unknown when omitted', () => {
+  const fm = renderFrontmatter({
+    mode: 'research',
+    task: 'x',
+    slug: 's',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.130.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fm, /^plugin-version: unknown$/m);
 });
 
 test('renderCodeReviewFrontmatter: does not emit codex-subcommand field', () => {

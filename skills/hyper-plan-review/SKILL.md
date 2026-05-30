@@ -85,4 +85,4 @@ When you revise the plan, **always overwrite the same plan file in place**. Do n
 
 ## Output contract
 
-Review files have frontmatter (mode: plan-review, task: plan path, slug, generated, codex-version, template-version, plan-path) followed by Issues / Improvements / Verdict sections.
+Review files have frontmatter (mode: plan-review, task: plan path, slug, generated, plugin-version, codex-version, template-version, plan-path) followed by Issues / Improvements / Verdict sections.

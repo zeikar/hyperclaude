@@ -99,6 +99,7 @@ Docs-review files have YAML frontmatter:
 - `template-version: 1`
 - `slug` (derived from file basename or dir name)
 - `generated` (ISO timestamp)
+- `plugin-version`
 - `codex-version`
 - `docs-target` (the reviewed path, JSON-stringified)
 - Optional `diff-base` (when `--diff-base` was used)
