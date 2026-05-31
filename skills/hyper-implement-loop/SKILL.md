@@ -205,14 +205,18 @@ If `TeamDelete` fails because a member is still live → apply the recovery in `
 
 Reached only on Step 6's clean (no-blocking) exit — cap-reached and failure STOPs emit their own reports in Step 8 and never arrive here.
 
-**Convergence commit (post-teardown).** Now that the fixer teammate is torn down (Step 8), the lead commits its uncommitted fix edits **once** on the current feature branch — the fixer never commits (invariant), and teardown-first means no teammate is live during the git ops. `git add -A` is scoped by hyper-implement's clean-tree preflight + gitignored `.hyperclaude/`, so only the fix edits stage; skip when nothing is staged (iteration 1 was already clean, no fix rounds ran). This is the loop's ONLY commit:
+**Convergence commit (post-teardown).** Now that the fixer teammate is torn down (Step 8), the lead commits its uncommitted fix edits **once** on the current feature branch — the fixer never commits (invariant), and teardown-first means no teammate is live during the git ops. `git add -A` carries the same scoping as hyper-implement's per-task commit (clean-tree preflight + gitignored `.hyperclaude/`); if autonomous verification left unrelated untracked files they ride in too — same exposure as hyper-implement, so eyeball the diff before pushing. This is the loop's ONLY commit:
 
 ```bash
 git add -A
-git diff --cached --quiet && echo "SKIP: no fix edits to commit" || git commit -m "fix(review): apply Codex code-review findings"
+if git diff --cached --quiet; then
+  echo "SKIP: no fix edits to commit"
+else
+  git commit -m "fix(review): apply Codex code-review findings" && git rev-parse --short HEAD
+fi
 ```
 
-After the commit, report:
+Report the **actual** git outcome (never assume success): the commit SHA + clean tree on success; the skip note if nothing was staged; or — if `git commit` failed (pre-commit hook, signing, author config) — surface its stderr + `git status --short` and do NOT claim the branch is ready to push. Then report:
 
 - All `reviewArtifacts[]` paths (not just the latest; NO plan/slug — release-level slug only).
 - Review iterations consumed.
