@@ -74,7 +74,7 @@ For each `## Task N:` in the plan, this skill:
 4. Dispatches the `verifier` agent if tests / build steps are involved.
 5. Marks the task complete and moves on.
 
-Fix loops happen inline — reviewer ❌ → implementer fixes → re-review. The skill does not pause for user input between tasks; it executes the whole plan. On full completion it archives the executed plan to `.hyperclaude/plans/done/`, so a finished plan stops surfacing as the SessionStart "Active plan". (Under `hyper-implement-loop` the archive is deferred to the loop's clean exit, so a cap / residual-blocker run keeps the plan active.)
+Fix loops happen inline — reviewer ❌ → implementer fixes → re-review. The skill does not pause for user input between tasks; it executes the whole plan. On full completion (all tasks executed + acceptance green) it archives the executed plan to `.hyperclaude/plans/done/`, so a finished plan stops surfacing as the SessionStart "Active plan". Archival means "plan implemented" — it's independent of code-review findings (those are downstream hardening) and applies under `hyper-implement-loop` too.
 
 When to skip the skill: one-step plans (just dispatch `implementer` directly), tightly-coupled tasks that benefit from shared context, or fast prototyping.
 
