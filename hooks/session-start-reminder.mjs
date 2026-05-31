@@ -8,7 +8,13 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const templatePath = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'templates', 'hooks', 'session-start-reminder.md');
+// The loop-first router is injected only when the experimental agent-teams
+// feature is enabled (the *-loop / hyper-auto skills require it); otherwise the
+// default manual-first router is used. Matches setup-doctor's `=== '1'` check.
+const reminderFile = process.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS === '1'
+  ? 'session-start-reminder-loop.md'
+  : 'session-start-reminder.md';
+const templatePath = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'templates', 'hooks', reminderFile);
 
 const SNAPSHOT_SECTIONS = [
   { dir: 'plans', label: 'Active plan', countUnchecked: true },

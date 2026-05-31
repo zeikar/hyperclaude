@@ -190,6 +190,7 @@ for f in \
   templates/codex/code-review.md \
   templates/codex/code-review-resumed.md \
   templates/hooks/session-start-reminder.md \
+  templates/hooks/session-start-reminder-loop.md \
   skills/hyper-research/SKILL.md \
   skills/hyper-plan/SKILL.md \
   skills/hyper-plan-loop/SKILL.md \
@@ -231,9 +232,13 @@ fi
 if node -e '
   const { execSync } = require("child_process");
   const fs = require("fs");
+  // Pin agent-teams off so the default (manual-first) router is selected,
+  // independent of the developer'"'"'s ambient env.
+  const env = { ...process.env };
+  delete env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS;
   const raw = execSync(
     "printf \x27{\"session_id\":\"smoke\",\"source\":\"startup\"}\x27 | node hooks/session-start-reminder.mjs",
-    { encoding: "utf8" }
+    { encoding: "utf8", env }
   );
   const j = JSON.parse(raw);
   const additionalContext = j.hookSpecificOutput && j.hookSpecificOutput.additionalContext;
@@ -247,9 +252,29 @@ if node -e '
     additionalContext.startsWith(template);
   process.exit(passed ? 0 : 1);
 ' 2>/dev/null; then
-  ok "SessionStart hook golden-path: additionalContext starts with templates/hooks/session-start-reminder.md byte-for-byte"
+  ok "SessionStart hook golden-path (agent-teams off): additionalContext starts with session-start-reminder.md byte-for-byte"
 else
-  miss "SessionStart hook golden-path: additionalContext starts with templates/hooks/session-start-reminder.md byte-for-byte"
+  miss "SessionStart hook golden-path (agent-teams off): additionalContext starts with session-start-reminder.md byte-for-byte"
+fi
+
+# Env-aware router selection: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 → loop-first variant.
+if node -e '
+  const { execSync } = require("child_process");
+  const fs = require("fs");
+  const env = { ...process.env, CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1" };
+  const raw = execSync(
+    "printf \x27{\"session_id\":\"smoke\",\"source\":\"startup\"}\x27 | node hooks/session-start-reminder.mjs",
+    { encoding: "utf8", env }
+  );
+  const j = JSON.parse(raw);
+  const additionalContext = j.hookSpecificOutput && j.hookSpecificOutput.additionalContext;
+  const template = fs.readFileSync("templates/hooks/session-start-reminder-loop.md", "utf8");
+  const passed = typeof additionalContext === "string" && additionalContext.startsWith(template);
+  process.exit(passed ? 0 : 1);
+' 2>/dev/null; then
+  ok "SessionStart hook env-aware: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 → loop-first router (session-start-reminder-loop.md)"
+else
+  miss "SessionStart hook env-aware: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 → loop-first router selection failed"
 fi
 
 # Snapshot footer is dynamic — it should appear iff .hyperclaude/ has artifacts.
@@ -257,9 +282,13 @@ if node -e '
   const { execSync } = require("child_process");
   const fs = require("fs");
   const path = require("path");
+  // Pin agent-teams off so template.length matches session-start-reminder.md
+  // (footer behavior is identical across both router variants).
+  const env = { ...process.env };
+  delete env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS;
   const raw = execSync(
     "printf \x27{\"session_id\":\"smoke\",\"source\":\"startup\"}\x27 | node hooks/session-start-reminder.mjs",
-    { encoding: "utf8" }
+    { encoding: "utf8", env }
   );
   const j = JSON.parse(raw);
   const additionalContext = j.hookSpecificOutput.additionalContext;
@@ -343,8 +372,9 @@ if out=$(
     bak="$tmp/session-start-reminder.md"
     trap '[ -e "$bak" ] && mv "$bak" templates/hooks/session-start-reminder.md 2>/dev/null; rmdir "$tmp" 2>/dev/null' EXIT
     mv templates/hooks/session-start-reminder.md "$bak"
+    # Pin agent-teams off so the moved-away default template is the one selected.
     printf '{"session_id":"smoke","source":"startup"}' \
-      | node hooks/session-start-reminder.mjs \
+      | env -u CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS node hooks/session-start-reminder.mjs \
       | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8")); process.exit(j.continue===true && j.suppressOutput===true ? 0 : 1)'
   ) 2>&1
 ); then

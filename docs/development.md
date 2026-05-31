@@ -71,7 +71,7 @@ Output goes to mode-specific subdirectories of `.hyperclaude/` by default — `.
 
 ```bash
 node --test tests/*.mjs            # unit tests for the bridge and setup-doctor (includes tests/setup-doctor.test.mjs)
-bash scripts/test/smoke.sh         # smoke runs core checks (required files, dry-runs, hook invocations, the SessionStart hook byte-for-byte check against templates/hooks/session-start-reminder.md, manifest wiring across all hook entries, setup-doctor probe, + 3 Codex probes when codex is on PATH + optional `claude plugin validate` when claude is on PATH)
+bash scripts/test/smoke.sh         # smoke runs core checks (required files, dry-runs, hook invocations, the SessionStart hook byte-for-byte check against the active router template — session-start-reminder.md with agent-teams off, session-start-reminder-loop.md when CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 — manifest wiring across all hook entries, setup-doctor probe, + 3 Codex probes when codex is on PATH + optional `claude plugin validate` when claude is on PATH)
 ```
 
 Both must pass cleanly before shipping a release. Zero npm dependencies; nothing to install.
@@ -79,7 +79,7 @@ Both must pass cleanly before shipping a release. Zero npm dependencies; nothing
 The unit tests cover argument parsing, slug derivation, frontmatter rendering, file-collision handling, and per-mode invocation planning; `tests/setup-doctor.test.mjs` covers the prerequisite probe (Node, codex, git, agent-teams checks). The smoke script:
 
 - Runs the unit test suite (`node --test tests/*.mjs`).
-- Verifies that required plugin files exist (manifests, marketplace listing, every `SKILL.md` and agent file, the bridge, the templates including the fresh `code-review.md` and all three resumed variants `plan-review-resumed.md` / `docs-review-resumed.md` / `code-review-resumed.md`, and the SessionStart hook).
+- Verifies that required plugin files exist (manifests, marketplace listing, every `SKILL.md` and agent file, the bridge, the templates including the fresh `code-review.md` and all three resumed variants `plan-review-resumed.md` / `docs-review-resumed.md` / `code-review-resumed.md`, both SessionStart router templates `session-start-reminder.md` / `session-start-reminder-loop.md`, and the SessionStart hook).
 - Dry-runs the bridge for `research`, `code-review`, and `docs-review` and asserts each emits a JSON success line. (`plan-review` is not dry-run by the smoke script.)
 - Runs the `setup-doctor` probe directly and asserts it emits a parseable JSON line with a `checks[]` array.
 - When `codex` is on PATH, runs three Codex 0.130 surface probes: `codex exec resume --help`, `codex exec resume --help -c sandbox_mode=read-only` (verifies the `-c sandbox_mode=read-only` config key is accepted on the resume path), and `codex --search exec --help` (verifies the global `--search` flag is accepted before the subcommand — required since every bridge spawn now includes `--search`; this probe also covers the fresh code-review surface, which is `codex --search exec --sandbox read-only -` like the other fresh modes). Each probe failure prints an upgrade hint.

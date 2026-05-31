@@ -51,7 +51,7 @@ hyperclaude/
 │   ├── docs-review-resumed.md
 │   ├── code-review.md
 │   └── code-review-resumed.md
-├── templates/hooks/             hook prompt templates (SessionStart hook reads session-start-reminder.md)
+├── templates/hooks/             hook prompt templates (SessionStart reads session-start-reminder.md, or -loop.md when agent-teams is on)
 ├── tests/                       node --test unit tests for the bridge
 ├── docs/                        this directory
 ├── README.md, LICENSE, .gitignore
@@ -120,7 +120,7 @@ CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modu
 
 ### SessionStart hook
 
-The [SessionStart hook](../hooks/session-start-reminder.mjs) is template-driven: it reads [templates/hooks/session-start-reminder.md](../templates/hooks/session-start-reminder.md) at runtime and injects its contents as `additionalContext`. If the template file is missing, the hook fails open and does not raise an error. This design allows the workflow reminder text to be edited without touching code.
+The [SessionStart hook](../hooks/session-start-reminder.mjs) is template-driven: it reads a workflow-router template at runtime and injects its contents as `additionalContext`. Which template is **env-aware** — it matches setup-doctor's `=== '1'` check on `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`: when set, it reads the loop-first [templates/hooks/session-start-reminder-loop.md](../templates/hooks/session-start-reminder-loop.md) (the autonomous `*-loop` / `hyper-auto` skills become the default recommendation for non-trivial multi-step work, with single-step work still routed direct); otherwise it reads the manual-first [templates/hooks/session-start-reminder.md](../templates/hooks/session-start-reminder.md). Gating on the env var keeps the hook from steering a host without agent-teams toward skills that would immediately hit their fallback. If the selected template file is missing, the hook fails open and does not raise an error. This design allows the workflow reminder text to be edited without touching code.
 
 ### PostToolUse stamp hook
 
