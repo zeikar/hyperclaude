@@ -151,7 +151,7 @@ On any non-`ok:true`, Bash timeout, or JSON parse failure → Step 8 teardown, t
 Read the artifact body and judge by **meaning**, not regex. The fresh `code-review` body IS templated — it emits `### Findings` (Blocker/Major/Minor bullets) then `### Verdict` — but still classify by meaning, not by the severity label Codex assigned: a finding **blocks** if it concerns **correctness, data loss, security, a broken build/tests, a regression, or missing required behavior** (regardless of which severity word the template attached). Pure **style / nits / opinions do NOT block**.
 
 - Any blocking finding → revise (Step 7).
-- No blocking findings (style/nits only, or an approving verdict) → exit loop (Step 8 teardown → Step 9). Non-blocking findings are reported, never gating.
+- No blocking findings (style/nits only, or an approving verdict) → **clean convergence**: exit loop (Step 8 teardown → Step 9). The lead commits the fixer's fix edits **after** teardown (Step 9), never while the fixer is still live. Non-blocking findings are reported, never gating.
 
 **Conservative branch:** if the body cannot be confidently judged by meaning (unparseable, truncated, or no recognizable structure) → Step 8 teardown, then STOP with a named-loop report (**"hyper-implement-loop unparseable review, iter N"**) surfacing the artifact path for manual triage.
 
@@ -203,14 +203,23 @@ If `TeamDelete` fails because a member is still live → apply the recovery in `
 
 ### Step 9 — Final report
 
-After successful teardown, report:
+Reached only on Step 6's clean (no-blocking) exit — cap-reached and failure STOPs emit their own reports in Step 8 and never arrive here.
+
+**Convergence commit (post-teardown).** Now that the fixer teammate is torn down (Step 8), the lead commits its uncommitted fix edits **once** on the current feature branch — the fixer never commits (invariant), and teardown-first means no teammate is live during the git ops. `git add -A` is scoped by hyper-implement's clean-tree preflight + gitignored `.hyperclaude/`, so only the fix edits stage; skip when nothing is staged (iteration 1 was already clean, no fix rounds ran). This is the loop's ONLY commit:
+
+```bash
+git add -A
+git diff --cached --quiet && echo "SKIP: no fix edits to commit" || git commit -m "fix(review): apply Codex code-review findings"
+```
+
+After the commit, report:
 
 - All `reviewArtifacts[]` paths (not just the latest; NO plan/slug — release-level slug only).
 - Review iterations consumed.
 - The final Codex verdict.
 - Residual non-blocking findings (informational, never gating).
 - Any `resume-failed` / `fallback` rounds noted.
-- Branch / working-tree state: `hyper-implement` committed each task on the feature branch it created/used (`hyper/<slug>` when started from `main`/`master`); the fixer's fix-round edits are left **uncommitted** on top of those commits. Nothing was pushed. Next step: review the fixer's uncommitted diff and commit it (or run `/hyperclaude:hyper-code-review` again), then push the branch when ready.
+- Branch / working-tree state: `hyper-implement` committed each task on the feature branch it created/used (`hyper/<slug>` when started from `main`/`master`); on clean convergence the lead committed the fixer's fix edits in one `fix(review):` commit on top (working tree now clean — or no fix edits to commit). Nothing was pushed. Next step: push the branch when ready.
 
 ## Anti-patterns
 
