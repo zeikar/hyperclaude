@@ -1474,7 +1474,7 @@ test('resume happy path: code-review --resume <prev> spawns exec resume and writ
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 1,
+        'template-version': 2,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-1',
@@ -1538,7 +1538,7 @@ test('resume explicit-path mismatch (base-ref differs) → ok:false, no new arti
       const prior = path.join(outDir, '20260510-1015-vs-feature-x.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 1,
+        'template-version': 2,
         cwd: process.cwd(),
         'base-ref': 'feature-x',
         'codex-thread-id': 'thread-cr-x',
@@ -1622,7 +1622,7 @@ test('resume spawn fails (codex exits 7) → code-review status resume-failed, f
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 1,
+        'template-version': 2,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-fail',
@@ -1688,6 +1688,8 @@ test('fresh code-review still works without --resume: resumeStatus fresh in JSON
       const outputContent = readFileSync(json.path, 'utf8');
       const fm = parseFrontmatter(outputContent);
       assert.equal(fm['codex-resume-status'], 'fresh', 'frontmatter codex-resume-status should be fresh');
+      // Fresh path reads the live templates/codex/code-review.md and emits its version.
+      assert.equal(fm['template-version'], '2', 'fresh code-review must emit the current code-review template-version');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
@@ -1708,7 +1710,7 @@ test('resume preserves thread id when thread.started is omitted from codex outpu
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 1,
+        'template-version': 2,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-1',

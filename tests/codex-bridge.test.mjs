@@ -2614,7 +2614,7 @@ test('loadResumeContext: code-review --base main identity success', async () => 
     const prior = path.join(tmp, '20260510-1015-x.md');
     writePriorReview(prior, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'base-ref': 'main',
       'codex-thread-id': 'thread-cr-base',
@@ -2634,7 +2634,7 @@ test('loadResumeContext: code-review base-ref mismatch rejected', async () => {
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'base-ref': 'main',
       'codex-thread-id': 't',
@@ -2653,7 +2653,7 @@ test('loadResumeContext: code-review --uncommitted identity success when prior a
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       // no base-ref, no commit — means uncommitted
       'codex-thread-id': 'thread-unc',
@@ -2674,7 +2674,7 @@ test('loadResumeContext: code-review --commit <sha> identity success on exact SH
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'commit': sha,
       'codex-thread-id': 'thread-sha',
@@ -2694,7 +2694,7 @@ test('loadResumeContext: code-review --uncommitted current vs --base prior rejec
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'base-ref': 'main',
       'codex-thread-id': 't',
@@ -2713,7 +2713,7 @@ test('loadResumeContext: code-review title differs but base-ref matches → iden
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'base-ref': 'main',
       'title': 'Old title',
@@ -2737,7 +2737,7 @@ test('loadResumeContext: code-review commit SHA mismatch (prefix of the other) r
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'commit': fullSha,
       'codex-thread-id': 't',
@@ -2757,7 +2757,7 @@ test('loadResumeContext: code-review malformed prior with both base-ref and comm
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'base-ref': 'main',
       'commit': 'abc1234567890abcdef1234567890abcdef12345',
@@ -2799,13 +2799,13 @@ test('loadResumeContext: code-review legacy artifact WITHOUT template-version re
   }
 });
 
-test('loadResumeContext: code-review artifact WITH template-version: 1 and matching target → normal context', async () => {
+test('loadResumeContext: code-review artifact WITH template-version: 2 and matching target → normal context', async () => {
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-cr-tv-'));
   try {
     const prior = path.join(tmp, 'p.md');
     writePriorReview(prior, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'base-ref': 'main',
       'codex-thread-id': 'thread-tv-ok',
@@ -2814,7 +2814,7 @@ test('loadResumeContext: code-review artifact WITH template-version: 1 and match
     const ctx = await loadResumeContext(prior, 'code-review', { reviewTarget: 'base', baseRef: 'main' });
     assert.equal(ctx.error, undefined);
     assert.equal(ctx.threadId, 'thread-tv-ok');
-    assert.equal(ctx.frontmatter['template-version'], '1');
+    assert.equal(ctx.frontmatter['template-version'], '2');
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -2828,7 +2828,7 @@ test('discoverResumeArtifact: code-review --base skips newer wrong-target artifa
     // newest: wrong base-ref (feature-x)
     writePriorReview(path.join(tmp, '20260601-0000-newest.md'), {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'base-ref': 'feature-x',
       'codex-thread-id': 'thread-wrong',
@@ -2838,7 +2838,7 @@ test('discoverResumeArtifact: code-review --base skips newer wrong-target artifa
     const middle = path.join(tmp, '20260510-1015-middle.md');
     writePriorReview(middle, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'base-ref': 'main',
       'codex-thread-id': 'thread-match',
@@ -2847,7 +2847,7 @@ test('discoverResumeArtifact: code-review --base skips newer wrong-target artifa
     // oldest: wrong base-ref (feature-x)
     writePriorReview(path.join(tmp, '20260101-0000-oldest.md'), {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'base-ref': 'feature-x',
       'codex-thread-id': 'thread-old-wrong',
@@ -2869,7 +2869,7 @@ test('discoverResumeArtifact: code-review --commit skips newer wrong-SHA artifac
     // newest: wrong commit SHA
     writePriorReview(path.join(tmp, '20260601-0000-newest.md'), {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'commit': otherSha,
       'codex-thread-id': 'thread-wrong',
@@ -2879,7 +2879,7 @@ test('discoverResumeArtifact: code-review --commit skips newer wrong-SHA artifac
     const middle = path.join(tmp, '20260510-1015-middle.md');
     writePriorReview(middle, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'commit': targetSha,
       'codex-thread-id': 'thread-match',
@@ -2888,7 +2888,7 @@ test('discoverResumeArtifact: code-review --commit skips newer wrong-SHA artifac
     // oldest: wrong commit SHA
     writePriorReview(path.join(tmp, '20260101-0000-oldest.md'), {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'commit': otherSha,
       'codex-thread-id': 'thread-old-wrong',
@@ -2908,7 +2908,7 @@ test('discoverResumeArtifact: code-review --uncommitted skips newer non-uncommit
     // newest: has base-ref, so not uncommitted
     writePriorReview(path.join(tmp, '20260601-0000-newest.md'), {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'base-ref': 'main',
       'codex-thread-id': 'thread-wrong',
@@ -2918,7 +2918,7 @@ test('discoverResumeArtifact: code-review --uncommitted skips newer non-uncommit
     const middle = path.join(tmp, '20260510-1015-middle.md');
     writePriorReview(middle, {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       // no base-ref, no commit
       'codex-thread-id': 'thread-match',
@@ -2927,7 +2927,7 @@ test('discoverResumeArtifact: code-review --uncommitted skips newer non-uncommit
     // oldest: has commit, so not uncommitted
     writePriorReview(path.join(tmp, '20260101-0000-oldest.md'), {
       mode: 'code-review',
-      'template-version': 1,
+      'template-version': 2,
       cwd: process.cwd(),
       'commit': 'deadbeef1234deadbeef1234deadbeef12345678',
       'codex-thread-id': 'thread-old-wrong',

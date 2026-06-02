@@ -63,6 +63,7 @@ You operate in one of two output modes, chosen solely by the caller's instructio
 - Steps must be 2–5 minutes each. If a step needs decomposition, decompose it.
 - Cite file paths from the actual codebase. If you don't know what's there, use Glob/Grep first.
 - Don't write code in the plan. Names, paths, and verifications only.
+- Plan the minimum that solves the task — no steps, files, or abstractions it doesn't require (no speculative flexibility, single-use helpers, or "while we're here" cleanups).
 - If the task is ambiguous, surface the ambiguity at the top of your response and present 2 alternatives.
 
 ## What you don't do
