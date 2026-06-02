@@ -191,6 +191,7 @@ for f in \
   templates/codex/code-review-resumed.md \
   templates/hooks/session-start-reminder.md \
   templates/hooks/session-start-reminder-loop.md \
+  skills/hyper-interview/SKILL.md \
   skills/hyper-research/SKILL.md \
   skills/hyper-plan/SKILL.md \
   skills/hyper-plan-loop/SKILL.md \
@@ -296,7 +297,7 @@ if node -e '
   const footer = additionalContext.slice(template.length);
 
   // Determine whether .hyperclaude/ currently holds any artifacts.
-  const sections = ["plans", "epics", "research", "plan-reviews", "code-reviews", "docs-reviews"];
+  const sections = ["plans", "epics", "specs", "research", "plan-reviews", "code-reviews", "docs-reviews"];
   let hasArtifacts = false;
   for (const s of sections) {
     const dir = path.join(".hyperclaude", s);
@@ -718,6 +719,16 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
   1. Install the plugin from a fresh Claude Code session:
        /plugin marketplace add <this repo URL or local path>
        /plugin install hyperclaude
+
+  1b. Inside the session, run:
+       /hyperclaude:hyper-interview <a deliberately vague idea>
+     Verify it asks ONE question at a time (AskUserQuestion), enforces
+     the HARD-GATE (no implementation before spec approval), writes a
+     file under .hyperclaude/specs/ with `mode: interview` / `idea` /
+     `slug` / `type` frontmatter PLUS a hook-stamped `plugin-version`
+     line, and that the handoff passes the ORIGINAL idea text (so a
+     later /hyperclaude:hyper-plan derives the same slug and the trace
+     stays linked).
 
   2. Inside the session, run:
        /hyperclaude:hyper-research add OAuth login to the API

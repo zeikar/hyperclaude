@@ -6,6 +6,7 @@ The autonomous **loop** variants are the default here — agent-teams is availab
 
 | User intent / trigger | Recommended workflow |
 |---|---|
+| Vague / under-specified idea → clarify before planning | **hyper-interview** (one question at a time → spec in `.hyperclaude/specs/`), then hand off to hyper-plan-loop (or hyper-research first). Skip when the request is already concrete. |
 | Planning a non-trivial task | **hyper-plan-loop** (plan ↔ Codex review until clean). Prepend hyper-research when prior-art/pitfalls matter. Manual control: hyper-plan → hyper-plan-review → revise. |
 | Executing a plan | **hyper-implement-loop** (implement ↔ code-review ↔ fix until clean). Single-task change → hyper-implement directly. Manual control: hyper-implement → hyper-code-review → fix. |
 | Task → plan → implement in one gesture | **hyper-auto** (chains hyper-plan-loop → hyper-implement-loop; stops cleanly if plan-loop doesn't converge). |

@@ -18,7 +18,23 @@ Codex     Claude     Codex     Claude(+agents) Codex      Claude       Codex    
 
 Each step has a single concrete trigger; most produce one output file per bridge call, but default research produces a Codex+Claude pair and loop skills accumulate multiple per-iteration artifacts. Slugs propagate so a release's research, plan, and review can be paired by name.
 
+An optional `interview` step precedes `research` when the *idea itself* is vague (not just un-planned) — see §0.
+
 ---
+
+## 0. Interview — clarify a vague idea (optional)
+
+```
+/hyperclaude:hyper-interview track stuff for users somehow
+```
+
+When the idea itself is under-specified, `hyper-interview` runs a short **one-question-at-a-time** interview, targeting whichever requirement dimension (goal / constraints / success / context) is least clear (qualitative — no numeric scoring). It's greenfield/brownfield aware: one `Explore` dispatch up front establishes which, so brownfield questions cite repo evidence (a file path or symbol) instead of asking what the code already says. It writes a spec to `.hyperclaude/specs/<timestamp>-<slug>.md` (Goal, Constraints, Non-Goals, Acceptance Criteria, Assumptions Resolved, Context) and hands off to `hyper-research` or `hyper-plan`.
+
+Claude-only — **no Codex**. Clarity is its job; anything off in the spec is caught downstream when the plan is reviewed (`hyper-plan-review`). It is the *light* interview by design: brainstorming-style dialogue with deep-interview's weakest-dimension targeting, minus the numeric ambiguity scoring / topology / ontology / challenge-mode machinery. A HARD-GATE blocks any implementation until you approve the spec.
+
+When to skip: the request is already concrete (paths, function names, acceptance criteria) — go straight to `hyper-plan`; or the user pasted a PRD / plan to execute.
+
+The slug is minted from the idea text (first 5 words, kebab-case, ASCII) — the *same* deterministic rule `hyper-research` / `hyper-plan` use, so carrying the same idea forward keeps the `research → plan → plan-review` trace linked.
 
 ## 1. Research — surfaces context
 
@@ -204,6 +220,7 @@ Driven by an explicit release request — when the user asks to release, run the
 
 The same slug should follow a feature through the cycle:
 
+- `interview` (when used) mints the slug from the idea text with the same rule as `research`, so the spec, research, plan, and plan-review share one slug when the idea is carried forward.
 - `research` derives the slug from the task text (first 5 words, kebab-case, ASCII).
 - The plan filename uses the same slug: `<YYYYMMDD-HHMM>-<slug>.md`.
 - `plan-review` extracts the slug from the plan filename.
@@ -218,6 +235,7 @@ Not every change needs the full cycle. Honest skip rules:
 
 | Step | Skip when |
 |---|---|
+| `interview` | The idea is already concrete (paths / acceptance criteria), or a PRD / plan exists to execute |
 | `research` | Task is mechanical / well-trodden / one-file |
 | `plan` | Single concrete step — dispatch `implementer` directly |
 | `plan-review` | One-step plans; prototyping where review overhead exceeds value |

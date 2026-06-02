@@ -26,7 +26,7 @@ research → plan → plan-review → implement → code-review → docs-sync �
 Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex        user
 ```
 
-The `refine` / `fix` arcs are what `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop` automate — a Claude-side teammate (`planner` / `fixer` / `documenter`) revises while Codex stays the reviewer, looping until no blocking findings remain. Gates write trace artifacts under `.hyperclaude/` (gitignore-friendly); `hyper-docs-sync`, `hyper-docs-loop`, and `hyper-implement` edit the working tree directly. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, slug/artifact conventions, and `--resume`.
+When the *idea itself* is vague (not just un-planned), an optional `hyper-interview` front-end clarifies it into a spec before `research` / `plan` — a short one-question-at-a-time interview, Claude-only (no Codex; clarity is its job, review happens downstream). The `refine` / `fix` arcs are what `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop` automate — a Claude-side teammate (`planner` / `fixer` / `documenter`) revises while Codex stays the reviewer, looping until no blocking findings remain. Gates write trace artifacts under `.hyperclaude/` (gitignore-friendly); `hyper-docs-sync`, `hyper-docs-loop`, and `hyper-implement` edit the working tree directly. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, slug/artifact conventions, and `--resume`.
 
 ## Full automation: `hyper-auto`
 

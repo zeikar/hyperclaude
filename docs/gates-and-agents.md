@@ -21,9 +21,20 @@ Commands are explicitly-invoked slash commands (`/hyperclaude:<name>`), distinct
 
 ---
 
-## Gate skills (10)
+## Gate skills (11)
 
-A gate skill mediates a step in the cycle that produces a canonical `.hyperclaude/` artifact (or, in the doc-sync case, the doc edits themselves). Four shell out to the Codex bridge directly; `hyper-plan` and `hyper-docs-sync` orchestrate Claude-side work — `hyper-plan` dispatches the `planner` agent, and `hyper-docs-sync` pairs with `hyper-docs-review` for the Codex critic step. `hyper-plan-loop` is a hybrid: it spawns a persistent `planner` teammate for Claude-side revision while calling the bridge directly for each Codex review turn. `hyper-implement-loop` is also a hybrid: it creates the team first (the `TeamCreate` probe is what makes an agent-teams-unavailable host stop as a clean no-op), runs `hyper-implement` (with its optional final code-review suppressed), then spawns a persistent `fixer` teammate — only after implementation finishes — and runs fix rounds against the live `fixer` while calling the bridge directly for each Codex code-review turn. `hyper-docs-loop` mirrors the same hybrid shape for docs: it creates the team first, spawns a persistent `documenter` teammate, then alternates between Codex `docs-review` turns and findings-driven SendMessage rounds against the live documenter; only `### Findings` items gate fix rounds (the `### Gaps` / `### Broken Or Suspect Links` / `### Cross-Doc Inconsistencies` sections are reported but never auto-fixed). `hyper-auto` is the composition layer: it produces no artifact of its own, chaining `hyper-plan-loop` into `hyper-implement-loop` so the inner loops' artifacts (plans / plan-reviews / code-reviews) emerge from the run.
+A gate skill mediates a step in the cycle that produces a canonical `.hyperclaude/` artifact (or, in the doc-sync case, the doc edits themselves). Four shell out to the Codex bridge directly; `hyper-plan`, `hyper-docs-sync`, and `hyper-interview` orchestrate Claude-side work — `hyper-plan` dispatches the `planner` agent, `hyper-docs-sync` pairs with `hyper-docs-review` for the Codex critic step, and `hyper-interview` runs an interactive requirements interview in the lead thread (no Codex — its job is clarity, not review). `hyper-plan-loop` is a hybrid: it spawns a persistent `planner` teammate for Claude-side revision while calling the bridge directly for each Codex review turn. `hyper-implement-loop` is also a hybrid: it creates the team first (the `TeamCreate` probe is what makes an agent-teams-unavailable host stop as a clean no-op), runs `hyper-implement` (with its optional final code-review suppressed), then spawns a persistent `fixer` teammate — only after implementation finishes — and runs fix rounds against the live `fixer` while calling the bridge directly for each Codex code-review turn. `hyper-docs-loop` mirrors the same hybrid shape for docs: it creates the team first, spawns a persistent `documenter` teammate, then alternates between Codex `docs-review` turns and findings-driven SendMessage rounds against the live documenter; only `### Findings` items gate fix rounds (the `### Gaps` / `### Broken Or Suspect Links` / `### Cross-Doc Inconsistencies` sections are reported but never auto-fixed). `hyper-auto` is the composition layer: it produces no artifact of its own, chaining `hyper-plan-loop` into `hyper-implement-loop` so the inner loops' artifacts (plans / plan-reviews / code-reviews) emerge from the run.
+
+### `hyper-interview` — requirements clarification
+
+- **Slash:** `/hyperclaude:hyper-interview <idea>`
+- **Mechanics:** *not* a Codex gate. A short Socratic interview run in the lead thread via `AskUserQuestion` — one question per round, targeting whichever requirement dimension (goal / constraints / success / brownfield context) is least clear (qualitative, **no numeric scoring**). One `Explore` dispatch up front establishes greenfield vs brownfield so brownfield questions cite repo evidence (a file/symbol) rather than asking what the code already reveals. A `<HARD-GATE>` blocks any implementation until the user approves the spec. This is the **light** interview — brainstorming-style dialogue with deep-interview's weakest-dimension targeting, minus the ambiguity math / topology / ontology / challenge-mode state.
+- **Writes:** `.hyperclaude/specs/<timestamp>-<slug>.md` — Goal, Constraints, Non-Goals, Acceptance Criteria, Assumptions Resolved, and (brownfield) Context. Frontmatter: `mode: interview`, `idea`, `slug`, `generated`, `type: greenfield|brownfield`; a PostToolUse stamp hook adds `plugin-version` post-write.
+- **Slug:** minted from the idea text (lowercase, ASCII, ≤5 words, kebab-case) — the *same* rule `hyper-research` / `hyper-plan` use, so carrying the same idea forward keeps the `research → plan → plan-review` trace linked. A no-ASCII idea → timestamp-only filename + bare empty `slug:`.
+- **`--resume`:** not supported. In-session revisions overwrite the spec in place; a separate fresh run mints a new timestamped spec (same slug if the idea is unchanged) — no resume keys on the path, so accumulating specs is harmless.
+- **Use when:** the idea itself is vague / under-specified and jumping to a plan would guess at scope.
+- **Skip when:** the request is already concrete (paths / function names / acceptance criteria) — use `hyper-plan`; or a PRD / plan already exists to execute.
+- **Source:** [skills/hyper-interview/SKILL.md](../skills/hyper-interview/SKILL.md). No template — the skill runs the interview inline.
 
 ### `hyper-research` — pre-implementation research
 
@@ -147,6 +158,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 
 | Skill | Who acts | What is reviewed |
 |---|---|---|
+| `hyper-interview` | Claude (interactive; optional `Explore`) | a vague idea → clarified spec; no review |
 | `hyper-research` | Codex + Claude (`researcher` agent) in parallel by default; single path on explicit request | (a future) task description |
 | `hyper-plan` | Claude (via `planner` agent) | task → plan generation, no review |
 | `hyper-plan-review` | Codex | Claude's plan |
@@ -243,6 +255,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 | Situation | Use |
 |---|---|
 | First-time setup; want to verify prerequisites | `/hyperclaude:hyper-setup` |
+| Idea is vague; want requirements clarified before planning | `/hyperclaude:hyper-interview` |
 | Starting a non-trivial task; want prior art | `/hyperclaude:hyper-research` |
 | Need an ordered plan with verification per step | `/hyperclaude:hyper-plan` (wraps the `planner` agent) |
 | Plan written; want Codex to critique it | `/hyperclaude:hyper-plan-review` |

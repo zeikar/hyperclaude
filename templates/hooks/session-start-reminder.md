@@ -4,6 +4,7 @@ Multi-step hyper-* chains. Single-skill triggers (hyper-code-review, hyper-docs-
 
 | User intent / trigger | Recommended workflow |
 |---|---|
+| Vague / under-specified idea → clarify before planning | **hyper-interview** (one question at a time → spec in `.hyperclaude/specs/`), then hand off to hyper-plan (or hyper-research first). Skip when the request is already concrete. |
 | Planning a non-trivial task | hyper-research (optional) → hyper-plan → hyper-plan-review → revise if blockers → hyper-implement. Autonomous variant: **hyper-plan-loop** (plan ↔ review cycle). |
 | Executing a plan | hyper-implement → hyper-code-review → fix findings. Autonomous variant: **hyper-implement-loop** (implement ↔ review ↔ fix cycle). |
 | Task → plan → implement in one gesture | hyper-plan → hyper-plan-review → revise → hyper-implement. The one-gesture **hyper-auto** (chains both loops) needs `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`. |
