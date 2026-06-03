@@ -3,8 +3,6 @@
 > Push Claude Code beyond stock. Claude builds, Codex critiques.
 > A gated research → plan → review → ship pipeline, with autonomous multi-agent revise loops that self-converge.
 
-> **v1.0 — the design has converged and is dogfooded daily.** The surface (skill names, bridge modes, artifact paths, frontmatter keys) is settled. Still pre-adoption, so breaking changes may ride a minor bump for now rather than a major one. The autonomous `*-loop` / `hyper-auto` skills ride on Claude Code's **experimental** agent-teams feature and may shift if it changes upstream.
-
 ![Claude builds, Codex critiques](assets/hero.jpg)
 
 ## Why
@@ -12,7 +10,7 @@
 A Claude Code plugin built around a deliberate division of labor between two AI coding agents:
 
 - **Claude** implements — planning, coding, subagents, agent teams
-- **Codex** reviews — pre-implementation research, plan critique, code review, documentation accuracy review
+- **Codex** reviews — plan critique, code review, documentation accuracy review
 
 Thesis: **Claude is the builder, Codex is the critic.** Better software with a smarter cost split.
 

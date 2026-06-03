@@ -89,7 +89,7 @@ All four modes use a fresh prompt template (`code-review` uses `templates/codex/
 | `hooks/*.mjs`, `templates/hooks/*.md` | `docs/architecture.md` (SessionStart hook section) |
 | `templates/codex/*.md` (incl. `code-review.md`) | `docs/architecture.md`, `docs/development.md` (template-version section); a code-review prompt/spawn change also touches `docs/decisions.md`, `docs/workflow.md`, `docs/gates-and-agents.md`, `README.md`, and `skills/hyper-implement-loop/*` (the loop parses the code-review contract) |
 | `scripts/test/smoke.sh`, `tests/*.mjs` | `docs/development.md` |
-| `.claude-plugin/plugin.json` | `README.md`, `site/index.html` (the `vMAJOR.MINOR` status-banner line — search `the design has converged`), `docs/development.md` (release flow) |
+| `.claude-plugin/plugin.json` | `site/index.html` (the `vMAJOR.MINOR` status-banner line — search `the design has converged`; the README header carries no version line), `docs/development.md` (release flow) |
 
 Behavioral surface changes (CLI flags, frontmatter keys, output paths, mode names) should also propagate to `README.md` and `docs/workflow.md` if the change is user-visible.
 
