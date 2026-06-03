@@ -3,7 +3,7 @@
 > Push Claude Code beyond stock. Claude builds, Codex critiques.
 > A gated research → plan → review → ship pipeline, with autonomous multi-agent revise loops that self-converge.
 
-> 🚧 **Early alpha.** v0.18 is implemented and dogfooded daily. Layout, naming, and APIs may change between minor versions until v1.0.
+> **v1.0 — the design has converged and is dogfooded daily.** The surface (skill names, bridge modes, artifact paths, frontmatter keys) is settled. Still pre-adoption, so breaking changes may ride a minor bump for now rather than a major one. The autonomous `*-loop` / `hyper-auto` skills ride on Claude Code's **experimental** agent-teams feature and may shift if it changes upstream.
 
 ![Claude builds, Codex critiques](assets/hero.jpg)
 

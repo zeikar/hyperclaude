@@ -89,7 +89,7 @@ All four modes use a fresh prompt template (`code-review` uses `templates/codex/
 | `hooks/*.mjs`, `templates/hooks/*.md` | `docs/architecture.md` (SessionStart hook section) |
 | `templates/codex/*.md` (incl. `code-review.md`) | `docs/architecture.md`, `docs/development.md` (template-version section); a code-review prompt/spawn change also touches `docs/decisions.md`, `docs/workflow.md`, `docs/gates-and-agents.md`, `README.md`, and `skills/hyper-implement-loop/*` (the loop parses the code-review contract) |
 | `scripts/test/smoke.sh`, `tests/*.mjs` | `docs/development.md` |
-| `.claude-plugin/plugin.json` | `README.md`, `site/index.html` (alpha-status `v0.X` line), `docs/development.md` (release flow) |
+| `.claude-plugin/plugin.json` | `README.md`, `site/index.html` (the `vMAJOR.MINOR` status-banner line — search `the design has converged`), `docs/development.md` (release flow) |
 
 Behavioral surface changes (CLI flags, frontmatter keys, output paths, mode names) should also propagate to `README.md` and `docs/workflow.md` if the change is user-visible.
 
@@ -108,7 +108,7 @@ Plan files (Claude-authored) live in `.hyperclaude/plans/` and are the input to 
 When the user asks to release, run the whole flow end to end — don't stop after the commit.
 
 1. **Tests green — re-run immediately before committing**, not "earlier this session": `node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs tests/setup-doctor.test.mjs` and `bash scripts/test/smoke.sh`. Unit must report `fail 0`; smoke must report `failed: 0`. Either red → stop and fix first.
-2. **Bump `version`** in `.claude-plugin/plugin.json`. Pre-1.0: minor bump for breaking changes — bridge subcommand renames, frontmatter key changes, artifact directory renames, layer/command/skill removals all count. The bump rides in the release commit, not a separate one. On a minor bump, also update the `vMAJOR.MINOR` alpha-status string in `README.md` and `site/index.html` (search for `v0.X is implemented`) so the user-visible docs match.
+2. **Bump `version`** in `.claude-plugin/plugin.json`. **Pre-adoption policy (no installed user base):** a breaking change rides a **MINOR** bump, not a major — bridge subcommand renames, frontmatter key changes, artifact directory renames, layer/command/skill removals all count; additive/fix work is a patch. (We reached `1.0.0` as a *maturity marker* — the design has converged — not as a strict-semver stability contract. Revisit major-on-break once there's a real user base.) The bump rides in the release commit, not a separate one. When the bump changes the `vMAJOR.MINOR` shown in the status banner, also update it in `README.md` and `site/index.html` (search for `the design has converged`) so the user-visible docs match.
 3. **Commit + push to `main`.** Conventional-commit subject; breaking changes take a `!` (`feat!:` / `refactor!:`) and a `BREAKING CHANGE:` footer spelling out migration steps. Review `git status` and stage the release's files explicitly — don't blanket `git add -A`. (`.hyperclaude/` is gitignored so its artifacts never appear, but any *other* untracked file would be swept into the release commit.)
 4. **Tag:** `git tag -a vX.Y.Z -m "vX.Y.Z: <one-line>"` then `git push origin vX.Y.Z`.
 5. **GitHub release:** `gh release create vX.Y.Z --title "..." --notes "..."`. When breaking, the notes must carry a **Migration** section whose steps match the commit's `BREAKING CHANGE:` footer.
