@@ -166,7 +166,7 @@ export function evalAgentTeams(envValue) {
   const name = 'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1';
   const required = '=1';
   const remediation =
-    'Set CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 to enable /hyperclaude:hyper-plan-loop, /hyperclaude:hyper-implement-loop, and /hyperclaude:hyper-auto (which chains both) (optional — the research→plan→implement flow works without it).';
+    'Set CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 to enable /hyperclaude:hyper-plan-loop, /hyperclaude:hyper-implement-loop, /hyperclaude:hyper-docs-loop, and /hyperclaude:hyper-auto (which chains hyper-plan-loop → hyper-implement-loop) — the loops now require this at teammate spawn; there is no longer a create-tool fallback that surfaces unavailability (optional — the research→plan→implement flow works without it).';
   if (envValue === '1') {
     return { name, detected: '1', required, status: 'PASS', severity: 'conditional', remediation };
   }
