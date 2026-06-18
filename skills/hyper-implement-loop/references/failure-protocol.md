@@ -63,10 +63,6 @@ There is **NO git-working-tree / no-op / `.bak` / restore mechanism**. A fixer t
 
 **Invalid-finding path:** a finding the fixer returns as `not-applicable` with a non-empty `notes:` reason is treated as **addressed** for gate purposes and does not block the loop. The next Codex re-review is the arbiter: if Codex drops the finding the loop continues normally; if Codex re-raises it, it re-enters the normal loop and counts toward the cap.
 
-## §4 — Teardown recovery (Step 8 `TeamDelete` failure)
-
-See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C — Teardown 3-step procedure + recovery. Implement-loop binds `<loop-name>` = `hyper-implement-loop`.
-
 ## §5 — Anti-patterns (implement-loop specific)
 
 The cross-loop anti-patterns (reviewer-is-team-agent, re-spawning fresh, skipping teardown, reusing request_id, checking accept rule before classifying reqid, comparing reqid while not awaiting, treating payload-less idle as failure, inlining §E into SKILL.md) live in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §D.

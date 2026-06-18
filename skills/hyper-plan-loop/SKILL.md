@@ -47,7 +47,7 @@ Mint protocol, lifecycle, and phase classification: see `${CLAUDE_PLUGIN_ROOT}/r
 
 ### Step 0 — Read the failure & recovery protocol
 
-Before any team creation, Read both protocol files into context: (1) `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` — the shared cross-loop protocol; (2) `references/failure-protocol.md` (sibling of this file) — the plan-loop binding + plan-loop-specific recoveries. Both are mandatory — the loop's failure branches reference sections by number (shared §A–§E and local §1–§5) and the lead must follow them verbatim when reached.
+Before spawning any teammate, Read both protocol files into context: (1) `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` — the shared cross-loop protocol; (2) `references/failure-protocol.md` (sibling of this file) — the plan-loop binding + plan-loop-specific recoveries. Both are mandatory — the loop's failure branches reference sections by number (shared §A–§E and local §1–§5) and the lead must follow them verbatim when reached.
 
 ### Step 1 — Resolve task + slug + plan path
 
