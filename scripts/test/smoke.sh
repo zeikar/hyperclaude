@@ -705,6 +705,37 @@ else
 fi
 
 echo
+echo "==> agent-teams v2.1.178 contract assertions"
+
+for f in \
+  skills/hyper-plan-loop/SKILL.md \
+  skills/hyper-implement-loop/SKILL.md \
+  skills/hyper-docs-loop/SKILL.md \
+  references/loop-protocol.md \
+  skills/hyper-plan-loop/references/failure-protocol.md \
+  skills/hyper-implement-loop/references/failure-protocol.md \
+  skills/hyper-docs-loop/references/failure-protocol.md; do
+  for tok in TeamCreate TeamDelete team_name; do
+    if grep -q "$tok" "$f" 2>/dev/null; then
+      miss "$f: contains deprecated $tok"
+    else
+      ok "$f: no $tok"
+    fi
+  done
+done
+
+for f in \
+  skills/hyper-plan-loop/SKILL.md \
+  skills/hyper-implement-loop/SKILL.md \
+  skills/hyper-docs-loop/SKILL.md; do
+  if grep -qF '[ "$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" = "1" ]' "$f" 2>/dev/null; then
+    ok "$f: contains env probe for CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"
+  else
+    miss "$f: missing env probe for CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"
+  fi
+done
+
+echo
 echo "==> Summary"
 echo "  passed: $pass"
 echo "  failed: $fail"
@@ -776,7 +807,7 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      "RESEND:"/duplicate-body churn between revise rounds, that at
      least one Codex plan-review runs, and the loop reaches a terminal
      state (clean exit, iteration cap, or controlled failure) bounded
-     by the review cap ending in a successful TeamDelete.
+     by the review cap, ending after graceful teammate shutdown with no live teammate left.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
@@ -790,7 +821,7 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      finding-map (not a raw diff), that the loop is bounded by the
      review cap (6 total Codex reviews maximum), and that the loop
      reaches a terminal state (clean exit on no blocking findings, or
-     the 6-review cap reached, ending in a successful TeamDelete).
+     the 6-review cap reached), ending after graceful teammate shutdown with no live teammate left.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
@@ -806,7 +837,7 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      `request-id: <integer>` and carry the per-finding structured
      schema (`finding:` / `status:` / `files-changed:` / `verification:`
      / `notes:`), and that the loop reaches a terminal state bounded by
-     the 6-review cap ending in a successful TeamDelete.
+     the 6-review cap, ending after graceful teammate shutdown with no live teammate left.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
