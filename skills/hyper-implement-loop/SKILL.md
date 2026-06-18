@@ -23,7 +23,7 @@ Skip when:
 
 ## Agent-teams tool contract
 
-This skill uses the experimental agent-teams tools — `TeamCreate` / `Agent` / `SendMessage` / `TeamDelete`. Their argument shapes, the rule that the per-run team name is passed **only** to `TeamCreate` and `Agent` (never to `SendMessage` / `TeamDelete`), and idle-notification semantics (a payload-less wake signal that does NOT carry the teammate's reply text — the loop-bound structured findings reply arrives only if the fixer explicitly `SendMessage`s it, else the lead falls back to a corrective round-trip) all live in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A, loaded at Step 0. Loop-specific bindings:
+This skill uses the experimental agent-teams tools — `Agent` / `SendMessage`. Their argument shapes and idle-notification semantics (a payload-less wake signal that does NOT carry the teammate's reply text — the loop-bound structured findings reply arrives only if the fixer explicitly `SendMessage`s it, else the lead falls back to a corrective round-trip) all live in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A, loaded at Step 0. Loop-specific bindings:
 - **Fixer-reply ownership:** there is NO canonical output file — the fixer applies edits in place and replies with the structured findings-map schema (`finding:` / `status:` / `files-changed:` / `verification:` / `notes:` per cited finding). The lead avoids reading full source bodies on the normal path, but MAY run scoped `git status` / `git diff --stat` / targeted file reads for validation and failure reporting. Unsolicited fixer messages follow the lead-side protocol (`references/failure-protocol.md` §2) — prompt-only idle discipline is insufficient.
 
 **Fixer request id.** The run-state fields (`request_id_counter`, `expected_request_id`, `awaiting_reply`, `solicit_sent_at`, `review_iteration`) and their lifecycle (mint protocol, MESSAGE ACCEPTED / POST-ACCEPTANCE VALIDATION ACCEPTED acceptance stages, Phase 1 / Phase 2 routing, stale-recovery) are defined in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E (single source of truth); this loop binds to those names.
@@ -32,7 +32,7 @@ This skill uses the experimental agent-teams tools — `TeamCreate` / `Agent` / 
 
 **Spawn-is-not-a-solicitation.** Unlike plan-loop's spawn (which mints id 1 because the planner is asked to immediately Write the plan), the implement-loop spawn (Step 4) is contract-only — the fixer goes idle without sending any reply. So `request_id_counter` stays at 0 until the FIRST Step 7 fix solicitation, which mints id 1. The Step 4 spawn does NOT change `request_id_counter` or `awaiting_reply`. After spawn, the lead expects EXACTLY ONE payload-less idle notification (the fixer's post-spawn idle). The lead consumes that idle as a readiness signal and does NOT route it through §B/§E unsolicited handling. From the second wake onward (which is always after the first Step 7 solicitation has been sent), §E Phase 1 / Phase 2 routing applies normally.
 
-The lead must also retain `team_name` (the per-run unique team name from Step 2) across turns. Other loop-local run state (e.g. `reviewArtifacts[]`, `review_iteration`) is named where it appears in Steps 5/7.
+Loop-local run state (e.g. `reviewArtifacts[]`, `review_iteration`) is named where it appears in Steps 5/7.
 
 ## How to invoke
 
@@ -60,30 +60,24 @@ Reuse the stock `hyper-implement` plan-path resolution — see `skills/hyper-imp
 
 **No feature slug.** The code-review slug in this skill is release-level (`vs-main`), not feature-level — it derives from the diff target, not the plan filename. The final report will reference the code-review artifact path(s) only; do not derive or track a feature slug here.
 
-### Step 2 — Create the team
+### Step 2 — Confirm agent-teams availability
 
-Do not add an env-probe shell check — let `TeamCreate` itself surface agent-teams unavailability.
-
-Compute a per-run unique team name (the nonce defeats same-second collisions) and record this exact literal as the run's team name (also used in Step 4's `Agent` call and reports):
+Run the following Bash probe **before Step 3's `hyper-implement` run**:
 
 ```bash
-echo "hyper-implement-loop-$(date +%Y%m%d-%H%M%S)-$RANDOM"
+[ "$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" = "1" ]
 ```
 
-Then:
-
-```
-TeamCreate({ team_name: "<the run-unique name computed above>", description: "implement + Codex code-review fix loop" })
-```
+This probe MUST run BEFORE Step 3's `hyper-implement` run so that an unavailable host is detected and the skill STOPs before any tree mutation — preserving the clean-STOP-before-mutation property.
 
 Failure handling:
 
-- **`TeamCreate` fails** → STOP with the message below + the raw error verbatim. No teardown (nothing was created).
-- **`TeamCreate` succeeds but the Step 4 spawn fails** (note: the fixer is now spawned in Step 4, *after* `hyper-implement` completes) → `TeamDelete` FIRST (no orphaned empty team), then STOP with the same message. The implementation output is already in the working tree and is preserved — the user can run `/hyperclaude:hyper-code-review` manually.
+- **Env unset / probe fails** → STOP with the message below before any mutation. No teardown (nothing was created).
+- **Step 4 spawn fails** (note: the fixer is spawned in Step 4, *after* `hyper-implement` completes) → STOP with the same message. No teardown — the team never formed. The implementation output is already in the working tree and is preserved — the user can run `/hyperclaude:hyper-code-review` manually.
 
 Documented stop message:
 
-> agent teams unavailable (or TeamCreate failed — see error below) — this skill requires the experimental agent-teams feature; run /hyperclaude:hyper-setup to diagnose prerequisites. Use /hyperclaude:hyper-implement + /hyperclaude:hyper-code-review manually instead.
+> agent teams unavailable — this skill requires the experimental agent-teams feature; run /hyperclaude:hyper-setup to diagnose prerequisites. Use /hyperclaude:hyper-implement + /hyperclaude:hyper-code-review manually instead.
 
 ### Step 3 — Run hyper-implement to completion (boundary A)
 
@@ -93,7 +87,7 @@ Invoke the existing `hyper-implement` skill on the resolved plan path.
 
 **Nested-review boundary:** `skills/hyper-implement/SKILL.md` Step 4 ends with an optional final step: run `/hyperclaude:hyper-code-review`. Under `hyper-implement-loop`, the lead **MUST NOT perform** that optional `/hyperclaude:hyper-code-review` bullet — it is suppressed for this run. Step 5 below is the single authoritative first Codex review of the full diff.
 
-**If `hyper-implement` fails or aborts** (no usable implementation): the fixer was never spawned, so no teardown is owed — `TeamDelete({})` the empty team and STOP, surfacing the `hyper-implement` failure verbatim. The partial working tree is left as-is for manual triage.
+**If `hyper-implement` fails or aborts** (no usable implementation): the fixer was never spawned, so no teardown is owed — STOP, surfacing the `hyper-implement` failure verbatim. The partial working tree is left as-is for manual triage.
 
 The loop begins AFTER `hyper-implement` finishes its task loop + final acceptance (smoke/tests), with the optional code-review bullet suppressed.
 
@@ -104,7 +98,6 @@ Implementation is complete; spawn the fixer **once** here, before iteration 1. U
 ```
 Agent({
   subagent_type: "hyperclaude:fixer",
-  team_name: "<the run-unique team name computed in Step 2>",
   name: "fixer",
   prompt: "<the contract string assembled from the bullets below>"
 })
@@ -191,15 +184,12 @@ Cap at **6 total Codex reviews** (iter 1 fresh + at most 5 resumed fix rounds).
 
 On cap-reached with blocking findings still open: FIRST capture the cap report details (iterations consumed, residual blocking findings, working tree left in fixer's latest state, all `reviewArtifacts[]` paths), THEN run teardown, THEN emit the named-loop report (**"hyper-implement-loop fix loop"**).
 
-**Teardown is MANDATORY on EVERY exit path once the Step 4 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure, fixer format failure, unparseable review, plus any other unexpected tool error while the fixer teammate is live. Run teardown FIRST, then report/STOP — never before. (A failure *before* the Step 4 spawn — e.g. `hyper-implement` aborting in Step 3 — owes no teardown: only an empty team exists; `TeamDelete({})` it and STOP.)
+**Teardown is MANDATORY on EVERY exit path once the Step 4 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure, fixer format failure, unparseable review, plus any other unexpected tool error while the fixer teammate is live. Run teardown FIRST, then report/STOP — never before. (A failure *before* the Step 4 spawn — e.g. `hyper-implement` aborting in Step 3 — owes no teardown: STOP (no team formed).)
 
 Exact procedure:
 
 1. `SendMessage({ to: "fixer", message: { type: "shutdown_request" } })` — object message, no `summary`.
 2. The fixer's `shutdown_response` / idle-termination notification arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check.
-3. `TeamDelete({})`.
-
-If `TeamDelete` fails because a member is still live → apply the recovery in `references/failure-protocol.md` §4.
 
 ### Step 9 — Final report
 
@@ -233,7 +223,7 @@ Core invariants (full list in `references/failure-protocol.md` §5):
 - Re-spawning the fixer fresh each iteration. Context-reuse via the live teammate is the entire reason this skill exists.
 - Committing or pushing from the fixer, or letting the fixer invoke codex or `scripts/codex-bridge.mjs`.
 - Using `--commit <sha>` as the diff target, or omitting `--base main` on any iteration. `--base main` is the fixed target for all code-review invocations.
-- Skipping `shutdown_request` + `TeamDelete`, or calling `TeamDelete` before the fixer is down; stopping silently at the cap.
+- Skipping `shutdown_request` on exit; stopping silently at the cap.
 - Editing `hyper-implement` or `hyper-plan-loop`. This skill is purely additive.
 - Inlining the shared §E pseudo-code into this SKILL.md instead of pointing at `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E. SKILL.md is the always-loaded surface — duplicating §E bloats every trigger and risks the two copies drifting.
 - Letting the fixer omit the `request-id: <id>` first-line prefix on any post-spawn reply; treating any non-`request-id:` reply (or one with a wrong id) as success. The prefix is the loop's id-classification step; without it, the anchored gate fails.
