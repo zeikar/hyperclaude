@@ -1,15 +1,13 @@
 # Loop protocol — shared reference
 
-This file is the shared cross-loop protocol reference, loaded at Step 0 by `hyper-plan-loop` and `hyper-implement-loop`; other loop skills bind to it as they're updated. Each consuming loop's local `failure-protocol.md` is the binding layer that names the teammate role, the reply-token shape, the anchored-reply acceptance rule, and the post-MESSAGE-ACCEPTED validation stage. Consult the loop's local `failure-protocol.md` for those values.
+This file is the shared cross-loop protocol reference, loaded at Step 0 by `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop`. Each consuming loop's local `failure-protocol.md` is the binding layer that names the teammate role, the reply-token shape, the anchored-reply acceptance rule, and the post-MESSAGE-ACCEPTED validation stage. Consult the loop's local `failure-protocol.md` for those values.
 
 ## §A — Agent-teams tool contract
 
-Every loop binding this protocol uses the experimental agent-teams tools. The per-run team name is passed **only** to `TeamCreate` and `Agent` — it is **never** a tool argument to `SendMessage` or `TeamDelete`.
+Every loop binding this protocol uses the experimental agent-teams feature. The session team auto-forms on the first `Agent` teammate spawn — no setup step is required. As of v2.1.178, the `Agent` tool's team-name field is accepted-but-ignored / deprecated; omit it rather than passing it.
 
-- `TeamCreate` — `{ team_name, description? }`. Creates the team and its task list.
-- `Agent` (spawn teammate) — `subagent_type`, plus `team_name` (the SAME run-unique literal from `TeamCreate`) and `name` to make the agent a teammate addressable by `name`.
-- `SendMessage` — `{ to: <teammate name, e.g. "<teammate-name>">, message: <string | {type:"shutdown_request"}>, summary? }`. No `team_name` field. `summary` is REQUIRED whenever `message` is a string; the shutdown object message takes no `summary`. Plain-text output is NOT visible to teammates; messaging requires this tool.
-- `TeamDelete` — `{}` (no args; team inferred from session). Fails if the team still has a live member, so shut members down first.
+- `Agent` (spawn teammate) — `subagent_type` and `name` to make the agent a teammate addressable by `name`. The first spawn forms the session team.
+- `SendMessage` — `{ to: <teammate name, e.g. "<teammate-name>">, message: <string | {type:"shutdown_request"}>, summary? }`. `summary` is REQUIRED whenever `message` is a string; the shutdown object message takes no `summary`. Plain-text output is NOT visible to teammates; messaging requires this tool.
 - A teammate's `shutdown_response` or idle-termination notification is auto-delivered as a new turn — there is no poll/wait tool. **But the idle notification is a payload-less wake signal (`{type:"idle_notification",...}`) — it does NOT carry the teammate's reply text.** The loop-bound reply confirmation arrives ONLY if the teammate explicitly `SendMessage`s it to the lead; a teammate that prints the reply as plain text and idles delivers an empty notification and the lead must fall back to the corrective round-trip. Idle teammates keep their process + context alive between turns; a later SendMessage wakes them with context intact — this is the property each loop depends on.
 
 Per-loop deliverable rules (what the teammate writes / replies, how the lead verifies) live in each loop's local `failure-protocol.md` binding declarations.
@@ -39,7 +37,7 @@ After that single idle correction, a short content-free acknowledgment (e.g. "ok
 
 The id-based classification subsumes the former stale-reply case that was previously papered over by §B's "did I solicit anything" guess, and the timestamp-based idle guard subsumes the stale-idle case that triggered the dogfooded 1-round-lag race — both are now identified by lead-owned state, not timing heuristics.
 
-## §C — Teardown 3-step procedure
+## §C — Teardown 2-step procedure
 
 **Teardown is MANDATORY on EVERY exit path once the loop's teammate-spawn step has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure (anchored gate / unsolicited-message protocol), teammate-write failure, teammate-format failure, plus any other unexpected tool error while the teammate is live. Run teardown FIRST, then report/STOP — never before.
 
@@ -47,9 +45,6 @@ Exact procedure:
 
 1. `SendMessage({ to: "<teammate-name>", message: { type: "shutdown_request" } })` — object message, no `summary`.
 2. The teammate's `shutdown_response` / idle-termination notification arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check.
-3. `TeamDelete({})`.
-
-**Recovery — `TeamDelete` failure (Step 8 in the loop's SKILL.md).** If `TeamDelete` fails because a member is still live: send `shutdown_request` once more, then retry `TeamDelete` a single time. If it STILL fails, STOP with a named-loop report (**"<loop-name> teardown"**) surfacing the verbatim `TeamDelete` error and the run's team name, stating the team may still be live. Do NOT instruct manual deletion of internal team state (`~/.claude/teams/<team-name>/` is internal — unsupported, and deleting it does not terminate a live teammate).
 
 ## §D — Shared anti-patterns
 
@@ -57,7 +52,7 @@ Exact procedure:
 
 1. **Making the reviewer a team agent.** The Codex bridge IS the reviewer — this preserves the "Claude builds, Codex reviews" invariant.
 2. **Re-spawning the teammate fresh each iteration.** Context-reuse via the live teammate is the entire reason every loop in this family exists.
-3. **Skipping `shutdown_request` + `TeamDelete`, or calling `TeamDelete` before the teammate is down.** Shutdown first; `TeamDelete` fails while a member is live.
+3. **Skipping `shutdown_request` before exit.** Shutdown first; the session team is cleaned up automatically on exit, but the teammate must be sent a `shutdown_request` before the loop ends.
 4. **Reusing a `request_id` across distinct solicitations** — including reusing the same id for any local §1 corrective (anchored-gate or post-acceptance-validation corrective) and for the local §3 redo corrective. Each is a fresh solicitation; sharing an id reintroduces the stale-reply blind spot the counter is designed to eliminate.
 5. **Checking the loop's accept rule before classifying the `reqid`, OR accepting a reply whose `reqid != expected_request_id` as genuine.** `reqid < expected_request_id` means stale → ignore content + §E stale-recovery; `reqid > expected_request_id` is impossible (lead is sole id source) → teardown + STOP. Id classification MUST precede all content checks.
 6. **Comparing `reqid` against `expected_request_id` while `awaiting_reply == false` (§E Phase 1)** — `expected_request_id` is `null` then; the Phase 1 branch routes by `request_id_counter` only. Collapsing Phase 1 and Phase 2 into a single comparison reintroduces the duplicate-during-Codex-review mis-attribution.
@@ -80,7 +75,7 @@ The id is the disambiguator for a stale vs. genuine reply; it is NOT a new path 
 
 The request-id counter and `review_iteration` are SEPARATE counters: the id bumps on every solicitation including correctives; the iteration only on bridge re-invocation.
 
-Each loop carries additional loop-LOCAL run state (e.g. `team_name`, plus any loop-specific path or artifact id like `plan_path` for plan-loop). Those stay defined in the loop's SKILL.md.
+Each loop carries additional loop-LOCAL run state (e.g. `plan_path` for plan-loop). Those stay defined in the loop's SKILL.md.
 
 On minting any solicitation: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_reply = true`, and immediately before the SendMessage call, capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (the field-definition rule above is binding — assistant-turn start is NOT valid).
 
