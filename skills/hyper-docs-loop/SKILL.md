@@ -23,7 +23,7 @@ Skip when:
 
 ## Agent-teams tool contract
 
-This skill uses the experimental agent-teams tools — `TeamCreate` / `Agent` / `SendMessage` / `TeamDelete`. Their argument shapes, the rule that the per-run team name is passed **only** to `TeamCreate` and `Agent` (never to `SendMessage` / `TeamDelete`), and idle-notification semantics (a payload-less wake signal that does NOT carry the teammate's reply text — the loop-bound structured findings reply arrives only if the documenter explicitly `SendMessage`s it, else the lead falls back to a corrective round-trip) all live in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A, loaded at Step 0. Loop-specific bindings:
+This skill uses the experimental agent-teams tools — `Agent` / `SendMessage`. Their argument shapes and idle-notification semantics (a payload-less wake signal that does NOT carry the teammate's reply text — the loop-bound structured findings reply arrives only if the documenter explicitly `SendMessage`s it, else the lead falls back to a corrective round-trip) all live in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A, loaded at Step 0. Loop-specific bindings:
 - **Documenter-reply ownership:** there is NO canonical output file — the documenter applies edits in place and replies with the structured findings-map schema (`finding:` / `status:` / `files-changed:` / `verification:` / `notes:` per cited finding). The lead avoids reading full doc bodies on the normal path, but MAY run scoped `git status` / `git diff --stat` / targeted file reads for validation and failure reporting. Unsolicited documenter messages follow the lead-side protocol (`references/failure-protocol.md` §2) — prompt-only idle discipline is insufficient.
 
 **Documenter request id.** The run-state fields (`request_id_counter`, `expected_request_id`, `awaiting_reply`, `solicit_sent_at`, `review_iteration`) and their lifecycle (mint protocol, MESSAGE ACCEPTED / POST-ACCEPTANCE VALIDATION ACCEPTED acceptance stages, Phase 1 / Phase 2 routing, stale-recovery) are defined in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E (single source of truth); this loop binds to those names.
@@ -32,7 +32,7 @@ This skill uses the experimental agent-teams tools — `TeamCreate` / `Agent` / 
 
 **Spawn-is-not-a-solicitation.** Like implement-loop, the docs-loop spawn (Step 4) is contract-only — the documenter goes idle without sending any reply. `request_id_counter` stays at 0 until the FIRST Step 7 fix solicitation, which mints id 1. The Step 4 spawn does NOT change `request_id_counter` or `awaiting_reply`. After spawn, the lead expects EXACTLY ONE payload-less idle notification (the documenter's post-spawn idle). The lead consumes that idle as a readiness signal and does NOT route it through §B/§E unsolicited handling. From the second wake onward (which is always after the first Step 7 solicitation has been sent), §E Phase 1 / Phase 2 routing applies normally.
 
-The lead must also retain `team_name` (the per-run unique team name from Step 2) and `docs_target` (the resolved bridge argv pair from Step 1) across turns. Other loop-local run state (e.g. `reviewArtifacts[]`, `review_iteration`) is named where it appears in Steps 5/7.
+The lead must also retain `docs_target` (the resolved bridge argv pair from Step 1) across turns. Other loop-local run state (e.g. `reviewArtifacts[]`, `review_iteration`) is named where it appears in Steps 5/7.
 
 ## How to invoke
 
@@ -66,30 +66,24 @@ Apply the resolution table above to `$ARGUMENTS`. Verify the path exists via Bas
 
 **Directory-target note.** Per `docs-review`'s established contract, `--docs-dir <p>` reviews only the top-level `.md` files directly under `<p>` (not recursive). This is intentional. The loop inherits that scope; if the user wants nested docs reviewed, they invoke the loop once per subdirectory or against a single `.md` path.
 
-### Step 2 — Create the team
+### Step 2 — Confirm agent-teams availability
 
-Do not add an env-probe shell check — let `TeamCreate` itself surface agent-teams unavailability.
-
-Compute a per-run unique team name (the nonce defeats same-second collisions) and record this exact literal as the run's team name (also used in Step 4's `Agent` call and reports):
+Run the following Bash probe **before any doc-tree mutation** (the documenter is spawned in Step 4, so this gate runs before any teammate is live):
 
 ```bash
-echo "hyper-docs-loop-$(date +%Y%m%d-%H%M%S)-$RANDOM"
+[ "$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" = "1" ]
 ```
 
-Then:
-
-```
-TeamCreate({ team_name: "<the run-unique name computed above>", description: "Codex docs-review fix loop" })
-```
+This probe MUST run before any doc-tree mutation — preserving the clean-STOP-before-mutation property.
 
 Failure handling:
 
-- **`TeamCreate` fails** → STOP with the message below + the raw error verbatim. No teardown (nothing was created).
-- **`TeamCreate` succeeds but the Step 4 spawn fails** → `TeamDelete` FIRST (no orphaned empty team), then STOP with the same message.
+- **Env unset (probe fails)** → STOP with the message below. No teardown (no team has been formed).
+- **Step 4 spawn fails** → STOP with the same message. No teardown (team never formed).
 
 Documented stop message:
 
-> agent teams unavailable (or TeamCreate failed — see error below) — this skill requires the experimental agent-teams feature; run /hyperclaude:hyper-setup to diagnose prerequisites. Use /hyperclaude:hyper-docs-review + manual edits instead.
+> agent teams unavailable — this skill requires the experimental agent-teams feature; run /hyperclaude:hyper-setup to diagnose prerequisites. Use /hyperclaude:hyper-docs-review + manual edits instead.
 
 ### Step 3 — (Reserved)
 
@@ -102,7 +96,6 @@ Spawn the documenter **once** here, before iteration 1. Use the Agent tool. The 
 ```
 Agent({
   subagent_type: "hyperclaude:documenter",
-  team_name: "<the run-unique team name computed in Step 2>",
   name: "documenter",
   prompt: "<the contract string assembled from the bullets below>"
 })
@@ -196,15 +189,12 @@ Cap at **6 total Codex reviews** (iter 1 fresh + at most 5 resumed fix rounds).
 
 On cap-reached with blocking findings still open: FIRST capture the cap report details (iterations consumed, residual blocking findings, working tree left in documenter's latest state, all `reviewArtifacts[]` paths), THEN run teardown, THEN emit the named-loop report (**"hyper-docs-loop fix loop"**).
 
-**Teardown is MANDATORY on EVERY exit path once the Step 4 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure, documenter format failure, unparseable review, plus any other unexpected tool error while the documenter teammate is live. Run teardown FIRST, then report/STOP — never before. (A failure *before* the Step 4 spawn — e.g. a target that won't resolve — owes no teardown: only an empty team exists; `TeamDelete({})` it and STOP.)
+**Teardown is MANDATORY on EVERY exit path once the Step 4 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure, documenter format failure, unparseable review, plus any other unexpected tool error while the documenter teammate is live. Run teardown FIRST, then report/STOP — never before. (A failure *before* the Step 4 spawn — e.g. env unset at Step 2, or a target that won't resolve — owes no teardown: STOP (no team formed).)
 
 Exact procedure:
 
 1. `SendMessage({ to: "documenter", message: { type: "shutdown_request" } })` — object message, no `summary`.
-2. The documenter's `shutdown_response` / idle-termination notification arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check.
-3. `TeamDelete({})`.
-
-If `TeamDelete` fails because a member is still live → apply the recovery in `references/failure-protocol.md` §4.
+2. The documenter's `shutdown_response` / idle-termination notification arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check. Graceful shutdown is complete; no further teardown call is required.
 
 ### Step 9 — Final report
 
@@ -228,7 +218,7 @@ Core invariants (full list in `references/failure-protocol.md` §5):
 - Letting the documenter edit source code, tests, scripts, or config to make a doc claim "true". The doc is what changes; if the doc was actually right, the documenter reports `status: not-applicable` with a `notes:` reason.
 - Changing `docs_target` mid-run. The same `--docs-path` / `--docs-dir` argv pair is REQUIRED on every iteration (including resumes — the bridge enforces this).
 - Auto-fixing items from `### Gaps`, `### Broken Or Suspect Links`, or `### Cross-Doc Inconsistencies`. Only `### Findings` drives fix rounds; the other sections need human judgment and are reported in Step 9 only.
-- Skipping `shutdown_request` + `TeamDelete`, or calling `TeamDelete` before the documenter is down; stopping silently at the cap.
+- Skipping `shutdown_request` on exit; stopping silently at the cap.
 - Editing `hyper-docs-review` or `hyper-docs-sync`. This skill is purely additive.
 - Inlining the shared §E pseudo-code into this SKILL.md instead of pointing at `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E. SKILL.md is the always-loaded surface — duplicating §E bloats every trigger and risks the two copies drifting.
 - Letting the documenter omit the `request-id: <id>` first-line prefix on any post-spawn reply; treating any non-`request-id:` reply (or one with a wrong id) as success. The prefix is the loop's id-classification step; without it, the anchored gate fails.
