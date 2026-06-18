@@ -213,7 +213,7 @@ On cap-reached, FIRST capture the cap report details (iterations consumed, resid
 Exact procedure:
 
 1. `SendMessage({ to: "planner", message: { type: "shutdown_request" } })` — object message, no `summary`.
-2. The planner's `shutdown_response` / idle-termination notification arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check.
+2. The planner's idle-termination notification, or a `shutdown_response` with `approve: true`, arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check. A `shutdown_response` that rejects (`approve: false`) is NOT termination → apply the shared `references/loop-protocol.md` §C rejected-shutdown recovery (retry `shutdown_request` once; if still unconfirmed, STOP **"hyper-plan-loop teardown"**).
 
 ### Step 9 — Final report
 

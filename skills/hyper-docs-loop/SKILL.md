@@ -194,7 +194,7 @@ On cap-reached with blocking findings still open: FIRST capture the cap report d
 Exact procedure:
 
 1. `SendMessage({ to: "documenter", message: { type: "shutdown_request" } })` — object message, no `summary`.
-2. The documenter's `shutdown_response` / idle-termination notification arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check. Graceful shutdown is complete; no further teardown call is required.
+2. The documenter's idle-termination notification, or a `shutdown_response` with `approve: true`, arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check. A `shutdown_response` that rejects (`approve: false`) is NOT termination → apply the shared `references/loop-protocol.md` §C rejected-shutdown recovery (retry `shutdown_request` once; if still unconfirmed, STOP **"hyper-docs-loop teardown"**). Otherwise graceful shutdown is complete; no further teardown call is required.
 
 ### Step 9 — Final report
 

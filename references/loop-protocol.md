@@ -44,7 +44,9 @@ The id-based classification subsumes the former stale-reply case that was previo
 Exact procedure:
 
 1. `SendMessage({ to: "<teammate-name>", message: { type: "shutdown_request" } })` — object message, no `summary`.
-2. The teammate's `shutdown_response` / idle-termination notification arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check.
+2. Confirmed termination is **either** an idle-termination notification **or** a `shutdown_response` with `approve: true`, delivered as a new turn — its arrival IS confirmed termination. Do not loop on a status check.
+
+**Recovery — rejected / unconfirmed shutdown.** A `shutdown_response` with `approve: false` is NOT termination: the teammate rejected the request and is still live (this is the validation the removed team-deletion call used to provide). Send `shutdown_request` ONCE more; if the teammate still does not approve / idle-terminate, STOP with a named-loop report (**"<loop-name> teardown"**) noting the teammate may remain live until session-exit auto-cleanup and could emit stray messages until then. Never treat a rejection as termination.
 
 ## §D — Shared anti-patterns
 

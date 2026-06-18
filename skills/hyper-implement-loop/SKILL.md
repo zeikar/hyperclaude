@@ -189,7 +189,7 @@ On cap-reached with blocking findings still open: FIRST capture the cap report d
 Exact procedure:
 
 1. `SendMessage({ to: "fixer", message: { type: "shutdown_request" } })` — object message, no `summary`.
-2. The fixer's `shutdown_response` / idle-termination notification arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check.
+2. The fixer's idle-termination notification, or a `shutdown_response` with `approve: true`, arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check. A `shutdown_response` that rejects (`approve: false`) is NOT termination → apply the shared `references/loop-protocol.md` §C rejected-shutdown recovery (retry `shutdown_request` once; if still unconfirmed, STOP **"hyper-implement-loop teardown"**).
 
 ### Step 9 — Final report
 
