@@ -32,7 +32,7 @@ This skill uses the experimental agent-teams tools — `Agent` / `SendMessage`. 
 
 **Spawn-is-not-a-solicitation.** Like implement-loop, the docs-loop spawn (Step 4) is contract-only — the documenter goes idle without sending any reply. `request_id_counter` stays at 0 until the FIRST Step 7 fix solicitation, which mints id 1. The Step 4 spawn does NOT change `request_id_counter` or `awaiting_reply`. After spawn, the lead expects EXACTLY ONE payload-less idle notification (the documenter's post-spawn idle). The lead consumes that idle as a readiness signal and does NOT route it through §B/§E unsolicited handling. From the second wake onward (which is always after the first Step 7 solicitation has been sent), §E Phase 1 / Phase 2 routing applies normally.
 
-The lead must also retain `docs_target` (the resolved bridge argv pair from Step 1) and `teammate_id` (the opaque `agent_id` captured at Step 4 spawn, §A binding — never parsed) across turns. Every lead→teammate `SendMessage` addresses `to: teammate_id`. Capturing the id does NOT change `request_id_counter` or `awaiting_reply` (spawn-is-not-a-solicitation stays). Other loop-local run state (e.g. `reviewArtifacts[]`, `review_iteration`) is named where it appears in Steps 5/7.
+The lead must also retain the following handle-resolution run-state across turns: `docs_target` (the resolved bridge argv pair from Step 1), `teammate_name = "documenter"` (the spawn `name`; PRIMARY handle), `teammate_id` (the opaque `agent_id` captured at Step 4 spawn, §A binding — never parsed; FALLBACK handle), and `resolved_handle` (`null` until the first successful lead→documenter send resolves it). Every lead→documenter `SendMessage` is addressed via the **§A send-resolution procedure** (R1: if `resolved_handle` set → send direct; else first send tries bare `teammate_name` → `teammate_id` fallback once → cache winner; both fail → ENV-DEGRADE STOP). On a clean run with no blocking findings, the FIRST lead→documenter send is the Step 8 teardown `shutdown_request` — OR, if a fix round runs, the Step 7 findings send. Either one resolves `resolved_handle` via R1. See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A for the authoritative algorithm. Capturing the id does NOT change `request_id_counter` or `awaiting_reply` (spawn-is-not-a-solicitation stays). Other loop-local run state (e.g. `reviewArtifacts[]`, `review_iteration`) is named where it appears in Steps 5/7.
 
 ## How to invoke
 
@@ -112,10 +112,12 @@ The `prompt` string MUST contain:
 - **Constraints echo** — fix ONLY the findings explicitly cited in each `SendMessage`; no opportunistic prose polish; no edits to uncited docs; edit DOCUMENTATION files only (no source code, tests, scripts, or config edits to make a doc claim "true" — if the doc disagrees with code, the doc is what changes, or report `not-applicable` if the doc was actually right); NEVER commit or push; NEVER invoke codex or `scripts/codex-bridge.mjs`; re-read the cited docs each round before applying any fix (context may be stale across rounds).
 - State that the documenter stays alive as a teammate, will receive Codex findings in later turns, and must retain its full context across rounds.
 
-**After the `Agent(...)` call** — capture and validate `teammate_id`:
+**After the `Agent(...)` call** — capture and validate both handles:
 
-- Capture the returned `agent_id` VERBATIM/OPAQUELY into run-state `teammate_id` (§A binding — never parse the `@`/suffix). Capturing the id does NOT bump `request_id_counter` or `awaiting_reply` (spawn-is-not-a-solicitation stays).
-- **Degrade detection:** if `agent_id` is missing OR unusable (per §A ENV-DEGRADE rule — no `agent_id`, or `SendMessage` is not available to this teammate) → the documenter spawn is pre-side-effect (no doc-tree mutation has occurred in the loop) — STOP with the fallback; nothing to preserve. Apply §C's degrade-path teardown branch: STOP WITHOUT teardown when no addressable teammate exists.
+- Record `teammate_name = "documenter"` (the PRIMARY handle).
+- Capture the returned `agent_id` VERBATIM/OPAQUELY into run-state `teammate_id` (§A binding — never parse the `@`/suffix); this is the FALLBACK handle. Capturing the id does NOT bump `request_id_counter` or `awaiting_reply` (spawn-is-not-a-solicitation stays).
+- Set `resolved_handle = null` (no lead→documenter send has been made yet).
+- **Degrade detection:** if `agent_id` is missing OR unusable (per §A ENV-DEGRADE rule — no `agent_id`, or `SendMessage` is not available to this teammate; OR, later, the first lead→documenter send fails on BOTH `teammate_name` AND `teammate_id` per R1) → the documenter spawn is pre-side-effect (no doc-tree mutation has occurred in the loop) — STOP with the fallback; nothing to preserve. Apply §C's degrade-path teardown branch: STOP WITHOUT teardown when no addressable teammate exists.
 
 (Spawn-failure handling is in Step 2.)
 
@@ -162,11 +164,11 @@ First check the cap: if the iteration counter is already at 6 (6 total Codex rev
 
 Before sending, mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_reply = true`; immediately before the SendMessage call, capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (per shared §E's binding rule — assistant-turn start is NOT a valid substitute; a long Codex-review turn can elapse between turn-start and the next SendMessage). Pass the new id in the message and in the reply instruction.
 
-Send the blocking `### Findings` bullets to the still-live documenter:
+Send the blocking `### Findings` bullets to the still-live documenter, addressed via the **§A send-resolution procedure** (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A):
 
 ```
 SendMessage({
-  to: teammate_id,
+  to: <resolved via §A send-resolution procedure>,
   summary: "Fix Codex blocking docs findings — request <id>",
   message: "<verbatim blocking ### Findings bullets (with their Stale claim / Code evidence / Recommended edit sub-bullets) + the docs-review artifact path; the request id for this round is `<id>`; instruct: re-read the cited doc files, apply ONLY these fixes, reply with the structured schema PREFIXED by `request-id: <id>` on the first non-blank line>"
 })
@@ -198,7 +200,7 @@ On cap-reached with blocking findings still open: FIRST capture the cap report d
 
 Exact procedure (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C for the full no-wait + degrade-path-branch procedure):
 
-1. `SendMessage({ to: teammate_id, message: { type: "shutdown_request" } })` — object message, no `summary`.
+1. Send the `shutdown_request` addressed via the **§A send-resolution procedure** (R1 only — teardown is id-exempt, R2 is skipped): `SendMessage({ to: <resolved via §A R1>, message: { type: "shutdown_request" } })` — `message` MUST be the OBJECT `{ type: "shutdown_request" }` (a string message is rejected); no `summary`. On a clean run with no blocking findings, this teardown IS the first lead→documenter send, so R1 runs the full bare-`teammate_name`→`teammate_id` fallback — NOT a hardcoded `to: resolved_handle` (which is `null` on a clean run).
 2. Send best-effort ONCE, then treat the teammate as effectively terminated and proceed to report/STOP WITHOUT waiting for any confirmation. The documenter is at rest (idle since its last reply (or the Step 4 spawn if no fix round ran)), so confirmation is structurally impossible. There is no retry. A degrade STOP with no addressable teammate skips teardown entirely (§C degrade-path branch).
 
 ### Step 9 — Final report
@@ -224,6 +226,7 @@ Core invariants (full list in `references/failure-protocol.md` §5):
 - Changing `docs_target` mid-run. The same `--docs-path` / `--docs-dir` argv pair is REQUIRED on every iteration (including resumes — the bridge enforces this).
 - Auto-fixing items from `### Gaps`, `### Broken Or Suspect Links`, or `### Cross-Doc Inconsistencies`. Only `### Findings` drives fix rounds; the other sections need human judgment and are reported in Step 9 only.
 - Skipping `shutdown_request` on exit; stopping silently at the cap.
+- Hardcoding `to: teammate_id` as the primary handle for lead→documenter sends instead of routing via the §A send-resolution procedure. `teammate_id` is the FALLBACK; the PRIMARY is bare `teammate_name`. All lead→documenter sends (fix, corrective, AND teardown `shutdown_request`) must go through the §A procedure — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A and §D anti-pattern 3.
 - Editing `hyper-docs-review` or `hyper-docs-sync`. This skill is purely additive.
 - Inlining the shared §E pseudo-code into this SKILL.md instead of pointing at `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E. SKILL.md is the always-loaded surface — duplicating §E bloats every trigger and risks the two copies drifting.
 - Letting the documenter omit the `request-id: <id>` first-line prefix on any post-spawn reply; treating any non-`request-id:` reply (or one with a wrong id) as success. The prefix is the loop's id-classification step; without it, the anchored gate fails.
