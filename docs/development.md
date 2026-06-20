@@ -135,6 +135,7 @@ Conventions:
 - Every codex invocation goes through `runCodexExec` or `runCodexResume`. Don't add new spawn paths without re-checking the sandbox argument.
 - New flags must be added to `ALLOWED_FLAGS_PER_MODE` and validated in `parseArgs`. The argv parser rejects unknown flags per mode — covered by tests.
 - When a codex call fails, the bridge still writes a markdown file with the failure captured under `## stderr` so the caller can read what went wrong without re-running.
+- `--model <name>` and `--effort <low|medium|high|xhigh>` are available on all four modes. Both have no bridge default (null = inherit `~/.codex/config.toml`). Valid `--effort` values are exactly `low`, `medium`, `high`, `xhigh`; `none` (plan-mode only in the Codex CLI, not an exec reasoning level) and `minimal` (not a supported exec reasoning level per the local Codex catalog) are rejected. Selection tokens are inserted into argv after the subcommand and before `--sandbox`/`-c sandbox_mode=read-only`, preserving the sandbox invariant. The two flags record new frontmatter keys (`codex-model-requested`, `codex-effort-requested`) only when passed; they are omitted from the artifact when not used.
 
 ## Templates
 
@@ -144,6 +145,8 @@ Codex prompts live in [templates/codex/](../templates/codex/) — `research.md`,
 - `docs-review-resumed.md` — continuation prompt used when `--resume` is passed to `docs-review`; substitutes `{{DOCS_TARGET}}`, `{{FILE_LIST_BLOCK}}` (rendered via `renderFileListBlock`), and `{{DIFF_BASE_BLOCK}}` (rendered via `renderDiffBaseBlock`).
 - `code-review.md` — fresh `code-review` prompt. Substitutes `{{TARGET_INSTRUCTION}}` (the per-target git-command block). Codex runs those git commands itself under the read-only sandbox to collect the diff — there is no native diff capture; the bridge spawns `codex --search exec --sandbox read-only -` with this rendered prompt, exactly like the other fresh modes.
 - `code-review-resumed.md` — continuation prompt used when `--resume` is passed to `code-review`; substitutes `{{TARGET_INSTRUCTION}}` (the exact git command to re-fetch the diff, since `codex exec resume` does not re-trigger diff capture).
+
+Adding bridge flags (`--model`, `--effort`) that do NOT change a template's prompt body does NOT require a `template-version` bump — the template text is unchanged and resume comparisons remain valid.
 
 When changing a fresh template's prompt body, bump its `template-version` in the SAME file's leading YAML frontmatter — that's the single source of truth. The bridge reads it via `readTemplateWithVersion()` (see [scripts/codex/templates.mjs](../scripts/codex/templates.mjs)) and propagates it into the artifact frontmatter; the renderers no longer hardcode the version. The `*-resumed.md` continuation prompts stay frontmatter-less by design — they inherit the fresh template's version when the artifact is written.
 

@@ -152,10 +152,10 @@ node scripts/codex-bridge.mjs <mode> [flags]
 
 | Mode          | Required flags                                             | Optional flags                                                                       |
 |---------------|------------------------------------------------------------|--------------------------------------------------------------------------------------|
-| `research`    | `--task <text>` OR `--task-file <path>`                    | `--slug`, `--out`, `--timeout`, `--dry-run`                                          |
-| `plan-review` | `--plan-path <path>`                                       | `--resume <path\|auto>`, `--slug`, `--out`, `--timeout`, `--dry-run`                 |
-| `code-review` | none — defaults to `--base main`                           | one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--resume <path\|auto>`, `--title`, `--out`, `--timeout`, `--dry-run` |
-| `docs-review` | `--docs-path <file>` OR `--docs-dir <dir>`                 | `--resume <path\|auto>`, `--diff-base <ref>`, `--out`, `--timeout`, `--dry-run`      |
+| `research`    | `--task <text>` OR `--task-file <path>`                    | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--slug`, `--out`, `--timeout`, `--dry-run` |
+| `plan-review` | `--plan-path <path>`                                       | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--slug`, `--out`, `--timeout`, `--dry-run` |
+| `code-review` | none — defaults to `--base main`                           | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`; one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--resume <path\|auto>`, `--title`, `--out`, `--timeout`, `--dry-run` |
+| `docs-review` | `--docs-path <file>` OR `--docs-dir <dir>`                 | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--diff-base <ref>`, `--out`, `--timeout`, `--dry-run` |
 
 Defaults:
 
@@ -163,6 +163,10 @@ Defaults:
 - `--out` defaults to the mode-specific output directory listed in the table above (`.hyperclaude/research/`, `.hyperclaude/plan-reviews/`, `.hyperclaude/code-reviews/`, `.hyperclaude/docs-reviews/`).
 - `--slug` is auto-derived: from the task text (`research`), the plan filename's slug suffix (`plan-review`), the base ref / commit short SHA / `uncommitted` (`code-review`), or the docs target's basename (`docs-review`). User-provided slugs must match `^[a-z0-9]+(?:-[a-z0-9]+){0,4}$`.
 - `--dry-run` validates argv and that the mode's prompt template loads (uniformly for all four modes, including `code-review`), then skips the codex spawn. It does not require codex on PATH.
+- `--model <name>` has no default. When omitted, Codex inherits the user's `~/.codex/config.toml` model setting. Any non-empty, non-leading-dash string is accepted (e.g. `openai/gpt-5`); the bridge passes it to `codex` as `-m <name>`. Available on all four modes; v1 is bridge-only (not exposed via slash commands / SKILL.md).
+- `--effort <low|medium|high|xhigh>` has no default. When omitted, Codex inherits the user's `~/.codex/config.toml` reasoning-effort setting. Valid values are exactly `low`, `medium`, `high`, `xhigh`; `none` and `minimal` are rejected (not a supported exec reasoning level). The bridge passes it as `-c model_reasoning_effort=<value>`. Available on all four modes; v1 is bridge-only.
+
+When either flag is passed the selection tokens are inserted into the semantic argv **after** the subcommand and **before** `--sandbox read-only` (fresh) or before `-c sandbox_mode=read-only` (resume), preserving the [sandbox invariant](#sandbox-policy) in all cases.
 
 ### Output contract
 
@@ -185,6 +189,8 @@ git-head: "<sha or \"unknown\">"       # always
 codex-thread-id: "<uuid>"             # when Codex reports a thread id
 codex-resume-status: fresh | resumed | fallback | resume-failed  # always (research is always "fresh")
 codex-resumed-from: "<path>"           # when --resume was used and resume succeeded
+codex-model-requested: "<name>"        # only when --model was passed (omitted when not)
+codex-effort-requested: "<level>"      # only when --effort was passed (omitted when not)
 base-ref / commit / title              # code-review (mode-dependent; uncommitted has none)
 plan-path: "<path>"                    # plan-review only
 docs-target: "<path>"                  # docs-review
