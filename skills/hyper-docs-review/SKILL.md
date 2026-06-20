@@ -103,6 +103,7 @@ Docs-review files have YAML frontmatter:
 - `codex-version`
 - `docs-target` (the reviewed path, JSON-stringified)
 - Optional `diff-base` (when `--diff-base` was used)
+- `codex-input-tokens`, `codex-cached-input-tokens`, `codex-output-tokens`, `codex-reasoning-output-tokens` — each emitted independently when Codex reported that token field in usage; omitted when Codex did not emit usage
 
 Followed by sections: `### Findings`, `### Gaps`, `### Broken Or Suspect Links`, `### Cross-Doc Inconsistencies`, `### Verdict`.
 
