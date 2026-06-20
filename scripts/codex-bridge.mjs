@@ -144,6 +144,7 @@ async function main(argv) {
       process.exit(1);
     }
   }
+  const selectionArgs = buildCodexSelectionArgs({ model: args.model, effort: args.effort });
   const inv = buildInvocation({ args });
   if (args.dryRun) {
     // Fail fast if the prompt template is missing OR its frontmatter is
@@ -341,9 +342,9 @@ async function main(argv) {
     // Step 8: spawn codex.
     let result;
     if (resumeContext) {
-      result = await runCodexResume(resumeContext.threadId, prompt, args.timeout);
+      result = await runCodexResume(resumeContext.threadId, prompt, args.timeout, selectionArgs);
     } else {
-      result = await runCodexExec(['exec', '--sandbox', 'read-only', '-'], prompt, args.timeout);
+      result = await runCodexExec(['exec', ...selectionArgs, '--sandbox', 'read-only', '-'], prompt, args.timeout);
     }
 
     // Step 9: pick final resume status.
@@ -369,6 +370,8 @@ async function main(argv) {
       codexThreadId: result.threadId,
       codexResumeStatus: resumeStatus,
       codexResumedFrom: resumeContext && result.ok ? resumeFromPath : undefined,
+      codexModelRequested: args.model,
+      codexEffortRequested: args.effort,
     });
     const heading = `# Docs review: ${path.basename(args.docsPath ?? args.docsDir)}`;
     const body = result.body;
@@ -485,10 +488,10 @@ async function main(argv) {
         process.exit(1);
       }
       const prompt = loadTemplate(resumeTemplateText, { TARGET_INSTRUCTION: targetInstruction });
-      result = await runCodexResume(resumeContext.threadId, prompt, args.timeout);
+      result = await runCodexResume(resumeContext.threadId, prompt, args.timeout, selectionArgs);
     } else {
       const prompt = loadTemplate(freshBody, { TARGET_INSTRUCTION: targetInstruction });
-      const argv = ['exec', '--sandbox', 'read-only', '-'];
+      const argv = ['exec', ...selectionArgs, '--sandbox', 'read-only', '-'];
       result = await runCodexExec(argv, prompt, args.timeout);
     }
 
@@ -514,6 +517,8 @@ async function main(argv) {
       codexThreadId: result.threadId,
       codexResumeStatus: resumeStatus,
       codexResumedFrom: resumeContext && result.ok ? resumeFromPath : undefined,
+      codexModelRequested: args.model,
+      codexEffortRequested: args.effort,
     });
 
     let heading;
@@ -650,9 +655,9 @@ async function main(argv) {
 
   let result;
   if (resumeContext) {
-    result = await runCodexResume(resumeContext.threadId, prompt, args.timeout);
+    result = await runCodexResume(resumeContext.threadId, prompt, args.timeout, selectionArgs);
   } else {
-    result = await runCodexExec(['exec', '--sandbox', 'read-only', '-'], prompt, args.timeout);
+    result = await runCodexExec(['exec', ...selectionArgs, '--sandbox', 'read-only', '-'], prompt, args.timeout);
   }
   await mkdir(inv.dir, { recursive: true });
 
@@ -678,6 +683,8 @@ async function main(argv) {
     codexThreadId: result.threadId,
     codexResumeStatus: resumeStatus,
     codexResumedFrom: resumeContext && result.ok ? resumeFromPath : undefined,
+    codexModelRequested: args.model,
+    codexEffortRequested: args.effort,
   });
 
   const heading = args.mode === 'research'
