@@ -31,6 +31,7 @@ This skill uses the experimental agent-teams tools — `Agent` / `SendMessage`. 
 The lead must retain the following run-state across turns and never conflate these fields:
 
 - `plan_path` — the resolved canonical plan path from Step 1.
+- `teammate_id` — the opaque `agent_id` captured at Step 3 spawn (§A binding; never parsed). Every lead→teammate `SendMessage` addresses `to: teammate_id`.
 - `awaiting_reply`, `request_id_counter`, `expected_request_id`, `solicit_sent_at`, `review_iteration` — these are the cross-loop state-machine fields. Lifecycle and semantics (mint protocol, MESSAGE ACCEPTED / POST-ACCEPTANCE VALIDATION ACCEPTED acceptance stages, Phase 1 / Phase 2 routing, stale-recovery) are defined in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E (single source of truth); this loop binds to them by name.
 
 Mint protocol, lifecycle, and phase classification: see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E. The `references/failure-protocol.md` (sibling) carries the plan-loop binding declarations (reply-token shape `WROTE: <id> <path>`, exact-path accept regex, file/structure post-acceptance validation).
@@ -107,7 +108,10 @@ The `prompt` string MUST contain:
 - **Idle / no-resend discipline** — after replying `WROTE: <id> <path>`, go idle and wait; do NOT resend, re-announce, or nag. The lead will next contact you only via SendMessage carrying revise findings or a `shutdown_request`, and may take several minutes running Codex review between turns (this is normal). Never re-emit a prior reply.
 - State that the planner stays alive as a teammate, will receive Codex feedback in later turns, and must retain its full planning context.
 
-(Spawn-failure handling is in Step 2.)
+**After the `Agent(...)` call** — capture and validate `teammate_id`:
+
+- Capture the returned `agent_id` VERBATIM/OPAQUELY into run-state `teammate_id` (§A binding — never parse the `@`/suffix).
+- **Degrade detection:** if `agent_id` is missing OR unusable (per §A ENV-DEGRADE rule — no `agent_id`, or `SendMessage` is not available to this teammate) → the planner has already written the plan (the spawn minted id 1 and triggered the write), so record the partial plan-artifact path (`plan_path` from Step 1) and STOP honestly with the fallback, noting that path for manual inspection. Do NOT enter the Step 7 revise loop. Apply §C's degrade-path teardown branch: STOP WITHOUT teardown when no addressable teammate exists.
 
 ### Step 4 — Confirm the planner wrote the plan
 
@@ -174,7 +178,7 @@ Send the blocking findings to the still-live planner:
 
 ```
 SendMessage({
-  to: "planner",
+  to: teammate_id,
   summary: "Revise plan request <id>",
   message: "<verbatim blocking findings + relevant ### Verdict text when it explains the required direction; instruct: first Read <the exact resolved plan path> to refresh, then revise and re-Write THAT SAME path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else — no plan body, no preamble>"
 })
@@ -210,10 +214,10 @@ On cap-reached, FIRST capture the cap report details (iterations consumed, resid
 
 **Teardown is MANDATORY on EVERY exit path once the Step 3 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure (anchored gate / unsolicited-message protocol), planner-write failure, planner-format failure, plus any other unexpected tool error while the planner teammate is live. Run teardown FIRST, then report/STOP — never before. Teardown consists of a graceful shutdown exchange only (no explicit team-delete call — the team is cleaned up automatically on session exit).
 
-Exact procedure:
+Exact procedure (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C for the full no-wait + degrade-path-branch procedure):
 
-1. `SendMessage({ to: "planner", message: { type: "shutdown_request" } })` — object message, no `summary`.
-2. The planner's idle-termination notification, or a `shutdown_response` with `approve: true`, arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check. A `shutdown_response` that rejects (`approve: false`) is NOT termination → apply the shared `references/loop-protocol.md` §C rejected-shutdown recovery (retry `shutdown_request` once; if still unconfirmed, STOP **"hyper-plan-loop teardown"**).
+1. `SendMessage({ to: teammate_id, message: { type: "shutdown_request" } })` — object message, no `summary`.
+2. Send best-effort ONCE, then treat the teammate as effectively terminated and proceed to report/STOP WITHOUT waiting for any confirmation. The planner is at rest (idle since the spawn step wrote the plan), so confirmation is structurally impossible. There is no retry. A degrade STOP with no addressable teammate skips teardown entirely (§C degrade-path branch).
 
 ### Step 9 — Final report
 

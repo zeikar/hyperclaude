@@ -93,6 +93,8 @@ Phase B adds `==> hyper-implement-loop reqid promotion assertions` to smoke, sta
 
 `hyper-docs-loop` adds `==> hyper-docs-loop binding assertions` to smoke, mirroring the implement-loop checks: `SKILL.md` carries the four run-state fields plus `request-id:` prefix and the `documenter` teammate role; `references/failure-protocol.md` carries the `request-id:` gate binding and the documenter role binding; and `agents/documenter.md` does NOT carry the `request-id:` prefix (the prefix is loop-injected, not agent-baked, so `documenter` stays reusable by both `hyper-docs-sync` and `hyper-docs-loop`). A manual acceptance bullet (9b) is added to the end-to-end checklist.
 
+The 2026-06-20 id-only + no-wait-teardown migration adds agent-teams contract assertions across all three loop SKILLs: each SKILL.md must carry `teammate_id` (the spawn-captured id-only route field) and must NOT contain a literal name-string in the `to:` argument of any SendMessage step — all sends route via `teammate_id`. Teardown steps must NOT assert a wait for termination notification or a `shutdown_response`. The manual acceptance checklist for `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop` includes: (a) confirm the first SendMessage to the teammate in a live run uses the id returned by `Agent` spawn, not a hardcoded name; (b) confirm teardown does not block waiting for a confirmation reply; (c) on a degrade (e.g. env var unset), confirm the loop STOPs cleanly without a teardown attempt.
+
 ## Local plugin install (for dogfooding)
 
 Symlink the repo into Claude Code's plugin cache so edits are picked up live. Use the version from [.claude-plugin/plugin.json](../.claude-plugin/plugin.json) as the leaf directory name:

@@ -39,7 +39,7 @@ On any gate failure, mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-pr
 
 ```
 SendMessage({
-  to: "fixer",
+  to: teammate_id,
   summary: "Reply contract: structured schema only — request <id>",
   message: "<re-state: prefix the reply with `request-id: <id>` on the first non-blank line; then for every cited finding emit finding:/status:/files-changed:/verification:/notes: fields on their own lines; status must be exactly 'fixed' or 'not-applicable'; notes: is required when status: not-applicable; no diff dump, no patch block, no source-body echo; small prose summary is tolerated but must not replace the schema; id is <new request_id_counter value>>"
 })
