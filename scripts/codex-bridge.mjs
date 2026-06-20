@@ -26,6 +26,7 @@ import { buildInvocation } from './codex/paths.mjs';
 import { renderFailureBody } from './codex/failure.mjs';
 import {
   getCodexVersion, parseCodexJsonl, runCodexExec, runCodexResume,
+  buildCodexSelectionArgs,
 } from './codex/codex.mjs';
 import { getPluginVersion } from './codex/plugin.mjs';
 import {
@@ -42,6 +43,7 @@ export {
   parseArgs, buildInvocation,
   renderFailureBody,
   getCodexVersion, parseCodexJsonl, runCodexExec, runCodexResume,
+  buildCodexSelectionArgs,
   getPluginVersion,
   defaultModeDir, loadResumeContext, discoverResumeArtifact,
   buildTargetInstruction,
