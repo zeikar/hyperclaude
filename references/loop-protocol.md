@@ -6,8 +6,12 @@ This file is the shared cross-loop protocol reference, loaded at Step 0 by `hype
 
 Every loop binding this protocol uses the experimental agent-teams feature. The session team auto-forms on the first `Agent` teammate spawn — no setup step is required. As of v2.1.178, the `Agent` tool's team-name field is accepted-but-ignored / deprecated; omit it rather than passing it.
 
-- `Agent` (spawn teammate) — `subagent_type` and `name` to make the agent a teammate addressable by `name`. The first spawn forms the session team.
-- `SendMessage` — `{ to: <teammate name, e.g. "<teammate-name>">, message: <string | {type:"shutdown_request"}>, summary? }`. `summary` is REQUIRED whenever `message` is a string; the shutdown object message takes no `summary`. Plain-text output is NOT visible to teammates; messaging requires this tool.
+- `Agent` (spawn teammate) — `subagent_type` and `name` to make the agent a teammate addressable by `name`. The first spawn forms the session team. At spawn, capture the returned `agent_id` VERBATIM/OPAQUELY into run-state `teammate_id` — never parse the `@`/suffix; the format is not a documented contract.
+- `SendMessage` — `{ to: <teammate name, e.g. "<teammate-name>">, message: <string | {type:"shutdown_request"}>, summary? }`. `summary` is REQUIRED whenever `message` is a string; the shutdown object message takes no `summary`. Plain-text output is NOT visible to teammates; messaging requires this tool. **`to:` resolution for lead→teammate messages:** every lead→teammate `SendMessage` (findings/revise, corrective, AND `shutdown_request`) addresses `to: teammate_id` (see "Resolve to:" rule below). Teammate→lead replies address the lead by its team-lead role name — that direction is unchanged and is never rewritten by this protocol.
+
+**Resolve to: rule.** The `<teammate-name>` placeholder in this protocol is an abstract alias that RESOLVES to the captured `teammate_id`; address every lead→teammate `SendMessage` to `teammate_id`. (This is why §B/§C retain the placeholder — concrete loop SKILL.md files use `to: teammate_id` literally.)
+
+**ENV-DEGRADE detection + STOP.** Degrade = missing OR unusable `agent_id`: (1) the spawn result has no `agent_id`; OR (2) the teammate reports `SendMessage` unavailable (replies via task-completion notification instead of mailbox); OR (3) a lead→teammate `SendMessage` returns not-addressable. ANY of these is a documented STOP/fallback — the loop does NOT proceed in a notification-reply mode (doing so would require migrating the §E + anchored-gate + `to:"team-lead"` reply pipeline, which is out of scope). The per-loop STOP-and-preserve behavior (what state to surface, whether to preserve work done so far) is bound in each loop's spawn step; refer to the per-loop asymmetry in each loop's SKILL.md. **Degrade-path teardown:** on degrade, teardown follows §C's degrade-path exception (STOP without teardown when no addressable teammate exists; best-effort no-wait shutdown then STOP when a usable `teammate_id` routes).
 - A teammate's `shutdown_response` or idle-termination notification is auto-delivered as a new turn — there is no poll/wait tool. **But the idle notification is a payload-less wake signal (`{type:"idle_notification",...}`) — it does NOT carry the teammate's reply text.** The loop-bound reply confirmation arrives ONLY if the teammate explicitly `SendMessage`s it to the lead; a teammate that prints the reply as plain text and idles delivers an empty notification and the lead must fall back to the corrective round-trip. Idle teammates keep their process + context alive between turns; a later SendMessage wakes them with context intact — this is the property each loop depends on.
 
 Per-loop deliverable rules (what the teammate writes / replies, how the lead verifies) live in each loop's local `failure-protocol.md` binding declarations.
@@ -22,7 +26,7 @@ Within scope, the only teammate message the lead expects is the loop-bound ancho
 
 ```
 SendMessage({
-  to: "<teammate-name>",
+  to: "<teammate-name>",   // resolves to teammate_id per §A's "Resolve to:" rule
   summary: "Idle until contacted",
   message: "<remain idle; DO NOT reply to this message; do not resend; wait for further findings or a shutdown_request>"
 })
@@ -39,14 +43,14 @@ The id-based classification subsumes the former stale-reply case that was previo
 
 ## §C — Teardown 2-step procedure
 
-**Teardown is MANDATORY on EVERY exit path once the loop's teammate-spawn step has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure (anchored gate / unsolicited-message protocol), teammate-write failure, teammate-format failure, plus any other unexpected tool error while the teammate is live. Run teardown FIRST, then report/STOP — never before.
+**Teardown is MANDATORY on EVERY exit path once the loop's teammate-spawn step has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure (anchored gate / unsolicited-message protocol), teammate-write failure, teammate-format failure, plus any other unexpected tool error while the teammate is live. Run teardown FIRST, then report/STOP — never before. **This rule is SUBORDINATE to "only when an addressable teammate exists":** if there is NO usable `teammate_id` OR `SendMessage` cannot route to it (not-addressable, per the §A ENV-DEGRADE rule), STOP WITHOUT teardown — there is no addressable teammate to shut down.
 
 Exact procedure:
 
-1. `SendMessage({ to: "<teammate-name>", message: { type: "shutdown_request" } })` — object message, no `summary`.
-2. Confirmed termination is **either** an idle-termination notification **or** a `shutdown_response` with `approve: true`, delivered as a new turn — its arrival IS confirmed termination. Do not loop on a status check.
+1. `SendMessage({ to: "<teammate-name>", message: { type: "shutdown_request" } })` — object message, no `summary`. The `<teammate-name>` placeholder resolves to `teammate_id` per §A's "Resolve to:" rule. **Cross-note:** id-only shutdown to an at-rest teammate requires the no-wait teardown in step 2 below; no-wait teardown is NOT a premise of id-only addressing for normal findings/revise/corrective sends, which work via mailbox `SendMessage` to `teammate_id`.
+2. Send `shutdown_request` best-effort ONCE, then treat the teammate as effectively terminated and proceed to report/STOP WITHOUT waiting for any confirmation (idle-termination notification or `shutdown_response`). A `shutdown_request` object message does NOT wake an at-rest teammate (e.g. the fixer/documenter idle since Step 4) — confirmation is impossible in that state; a still-live teammate may confirm as a harmless bonus, never depended on. There is no retry.
 
-**Recovery — rejected / unconfirmed shutdown.** A `shutdown_response` with `approve: false` is NOT termination: the teammate rejected the request and is still live (this is the validation the removed team-deletion call used to provide). Send `shutdown_request` ONCE more; if the teammate still does not approve / idle-terminate, STOP with a named-loop report (**"<loop-name> teardown"**) noting the teammate may remain live until session-exit auto-cleanup and could emit stray messages until then. Never treat a rejection as termination.
+The teammate may remain live until session-exit auto-cleanup; any later stray messages are ignored by the already-completed loop (this applies to teardown after protocol failures / unexpected errors, not just clean exit).
 
 ## §D — Shared anti-patterns
 
@@ -54,7 +58,7 @@ Exact procedure:
 
 1. **Making the reviewer a team agent.** The Codex bridge IS the reviewer — this preserves the "Claude builds, Codex reviews" invariant.
 2. **Re-spawning the teammate fresh each iteration.** Context-reuse via the live teammate is the entire reason every loop in this family exists.
-3. **Skipping `shutdown_request` before exit.** Shutdown first; the session team is cleaned up automatically on exit, but the teammate must be sent a `shutdown_request` before the loop ends.
+3. **Skipping `shutdown_request` before exit.** Shutdown first; the session team is cleaned up automatically on exit, but the teammate must be sent a `shutdown_request` before the loop ends WHEN an addressable `teammate_id` exists (see §A ENV-DEGRADE and §C's degrade-path exception, where teardown is skipped because there is no addressable teammate).
 4. **Reusing a `request_id` across distinct solicitations** — including reusing the same id for any local §1 corrective (anchored-gate or post-acceptance-validation corrective) and for the local §3 redo corrective. Each is a fresh solicitation; sharing an id reintroduces the stale-reply blind spot the counter is designed to eliminate.
 5. **Checking the loop's accept rule before classifying the `reqid`, OR accepting a reply whose `reqid != expected_request_id` as genuine.** `reqid < expected_request_id` means stale → ignore content + §E stale-recovery; `reqid > expected_request_id` is impossible (lead is sole id source) → teardown + STOP. Id classification MUST precede all content checks.
 6. **Comparing `reqid` against `expected_request_id` while `awaiting_reply == false` (§E Phase 1)** — `expected_request_id` is `null` then; the Phase 1 branch routes by `request_id_counter` only. Collapsing Phase 1 and Phase 2 into a single comparison reintroduces the duplicate-during-Codex-review mis-attribution.
@@ -69,6 +73,7 @@ The id is the disambiguator for a stale vs. genuine reply; it is NOT a new path 
 
 **Run-state fields (single source of truth — every binding loop uses these names).** The lead must retain the following run-state across turns and never conflate these fields:
 
+- `teammate_id` — the captured `agent_id` of the spawned teammate, stored verbatim; the resolution target for every lead→teammate `SendMessage`. Never parse its format; see §A's "Resolve to:" rule.
 - `request_id_counter` — the last id minted (initialized to `0`; incremented on every solicitation as below).
 - `expected_request_id` — the id of the outstanding solicitation the lead is currently waiting on; `null` when the lead is not awaiting any reply (e.g. while running Codex review).
 - `awaiting_reply` — boolean: `true` ONLY between minting a solicitation and accepting its reply.

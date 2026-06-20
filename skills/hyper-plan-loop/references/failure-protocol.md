@@ -10,7 +10,7 @@ These fill the shared `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` bindin
 - **Reply-token-with-id shape** (binds the shared §E "parse leading `<loop-bound reply-token-with-id>`" hole): `WROTE: <integer>`. The trailing token after the integer is the path payload.
 - **Accept rule** (binds the shared §E "loop-bound accept rule" hole): the exact regex `^WROTE: <expected id> <exact resolved plan path from Step 1>\s*$` (path = entire remaining string, verbatim) plus the no-prose / no-preamble / no-body-echo rule. On any body echo, added prose, preamble, or a different path at the matching-id step → §1 corrective + escalation.
 - **Post-acceptance validation stage** (binds the shared §E "loop-bound post-acceptance validation" hole): the file/structure check — `[ -s "<resolved plan path>" ]` for existence + the `node -e ...^##\s*Task\s` regex one-liner from SKILL.md Step 7. This is the "PLAN VALIDATION ACCEPTED" stage in plan-loop terms.
-- **Named-loop-report strings** (bind the shared `<loop-name>` placeholder): `hyper-plan-loop reply-contract failure`, `hyper-plan-loop planner-write failure`, `hyper-plan-loop planner format, iter N`, `hyper-plan-loop teardown`.
+- **Named-loop-report strings** (bind the shared `<loop-name>` placeholder): `hyper-plan-loop reply-contract failure`, `hyper-plan-loop planner-write failure`, `hyper-plan-loop planner format, iter N`.
 - **State-field name reminder:** the shared file calls the awaiting-state field `awaiting_reply`; plan-loop uses that exact name throughout.
 
 ## §1 — Anchored reply gate: corrective + escalation
@@ -21,7 +21,7 @@ On any body echo, added prose, preamble, or a different path: mint a new id per 
 
 ```
 SendMessage({
-  to: "planner",
+  to: teammate_id,
   summary: "Reply contract: WROTE: <id> <path> only — request <id>",
   message: "<re-state: use Write to write the full plan to the exact resolved path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else — no plan body, no prose, no preamble; id is <new request_id_counter value>>"
 })
@@ -33,7 +33,7 @@ If the next reply still fails the anchored gate → Step 8 teardown, then STOP (
 
 ```
 SendMessage({
-  to: "planner",
+  to: teammate_id,
   summary: "File not written — re-Write at exact path — request <id>",
   message: "<the file at <resolved plan path> is missing or empty; use Write to write the full plan to that exact path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else; id is <new request_id_counter value>>"
 })

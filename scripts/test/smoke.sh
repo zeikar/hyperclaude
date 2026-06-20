@@ -735,6 +735,53 @@ for f in \
   fi
 done
 
+# Positive: teammate_id contract — every SKILL.md, failure-protocol.md, and the
+# shared loop-protocol must carry the 'teammate_id' run-state field name.
+for f in \
+  skills/hyper-plan-loop/SKILL.md \
+  skills/hyper-implement-loop/SKILL.md \
+  skills/hyper-docs-loop/SKILL.md \
+  skills/hyper-plan-loop/references/failure-protocol.md \
+  skills/hyper-implement-loop/references/failure-protocol.md \
+  skills/hyper-docs-loop/references/failure-protocol.md \
+  references/loop-protocol.md; do
+  if grep -q 'teammate_id' "$f" 2>/dev/null; then
+    ok "$f: contains 'teammate_id' (id-resolution contract)"
+  else
+    miss "$f: missing 'teammate_id' (id-resolution contract)"
+  fi
+done
+
+# Negative: no literal lead→teammate name sends remain (to: "planner" / "fixer" / "documenter").
+# loop-protocol.md is EXEMPT — it retains the abstract <teammate-name> alias by design.
+for f in \
+  skills/hyper-plan-loop/SKILL.md \
+  skills/hyper-implement-loop/SKILL.md \
+  skills/hyper-docs-loop/SKILL.md \
+  skills/hyper-plan-loop/references/failure-protocol.md \
+  skills/hyper-implement-loop/references/failure-protocol.md \
+  skills/hyper-docs-loop/references/failure-protocol.md; do
+  if grep -qE 'to:[[:space:]]*"(planner|fixer|documenter)"' "$f" 2>/dev/null; then
+    miss "$f: contains literal lead→teammate role-name send (to: \"planner\"/\"fixer\"/\"documenter\") — must use teammate_id"
+  else
+    ok "$f: no literal lead→teammate role-name send (id-only addressing)"
+  fi
+done
+
+# No-wait teardown: loop-protocol.md §C must contain 'best-effort' AND must NOT
+# contain the old rejected-shutdown recovery phrase ('approve: false').
+if grep -q 'best-effort' references/loop-protocol.md 2>/dev/null; then
+  ok "references/loop-protocol.md §C: 'best-effort' no-wait teardown wording present"
+else
+  miss "references/loop-protocol.md §C: 'best-effort' no-wait teardown wording missing"
+fi
+
+if ! grep -q 'approve: false' references/loop-protocol.md 2>/dev/null; then
+  ok "references/loop-protocol.md §C: old rejected-shutdown recovery phrase ('approve: false') absent"
+else
+  miss "references/loop-protocol.md §C: old rejected-shutdown recovery phrase ('approve: false') still present"
+fi
+
 echo
 echo "==> Summary"
 echo "  passed: $pass"
@@ -807,7 +854,16 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      "RESEND:"/duplicate-body churn between revise rounds, that at
      least one Codex plan-review runs, and the loop reaches a terminal
      state (clean exit, iteration cap, or controlled failure) bounded
-     by the review cap, ending after graceful teammate shutdown with no live teammate left.
+     by the review cap, ending after a best-effort `shutdown_request`
+     to the captured `agent_id` (the loop does NOT wait for shutdown
+     confirmation; the teammate is auto-cleaned on session exit).
+     Confirm lead→teammate messages address the spawn-captured
+     `agent_id` (id-only, not the role name "planner"); confirm any
+     degrade (agentId missing, or returned but teammate lacks
+     SendMessage, or a send not-addressable) deterministically STOPs
+     with the loop's documented fallback — no notification-reply
+     proceed; a degrade with no addressable teammate STOPs without
+     a teardown attempt.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
@@ -821,7 +877,16 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      finding-map (not a raw diff), that the loop is bounded by the
      review cap (6 total Codex reviews maximum), and that the loop
      reaches a terminal state (clean exit on no blocking findings, or
-     the 6-review cap reached), ending after graceful teammate shutdown with no live teammate left.
+     the 6-review cap reached), ending after a best-effort
+     `shutdown_request` to the captured `agent_id` (the loop does NOT
+     wait for shutdown confirmation; the teammate is auto-cleaned on
+     session exit). If degrade happens AFTER `hyper-implement` ran,
+     verify the already-committed implementation is preserved (degrade
+     is not a clean no-op in that case). Confirm lead→teammate messages
+     address the spawn-captured `agent_id` (id-only, not the role name
+     "fixer"); confirm any degrade deterministically STOPs — no
+     notification-reply proceed; a degrade with no addressable teammate
+     STOPs without a teardown attempt.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
@@ -837,7 +902,14 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      `request-id: <integer>` and carry the per-finding structured
      schema (`finding:` / `status:` / `files-changed:` / `verification:`
      / `notes:`), and that the loop reaches a terminal state bounded by
-     the 6-review cap, ending after graceful teammate shutdown with no live teammate left.
+     the 6-review cap, ending after a best-effort `shutdown_request` to
+     the captured `agent_id` (the loop does NOT wait for shutdown
+     confirmation; the teammate is auto-cleaned on session exit).
+     Confirm lead→teammate messages address the spawn-captured
+     `agent_id` (id-only, not the role name "documenter"); confirm any
+     degrade deterministically STOPs — no notification-reply proceed;
+     a degrade with no addressable teammate STOPs without a teardown
+     attempt.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.

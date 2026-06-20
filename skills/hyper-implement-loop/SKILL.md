@@ -32,6 +32,8 @@ This skill uses the experimental agent-teams tools — `Agent` / `SendMessage`. 
 
 **Spawn-is-not-a-solicitation.** Unlike plan-loop's spawn (which mints id 1 because the planner is asked to immediately Write the plan), the implement-loop spawn (Step 4) is contract-only — the fixer goes idle without sending any reply. So `request_id_counter` stays at 0 until the FIRST Step 7 fix solicitation, which mints id 1. The Step 4 spawn does NOT change `request_id_counter` or `awaiting_reply`. After spawn, the lead expects EXACTLY ONE payload-less idle notification (the fixer's post-spawn idle). The lead consumes that idle as a readiness signal and does NOT route it through §B/§E unsolicited handling. From the second wake onward (which is always after the first Step 7 solicitation has been sent), §E Phase 1 / Phase 2 routing applies normally.
 
+The lead must also retain `teammate_id` — the opaque `agent_id` captured at Step 4 spawn (§A binding; never parsed). Every lead→teammate `SendMessage` addresses `to: teammate_id`. Capturing the id does NOT change `request_id_counter` or `awaiting_reply` (spawn-is-not-a-solicitation stays).
+
 Loop-local run state (e.g. `reviewArtifacts[]`, `review_iteration`) is named where it appears in Steps 5/7.
 
 ## How to invoke
@@ -113,6 +115,11 @@ The `prompt` string MUST contain:
 - **Constraints echo** — fix ONLY the findings explicitly cited in each `SendMessage`; no opportunistic refactors; NEVER commit or push; NEVER invoke codex or `scripts/codex-bridge.mjs`; re-read the current diff/files each round before applying any fix (context may be stale across rounds).
 - State that the fixer stays alive as a teammate, will receive Codex findings in later turns, and must retain its full context across rounds.
 
+**After the `Agent(...)` call** — capture and validate `teammate_id`:
+
+- Capture the returned `agent_id` VERBATIM/OPAQUELY into run-state `teammate_id` (§A binding — never parse the `@`/suffix). Capturing the id does NOT bump `request_id_counter` or `awaiting_reply` (spawn-is-not-a-solicitation stays).
+- **Degrade detection:** if `agent_id` is missing OR unusable (per §A ENV-DEGRADE rule — no `agent_id`, or `SendMessage` is not available to this teammate) → `hyper-implement` has already run and committed the implementation (the loop is NOT a clean no-op on degrade). PRESERVE the committed feature branch: report it explicitly and point the user at `/hyperclaude:hyper-code-review` for manual review. STOP honestly; do not imply nothing happened. Apply §C's degrade-path teardown branch: STOP WITHOUT teardown when no addressable teammate exists.
+
 (Spawn-failure handling is in Step 2.)
 
 ### Step 4a — Unsolicited fixer messages
@@ -158,7 +165,7 @@ Send the blocking findings to the still-live fixer:
 
 ```
 SendMessage({
-  to: "fixer",
+  to: teammate_id,
   summary: "Fix Codex blocking findings — request <id>",
   message: "<verbatim blocking findings + relevant verdict direction + the code-review artifact path; the request id for this round is `<id>`; instruct: re-read current diff/files, apply ONLY these fixes, run relevant verification, reply with the structured schema PREFIXED by `request-id: <id>` on the first non-blank line>"
 })
@@ -186,16 +193,16 @@ On cap-reached with blocking findings still open: FIRST capture the cap report d
 
 **Teardown is MANDATORY on EVERY exit path once the Step 4 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure, fixer format failure, unparseable review, plus any other unexpected tool error while the fixer teammate is live. Run teardown FIRST, then report/STOP — never before. (A failure *before* the Step 4 spawn — e.g. `hyper-implement` aborting in Step 3 — owes no teardown: STOP (no team formed).)
 
-Exact procedure:
+Exact procedure (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C for the full no-wait + degrade-path-branch procedure):
 
-1. `SendMessage({ to: "fixer", message: { type: "shutdown_request" } })` — object message, no `summary`.
-2. The fixer's idle-termination notification, or a `shutdown_response` with `approve: true`, arrives as a new turn — its arrival IS confirmed termination. Do not loop on a status check. A `shutdown_response` that rejects (`approve: false`) is NOT termination → apply the shared `references/loop-protocol.md` §C rejected-shutdown recovery (retry `shutdown_request` once; if still unconfirmed, STOP **"hyper-implement-loop teardown"**).
+1. `SendMessage({ to: teammate_id, message: { type: "shutdown_request" } })` — object message, no `summary`.
+2. Send best-effort ONCE, then treat the teammate as effectively terminated and proceed to report/STOP WITHOUT waiting for any confirmation. The fixer is at rest (idle since its last reply (or the Step 4 spawn if no fix round ran)), so confirmation is structurally impossible. There is no retry. A degrade STOP with no addressable teammate skips teardown entirely (§C degrade-path branch).
 
 ### Step 9 — Final report
 
 Reached only on Step 6's clean (no-blocking) exit — cap-reached and failure STOPs emit their own reports in Step 8 and never arrive here.
 
-**Convergence commit (post-teardown).** Now that the fixer teammate is torn down (Step 8), the lead commits its uncommitted fix edits **once** on the current feature branch — the fixer never commits (invariant), and teardown-first means no teammate is live during the git ops. `git add -A` carries the same scoping as hyper-implement's per-task commit (clean-tree preflight + gitignored `.hyperclaude/`); if autonomous verification left unrelated untracked files they ride in too — same exposure as hyper-implement, so eyeball the diff before pushing. This is the loop's ONLY commit:
+**Convergence commit (after Step 8 shutdown_request).** The lead commits its uncommitted fix edits **once** on the current feature branch — the fixer never commits (invariant). The no-wait teardown (§C) sends a shutdown_request best-effort and proceeds immediately: the fixer may remain live until session-exit auto-cleanup, but it is AT REST (idle since its last reply) and the lead sends it nothing during the git ops, so it performs no concurrent edits. `git add -A` carries the same scoping as hyper-implement's per-task commit (clean-tree preflight + gitignored `.hyperclaude/`); if autonomous verification left unrelated untracked files they ride in too — same exposure as hyper-implement, so eyeball the diff before pushing. This is the loop's ONLY commit:
 
 ```bash
 git add -A
