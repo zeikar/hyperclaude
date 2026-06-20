@@ -191,6 +191,10 @@ codex-resume-status: fresh | resumed | fallback | resume-failed  # always (resea
 codex-resumed-from: "<path>"           # when --resume was used and resume succeeded
 codex-model-requested: "<name>"        # only when --model was passed (omitted when not)
 codex-effort-requested: "<level>"      # only when --effort was passed (omitted when not)
+codex-input-tokens: <N>               # present when Codex emitted turn.completed.usage (even on failure artifacts); omitted otherwise
+codex-cached-input-tokens: <N>        # same gate
+codex-output-tokens: <N>              # same gate
+codex-reasoning-output-tokens: <N>    # same gate; no total key (source has no total_tokens)
 base-ref / commit / title              # code-review (mode-dependent; uncommitted has none)
 plan-path: "<path>"                    # plan-review only
 docs-target: "<path>"                  # docs-review

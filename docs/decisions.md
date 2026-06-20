@@ -221,6 +221,14 @@ Three related decisions stemming from a 2026-06-20 dogfood run (`SendMessage{to:
 
 **(e) No autonomous `~/.claude/teams/` cleanup.** Teams and their config are auto-cleaned by the Claude Code session runtime on session exit; the loops do not attempt manual `~/.claude/teams/` removal.
 
+### 2026-06-20 — Token usage recorded in artifact frontmatter; effective model/effort not recorded
+
+**(a) Usage keys recorded from `turn.completed.usage`.** The bridge records Codex token usage as four flat scalar frontmatter keys — `codex-input-tokens`, `codex-cached-input-tokens`, `codex-output-tokens`, `codex-reasoning-output-tokens` — taken directly from the `turn.completed.usage` object in the `codex exec --json` event stream. There is no `codex-total-tokens` key; the source object has no `total_tokens` field.
+
+**(b) Gate is usage presence, not result.ok.** The four keys are written whenever `turn.completed.usage` was present in the JSONL stream — they are omitted when usage is absent — typically when Codex exited before emitting `turn.completed`. A run that emitted usage but then failed (non-zero exit, timeout, etc.) WILL still record the four keys in its failure artifact — those tokens were genuinely spent and recording them aids cost tracking. This mirrors the existing `if (codexThreadId)` omit-when-absent pattern used for `codex-thread-id`.
+
+**(c) Effective model and reasoning-effort are NOT recorded.** The `codex exec --json` event stream does not carry effective model or effort: `thread.started` carries only `thread_id`; `turn.completed` carries only `usage`; there is no `session_configured` or equivalent event. Recording effective model/effort would require either an extra `codex` spawn (rejected — doubles latency, doubles cost) or hardcoding the CLI's default (rejected — ties the bridge to Codex CLI internals that can change). The existing absence-means-flagless-invocation semantics of `codex-model-requested` / `codex-effort-requested` are unaffected — the resume contract is unchanged.
+
 ---
 
 ## Pointers (decisions documented elsewhere)
