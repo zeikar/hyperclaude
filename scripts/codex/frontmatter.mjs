@@ -6,10 +6,22 @@ export function fmString(key, value) {
   return `${key}: ${JSON.stringify(value)}`;
 }
 
+// Push flat codex-*-tokens scalar lines from a parsed turn.completed.usage.
+// Omit a line entirely when usage is absent or a field is null/undefined
+// (mirrors the codexThreadId omit-when-absent guard). No total key: the
+// codex usage object has no total_tokens. Private — renderers only.
+function pushCodexUsage(lines, usage) {
+  if (!usage) return;
+  if (usage.input_tokens != null) lines.push(`codex-input-tokens: ${usage.input_tokens}`);
+  if (usage.cached_input_tokens != null) lines.push(`codex-cached-input-tokens: ${usage.cached_input_tokens}`);
+  if (usage.output_tokens != null) lines.push(`codex-output-tokens: ${usage.output_tokens}`);
+  if (usage.reasoning_output_tokens != null) lines.push(`codex-reasoning-output-tokens: ${usage.reasoning_output_tokens}`);
+}
+
 export function renderFrontmatter({
   mode, task, slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion,
   planPath, cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
-  codexModelRequested, codexEffortRequested,
+  codexModelRequested, codexEffortRequested, codexUsage,
 }) {
   const lines = ['---'];
   lines.push(`mode: ${mode}`);
@@ -31,6 +43,7 @@ export function renderFrontmatter({
   if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
   lines.push(`codex-resume-status: ${codexResumeStatus}`);
   if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
+  pushCodexUsage(lines, codexUsage);
   lines.push('---');
   lines.push('');
   return lines.join('\n');
@@ -39,7 +52,7 @@ export function renderFrontmatter({
 export function renderCodeReviewFrontmatter({
   slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion, gitHead, reviewTarget, baseRef, commit, title,
   cwd, codexThreadId, codexResumeStatus, codexResumedFrom,
-  codexModelRequested, codexEffortRequested,
+  codexModelRequested, codexEffortRequested, codexUsage,
 }) {
   const lines = ['---'];
   lines.push('mode: code-review');
@@ -60,6 +73,7 @@ export function renderCodeReviewFrontmatter({
   if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
   lines.push(`codex-resume-status: ${codexResumeStatus}`);
   if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
+  pushCodexUsage(lines, codexUsage);
   lines.push('---');
   lines.push('');
   return lines.join('\n');
@@ -68,7 +82,7 @@ export function renderCodeReviewFrontmatter({
 export function renderDocsReviewFrontmatter({
   slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion, docsTarget, diffBase,
   cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
-  codexModelRequested, codexEffortRequested,
+  codexModelRequested, codexEffortRequested, codexUsage,
 }) {
   const lines = ['---'];
   lines.push('mode: docs-review');
@@ -87,6 +101,7 @@ export function renderDocsReviewFrontmatter({
   if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
   lines.push(`codex-resume-status: ${codexResumeStatus}`);
   if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
+  pushCodexUsage(lines, codexUsage);
   lines.push('---');
   lines.push('');
   return lines.join('\n');
