@@ -1997,3 +1997,131 @@ test('resume auto over dir whose newest code-review artifact is LEGACY → fresh
     rmSync(tmpdir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Task 6: override-aware resume — a model/effort override mismatch makes a
+// prior artifact ineligible for resume (deferred from Task 5).
+// ---------------------------------------------------------------------------
+
+test('resume model/effort mismatch → fresh-spawn fallback (auto, no matching candidate)', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-modelmismatch-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_DOCS_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-modelmismatch-out-'));
+    try {
+      // Single prior artifact recorded gpt-4; the current request asks gpt-5 →
+      // override mismatch makes it ineligible, leaving no candidate.
+      const prior = path.join(outDir, '20260510-1015-api.md');
+      writePriorArtifact(prior, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'codex-thread-id': 'thread-resume-1',
+        'codex-resume-status': 'fresh',
+        'codex-model-requested': 'gpt-4',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', 'auto', '--model', 'gpt-5', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'fallback', 'status should be fallback (NOT resumed, NOT fresh) after override mismatch');
+      assert.match(result.stderr, /hyperclaude: resume fallback —/, 'stderr should carry the resume fallback note');
+
+      // Fresh spawn — argv must NOT contain the resume subcommand.
+      const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+      const argv = argvLog.split('\n').filter((l) => l.length > 0);
+      assert.ok(!argv.includes('resume'), 'argv must not contain "resume" on fresh-spawn fallback');
+
+      const outputContent = readFileSync(json.path, 'utf8');
+      const fm = parseFrontmatter(outputContent);
+      assert.equal(fm['codex-resume-status'], 'fallback', 'frontmatter codex-resume-status should be fallback');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume auto skips mismatched newest artifact and resumes older matching one', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-skip-newest-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-skip-newest-out-'));
+    try {
+      // NEWER (lexicographically-later prefix) carries gpt-4 → mismatch with the
+      // flagless current request; discovery evaluates it first and rejects it.
+      const newer = path.join(outDir, '20260510-1130-api.md');
+      writePriorArtifact(newer, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'codex-thread-id': 'thread-newer-mismatch',
+        'codex-resume-status': 'fresh',
+        'codex-model-requested': 'gpt-4',
+      });
+      // OLDER (earlier prefix) records NO model override → matches the flagless
+      // current request; selected after the newer one is skipped.
+      const older = path.join(outDir, '20260510-1015-api.md');
+      writePriorArtifact(older, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'codex-thread-id': 'thread-older-match',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', 'auto', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'resumed', 'status should be resumed via the older matching artifact');
+
+      // Assert on the captured argv, NOT json.threadId: MOCK_CODEX_RESUME_SUCCESS
+      // emits a hardcoded thread.started id which runCodexExec prefers over the
+      // known resume thread id, so json.threadId masks the selected artifact.
+      // The thread id passed to `exec resume` directly proves which artifact won.
+      const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+      const argv = argvLog.split('\n').filter((l) => l.length > 0);
+      assert.ok(argv.includes('resume'), 'argv must contain "resume" (a thread was resumed)');
+      assert.ok(argv.includes('thread-older-match'), 'argv must contain the OLDER matching artifact thread id');
+      assert.ok(!argv.includes('thread-newer-mismatch'), 'argv must NOT contain the NEWER mismatched artifact thread id');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});

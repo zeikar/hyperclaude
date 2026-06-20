@@ -114,6 +114,25 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
       }
     }
   }
+  // Mode-INDEPENDENT model/effort match (applies to plan-review/code-review/
+  // docs-review; research has no resume path so never reaches here). This is a
+  // SEPARATE rule from the code-review template-version identity gate above —
+  // do NOT fold them together. When the requested overrides differ, the bridge
+  // cannot prove the prior thread ran under the same effective model/effort:
+  // the recorded values are the requested bridge overrides, not the resolved
+  // effective settings, so it conservatively rejects that artifact rather than
+  // continuing a thread whose model/effort it can't confirm (prompt-caching
+  // motivated). Scope: this compares ONLY the recorded bridge overrides — two
+  // flagless runs both record null and match; it does NOT detect
+  // ~/.codex/config.toml drift. Message stays neutral (no "fresh fallback"
+  // wording): the fallback-vs-fatal decision belongs to resolveResume/caller.
+  const prevModel = fm['codex-model-requested'] ?? null;
+  const curModel = currentArgs.model ?? null;
+  const prevEffort = fm['codex-effort-requested'] ?? null;
+  const curEffort = currentArgs.effort ?? null;
+  if (prevModel !== curModel || prevEffort !== curEffort) {
+    return { error: 'prior artifact requested model/effort override differs from current' };
+  }
   return { threadId, frontmatter: fm };
 }
 
