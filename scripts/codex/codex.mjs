@@ -155,6 +155,17 @@ function spawnCodex(spawnArgs, { stdinPayload = null, stdinMode = 'pipe' } = {},
   });
 }
 
+// buildCodexSelectionArgs: returns semantic argv tokens for model/effort selection.
+// Tokens go into the SEMANTIC argv (after the subcommand, before --sandbox/-c/-),
+// so injectJsonAndOutputFlags's subcommand-index math is unaffected.
+// model tokens come first; effort config override follows.
+export function buildCodexSelectionArgs({ model, effort }) {
+  const tokens = [];
+  if (model != null) tokens.push('--model', model);
+  if (effort != null) tokens.push('-c', `model_reasoning_effort=${effort}`);
+  return tokens;
+}
+
 // Insert `--json --output-last-message <tmp>` into a SEMANTIC argv right after
 // the codex subcommand tokens (`exec`, `exec resume`, `exec review`) and BEFORE
 // any positional / `-` token. Argv ordering is pinned by spawn tests.
@@ -274,11 +285,14 @@ export async function runCodexExec(argv, stdinPayload, timeoutSec, knownThreadId
 }
 
 // runCodexResume: resumes an existing Codex thread by id.
+// `selectionArgs` — output of buildCodexSelectionArgs — is spliced in after the
+// subcommand and BEFORE `-c sandbox_mode=read-only` so the sandbox override remains
+// the last word and the read-only invariant is unbroken.
 // Passes knownThreadId as the 4th arg to runCodexExec so the result's threadId
 // is authoritative even when `thread.started` is not re-emitted on resume.
-export function runCodexResume(threadId, prompt, timeoutSec) {
+export function runCodexResume(threadId, prompt, timeoutSec, selectionArgs = []) {
   return runCodexExec(
-    ['exec', 'resume', '-c', 'sandbox_mode=read-only', threadId, '-'],
+    ['exec', 'resume', ...selectionArgs, '-c', 'sandbox_mode=read-only', threadId, '-'],
     prompt,
     timeoutSec,
     threadId,

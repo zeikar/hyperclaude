@@ -14,7 +14,7 @@ import {
   readdirSync,
 } from 'node:fs';
 import os from 'node:os';
-import { runCodexResume, parseFrontmatter } from '../scripts/codex-bridge.mjs';
+import { runCodexResume, parseFrontmatter, buildCodexSelectionArgs } from '../scripts/codex-bridge.mjs';
 
 const BRIDGE = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -1794,6 +1794,165 @@ test('resume explicit-path over LEGACY code-review artifact (no template-version
   }
 });
 
+// ---------------------------------------------------------------------------
+// Task 5 (this task): spawn-shape tests with --model/--effort flags
+// ---------------------------------------------------------------------------
+
+test('buildCodexSelectionArgs: model+effort / model-only / effort-only / none', () => {
+  assert.deepEqual(
+    buildCodexSelectionArgs({ model: 'gpt-5', effort: 'high' }),
+    ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high'],
+    'both model+effort'
+  );
+  assert.deepEqual(
+    buildCodexSelectionArgs({ model: 'gpt-5', effort: null }),
+    ['--model', 'gpt-5'],
+    'model-only'
+  );
+  assert.deepEqual(
+    buildCodexSelectionArgs({ model: null, effort: 'low' }),
+    ['-c', 'model_reasoning_effort=low'],
+    'effort-only'
+  );
+  assert.deepEqual(
+    buildCodexSelectionArgs({ model: null, effort: null }),
+    [],
+    'neither'
+  );
+});
+
+test('mock codex: research --model/--effort inserts selection tokens before --sandbox, read-only retained', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-spawn-sel-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const result = spawnSync(
+      'node',
+      [BRIDGE, 'research', '--task', 'x', '--model', 'gpt-5', '--effort', 'high', '--out', tmpdir],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+      }
+    );
+
+    assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.ok, true);
+
+    // argv.log is one arg per line.
+    // --search(0) exec(1) --json(2) --output-last-message(3) <tmp>(4) then selection + sandbox + -
+    const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+    const argv = argvLog.split('\n').filter((l) => l.length > 0);
+    assert.equal(argv[0], '--search', `argv[0] should be --search, got: ${argv[0]}`);
+    assert.equal(argv[1], 'exec', `argv[1] should be exec, got: ${argv[1]}`);
+    assert.equal(argv[2], '--json', `argv[2] should be --json, got: ${argv[2]}`);
+    assert.equal(argv[3], '--output-last-message', `argv[3] should be --output-last-message, got: ${argv[3]}`);
+    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.deepEqual(
+      argv.slice(5),
+      ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high', '--sandbox', 'read-only', '-'],
+      `tail should include selection tokens then --sandbox read-only -, got: ${JSON.stringify(argv.slice(5))}`
+    );
+
+    // Explicit read-only invariant lock: --sandbox present and its next token is read-only.
+    const sandboxIdx = argv.indexOf('--sandbox');
+    assert.ok(sandboxIdx !== -1, '--sandbox must be present in argv');
+    assert.equal(argv[sandboxIdx + 1], 'read-only', '--sandbox must be immediately followed by read-only');
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('mock codex: code-review --model/--effort retains --sandbox read-only', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-sel-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const result = spawnSync(
+      process.execPath,
+      [BRIDGE, 'code-review', '--out', tmpdir, '--model', 'gpt-5', '--effort', 'high'],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+      }
+    );
+
+    assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.ok, true);
+
+    // argv.log is one arg per line.
+    // --search(0) exec(1) --json(2) --output-last-message(3) <tmp>(4) then selection + sandbox + -
+    const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+    const argv = argvLog.split('\n').filter((l) => l.length > 0);
+    assert.equal(argv[0], '--search', `argv[0] should be --search, got: ${argv[0]}`);
+    assert.equal(argv[1], 'exec', `argv[1] should be exec, got: ${argv[1]}`);
+    assert.equal(argv[2], '--json', `argv[2] should be --json, got: ${argv[2]}`);
+    assert.equal(argv[3], '--output-last-message', `argv[3] should be --output-last-message, got: ${argv[3]}`);
+    assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
+    assert.deepEqual(
+      argv.slice(5),
+      ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high', '--sandbox', 'read-only', '-'],
+      `tail should include selection tokens then --sandbox read-only -, got: ${JSON.stringify(argv.slice(5))}`
+    );
+
+    // Explicit read-only invariant lock.
+    const sandboxIdx = argv.indexOf('--sandbox');
+    assert.ok(sandboxIdx !== -1, '--sandbox must be present in argv');
+    assert.equal(argv[sandboxIdx + 1], 'read-only', '--sandbox must be immediately followed by read-only');
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('runCodexResume: selectionArgs inserted after exec resume, before -c sandbox_mode=read-only', async () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-resume-sel-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const origPath = process.env.PATH;
+    process.env.PATH = `${tmpdir}:${origPath}`;
+    try {
+      const result = await runCodexResume(
+        'tid-123',
+        'prompt',
+        30,
+        ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high']
+      );
+      assert.equal(result.ok, true, `runCodexResume should succeed, reason: ${result.reason}`);
+    } finally {
+      process.env.PATH = origPath;
+    }
+
+    // argv.log is one arg per line.
+    // Semantic argv: ['exec', 'resume', '--model', 'gpt-5', '-c', 'model_reasoning_effort=high', '-c', 'sandbox_mode=read-only', 'tid-123', '-']
+    // After injectJsonAndOutputFlags (inserts after 'exec resume' tokens) and --search prepend:
+    // --search(0) exec(1) resume(2) --json(3) --output-last-message(4) <tmp>(5) then selection + sandbox + threadId + -
+    const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+    const argv = argvLog.split('\n').filter((l) => l.length > 0);
+    assert.equal(argv[0], '--search', `argv[0] should be --search, got: ${argv[0]}`);
+    assert.equal(argv[1], 'exec', `argv[1] should be exec, got: ${argv[1]}`);
+    assert.equal(argv[2], 'resume', `argv[2] should be resume, got: ${argv[2]}`);
+    assert.equal(argv[3], '--json', `argv[3] should be --json, got: ${argv[3]}`);
+    assert.equal(argv[4], '--output-last-message', `argv[4] should be --output-last-message, got: ${argv[4]}`);
+    assert.ok(argv[5] && argv[5].length > 0, 'argv[5] should be the tempfile path');
+    // Tail: selection tokens precede sandbox override; thread id + - are last.
+    assert.deepEqual(
+      argv.slice(6),
+      ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high', '-c', 'sandbox_mode=read-only', 'tid-123', '-'],
+      `tail after tempfile should be selection + sandbox + threadId + -, got: ${JSON.stringify(argv.slice(6))}`
+    );
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
 test('resume auto over dir whose newest code-review artifact is LEGACY → fresh fallback + stderr note + ok:true', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-legacy-auto-'));
   try {
@@ -1831,6 +1990,134 @@ test('resume auto over dir whose newest code-review artifact is LEGACY → fresh
       const outputContent = readFileSync(json.path, 'utf8');
       const fm = parseFrontmatter(outputContent);
       assert.equal(fm['codex-resume-status'], 'fallback', 'frontmatter codex-resume-status should be fallback');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Task 6: override-aware resume — a model/effort override mismatch makes a
+// prior artifact ineligible for resume (deferred from Task 5).
+// ---------------------------------------------------------------------------
+
+test('resume model/effort mismatch → fresh-spawn fallback (auto, no matching candidate)', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-modelmismatch-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_DOCS_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-modelmismatch-out-'));
+    try {
+      // Single prior artifact recorded gpt-4; the current request asks gpt-5 →
+      // override mismatch makes it ineligible, leaving no candidate.
+      const prior = path.join(outDir, '20260510-1015-api.md');
+      writePriorArtifact(prior, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'codex-thread-id': 'thread-resume-1',
+        'codex-resume-status': 'fresh',
+        'codex-model-requested': 'gpt-4',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', 'auto', '--model', 'gpt-5', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'fallback', 'status should be fallback (NOT resumed, NOT fresh) after override mismatch');
+      assert.match(result.stderr, /hyperclaude: resume fallback —/, 'stderr should carry the resume fallback note');
+
+      // Fresh spawn — argv must NOT contain the resume subcommand.
+      const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+      const argv = argvLog.split('\n').filter((l) => l.length > 0);
+      assert.ok(!argv.includes('resume'), 'argv must not contain "resume" on fresh-spawn fallback');
+
+      const outputContent = readFileSync(json.path, 'utf8');
+      const fm = parseFrontmatter(outputContent);
+      assert.equal(fm['codex-resume-status'], 'fallback', 'frontmatter codex-resume-status should be fallback');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume auto skips mismatched newest artifact and resumes older matching one', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-skip-newest-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-skip-newest-out-'));
+    try {
+      // NEWER (lexicographically-later prefix) carries gpt-4 → mismatch with the
+      // flagless current request; discovery evaluates it first and rejects it.
+      const newer = path.join(outDir, '20260510-1130-api.md');
+      writePriorArtifact(newer, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'codex-thread-id': 'thread-newer-mismatch',
+        'codex-resume-status': 'fresh',
+        'codex-model-requested': 'gpt-4',
+      });
+      // OLDER (earlier prefix) records NO model override → matches the flagless
+      // current request; selected after the newer one is skipped.
+      const older = path.join(outDir, '20260510-1015-api.md');
+      writePriorArtifact(older, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'codex-thread-id': 'thread-older-match',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', 'auto', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'resumed', 'status should be resumed via the older matching artifact');
+
+      // Assert on the captured argv, NOT json.threadId: MOCK_CODEX_RESUME_SUCCESS
+      // emits a hardcoded thread.started id which runCodexExec prefers over the
+      // known resume thread id, so json.threadId masks the selected artifact.
+      // The thread id passed to `exec resume` directly proves which artifact won.
+      const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+      const argv = argvLog.split('\n').filter((l) => l.length > 0);
+      assert.ok(argv.includes('resume'), 'argv must contain "resume" (a thread was resumed)');
+      assert.ok(argv.includes('thread-older-match'), 'argv must contain the OLDER matching artifact thread id');
+      assert.ok(!argv.includes('thread-newer-mismatch'), 'argv must NOT contain the NEWER mismatched artifact thread id');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }

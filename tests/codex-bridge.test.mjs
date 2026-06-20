@@ -164,6 +164,8 @@ test('parseArgs: research mode', () => {
     docsDir: null,
     diffBase: null,
     resumeFrom: null,
+    model: null,
+    effort: null,
   });
 });
 
@@ -3013,4 +3015,75 @@ test('rendered fresh code-review prompt (uncommitted): no placeholders, command 
   const rendered = loadTemplate(tpl, { TARGET_INSTRUCTION: buildTargetInstruction({ reviewTarget: 'uncommitted' }) });
   assert.doesNotMatch(rendered, /\{\{[A-Z_]+\}\}/, 'no leftover {{...}} placeholders');
   assert.ok(rendered.includes('git status --short --untracked-files=all'), 'uncommitted command block present');
+});
+
+// ── Task 4: --model / --effort parser tests ───────────────────────────────────
+
+test('parseArgs: --model/--effort accepted in all four modes', () => {
+  // research
+  const r = parseArgs(['research', '--task', 'x', '--model', 'gpt-5', '--effort', 'medium']);
+  assert.equal(r.model, 'gpt-5');
+  assert.equal(r.effort, 'medium');
+
+  // plan-review
+  const pr = parseArgs(['plan-review', '--plan-path', '/tmp/p.md', '--model', 'gpt-5', '--effort', 'high']);
+  assert.equal(pr.model, 'gpt-5');
+  assert.equal(pr.effort, 'high');
+
+  // code-review (no required flags)
+  const cr = parseArgs(['code-review', '--model', 'gpt-5', '--effort', 'medium']);
+  assert.equal(cr.model, 'gpt-5');
+  assert.equal(cr.effort, 'medium');
+
+  // docs-review
+  const dr = parseArgs(['docs-review', '--docs-path', '/tmp/d.md', '--model', 'gpt-5', '--effort', 'low']);
+  assert.equal(dr.model, 'gpt-5');
+  assert.equal(dr.effort, 'low');
+});
+
+test('parseArgs: --model/--effort default to null when omitted', () => {
+  const a = parseArgs(['research', '--task', 'x']);
+  assert.equal(a.model, null);
+  assert.equal(a.effort, null);
+});
+
+test('parseArgs: --effort rejects values outside low|medium|high|xhigh', () => {
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--effort', 'banana']),
+    /--effort must be one of/
+  );
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--effort', 'none']),
+    /--effort must be one of/
+  );
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--effort', 'minimal']),
+    /--effort must be one of/
+  );
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--effort', '']),
+    /--effort must be one of/
+  );
+
+  assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--effort', 'low']));
+  assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--effort', 'medium']));
+  assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--effort', 'high']));
+  assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--effort', 'xhigh']));
+});
+
+test('parseArgs: --model rejects empty / leading-dash but accepts arbitrary charset', () => {
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--model', '']),
+    /--model must be/
+  );
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--model', '-m']),
+    /--model must be/
+  );
+
+  assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--model', 'gpt-5']));
+  assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--model', 'o3']));
+  assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--model', 'gpt-5.1-codex']));
+  assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--model', 'openai/gpt-5']));
+  assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--model', 'gpt 5']));
 });

@@ -9,6 +9,7 @@ export function fmString(key, value) {
 export function renderFrontmatter({
   mode, task, slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion,
   planPath, cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
+  codexModelRequested, codexEffortRequested,
 }) {
   const lines = ['---'];
   lines.push(`mode: ${mode}`);
@@ -25,6 +26,8 @@ export function renderFrontmatter({
   if (planPath) lines.push(fmString('plan-path', planPath));
   lines.push(fmString('cwd', cwd));
   lines.push(fmString('git-head', gitHead));
+  if (codexModelRequested) lines.push(fmString('codex-model-requested', codexModelRequested));
+  if (codexEffortRequested) lines.push(fmString('codex-effort-requested', codexEffortRequested));
   if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
   lines.push(`codex-resume-status: ${codexResumeStatus}`);
   if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
@@ -36,6 +39,7 @@ export function renderFrontmatter({
 export function renderCodeReviewFrontmatter({
   slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion, gitHead, reviewTarget, baseRef, commit, title,
   cwd, codexThreadId, codexResumeStatus, codexResumedFrom,
+  codexModelRequested, codexEffortRequested,
 }) {
   const lines = ['---'];
   lines.push('mode: code-review');
@@ -51,6 +55,8 @@ export function renderCodeReviewFrontmatter({
   if (reviewTarget === 'commit') lines.push(fmString('commit', commit));
   if (title) lines.push(fmString('title', title));
   lines.push(fmString('cwd', cwd));
+  if (codexModelRequested) lines.push(fmString('codex-model-requested', codexModelRequested));
+  if (codexEffortRequested) lines.push(fmString('codex-effort-requested', codexEffortRequested));
   if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
   lines.push(`codex-resume-status: ${codexResumeStatus}`);
   if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
@@ -62,6 +68,7 @@ export function renderCodeReviewFrontmatter({
 export function renderDocsReviewFrontmatter({
   slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion, docsTarget, diffBase,
   cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
+  codexModelRequested, codexEffortRequested,
 }) {
   const lines = ['---'];
   lines.push('mode: docs-review');
@@ -75,6 +82,8 @@ export function renderDocsReviewFrontmatter({
   if (diffBase) lines.push(fmString('diff-base', diffBase));
   lines.push(fmString('cwd', cwd));
   lines.push(fmString('git-head', gitHead));
+  if (codexModelRequested) lines.push(fmString('codex-model-requested', codexModelRequested));
+  if (codexEffortRequested) lines.push(fmString('codex-effort-requested', codexEffortRequested));
   if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
   lines.push(`codex-resume-status: ${codexResumeStatus}`);
   if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
