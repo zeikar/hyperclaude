@@ -6,34 +6,37 @@ Operational backstops for `hyper-plan-loop`. The shared cross-loop protocol (tea
 
 These fill the shared `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` binding holes for the plan-loop:
 
-- **Teammate role-name:** `planner`.
+- **Teammate role-name:** `planner`. This is also `teammate_name = "planner"` — the PRIMARY handle tried first on every first send, per the §A send-resolution procedure in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
 - **Reply-token-with-id shape** (binds the shared §E "parse leading `<loop-bound reply-token-with-id>`" hole): `WROTE: <integer>`. The trailing token after the integer is the path payload.
 - **Accept rule** (binds the shared §E "loop-bound accept rule" hole): the exact regex `^WROTE: <expected id> <exact resolved plan path from Step 1>\s*$` (path = entire remaining string, verbatim) plus the no-prose / no-preamble / no-body-echo rule. On any body echo, added prose, preamble, or a different path at the matching-id step → §1 corrective + escalation.
 - **Post-acceptance validation stage** (binds the shared §E "loop-bound post-acceptance validation" hole): the file/structure check — `[ -s "<resolved plan path>" ]` for existence + the `node -e ...^##\s*Task\s` regex one-liner from SKILL.md Step 7. This is the "PLAN VALIDATION ACCEPTED" stage in plan-loop terms.
 - **Named-loop-report strings** (bind the shared `<loop-name>` placeholder): `hyper-plan-loop reply-contract failure`, `hyper-plan-loop planner-write failure`, `hyper-plan-loop planner format, iter N`.
 - **State-field name reminder:** the shared file calls the awaiting-state field `awaiting_reply`; plan-loop uses that exact name throughout.
+- **Send-resolution:** all lead→planner `SendMessage` `to:` addresses (correctives, teardown) are resolved via the §A send-resolution procedure in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
 
 ## §1 — Anchored reply gate: corrective + escalation
 
 The anchored reply gate (SKILL.md Step 4) is the accept condition for EVERY planner reply in write-file mode (initial write, any retry, and every Step 7 revise redo). The gate definition stays in SKILL.md; this section is the failure handling.
 
-On any body echo, added prose, preamble, or a different path: mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective message that carries the new id:
+On any body echo, added prose, preamble, or a different path: mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective message that carries the new id, addressed via the §A send-resolution procedure:
 
 ```
 SendMessage({
-  to: teammate_id,
+  to: <resolved via §A send-resolution procedure>,
   summary: "Reply contract: WROTE: <id> <path> only — request <id>",
   message: "<re-state: use Write or Edit to update the plan at the exact resolved path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else — no plan body, no prose, no preamble; id is <new request_id_counter value>>"
 })
 ```
 
+**B2 note — initial corrective can be the FIRST lead→planner send:** in plan-loop the initial planner solicitation is the Agent SPAWN (not a lead→planner `SendMessage`). If the planner's initial `WROTE:` reply is malformed, or the plan file is missing or empty, THIS §1 corrective is the first lead→planner `SendMessage` and `resolved_handle` is still UNSET. The §A send-resolution procedure therefore runs its full R1 first-send fallback (try `teammate_name` bare name first; fall back once to `teammate_id`; cache the winner into `resolved_handle`). Only correctives that fire AFTER a successful revise `SendMessage` may assume `resolved_handle` is already cached. Do NOT claim correctives are by construction never the first send.
+
 If the next reply still fails the anchored gate → Step 8 teardown, then STOP (**"hyper-plan-loop reply-contract failure"**).
 
-**File check failure (only reached after the gate passes):** if `[ -s "<resolved plan path>" ]` shows the file missing or empty, this is a fresh solicitation — mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective message:
+**File check failure (only reached after the gate passes):** if `[ -s "<resolved plan path>" ]` shows the file missing or empty, this is a fresh solicitation — mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective message addressed via the §A send-resolution procedure:
 
 ```
 SendMessage({
-  to: teammate_id,
+  to: <resolved via §A send-resolution procedure>,
   summary: "File not written — re-Write at exact path — request <id>",
   message: "<the file at <resolved plan path> is missing or empty; use Write to write the full plan to that exact path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else; id is <new request_id_counter value>>"
 })

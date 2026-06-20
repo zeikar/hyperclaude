@@ -6,12 +6,13 @@ Operational backstops for `hyper-implement-loop`. The shared cross-loop protocol
 
 These fill the shared `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` binding holes for the implement-loop:
 
-- **Teammate role-name:** `fixer`.
+- **Teammate role-name:** `fixer`. This is also `teammate_name = "fixer"` — the PRIMARY handle tried first on every first send, per the §A send-resolution procedure in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
 - **Reply-token-with-id shape** (binds the shared §E "parse leading `<loop-bound reply-token-with-id>`" hole): `request-id: <integer>` on the FIRST non-blank line of the reply body. The integer is the `<reqid>` for shared §E classification. The rest of the body is the structured findings schema; correctives re-enter the full §1 / §3 pipeline (same accept rule), they do NOT relax it. (Note: §B's idle-correction tolerates a content-free "ok, waiting" ack ONCE — but that is an unsolicited-message tolerance handled at the §B layer, NOT a relaxation of this accept rule.)
 - **Accept rule** (binds the shared §E "loop-bound accept rule" hole): (a) id-classification routing per §1's pre-gate paragraph (older → stale branch, future → teardown, absent/malformed → corrective, matching → continue); THEN (b) the structured-schema requirements from §1's schema gate (every cited finding has its own `finding:` / `status:` / `files-changed:` / `verification:` / `notes:` block; `status` ∈ {`fixed`, `not-applicable`}; `notes:` required when `status: not-applicable`; no diff dump / no patch block / no source-body echo). Id-classification is the outer wrapper — the schema gate only fires on a matching id.
 - **Post-acceptance validation stage** (binds the shared §E "loop-bound post-acceptance validation" hole): the semantic finding-map check from §3 (every cited blocking finding maps to `status: fixed` OR `status: not-applicable` with a non-empty `notes:` reason).
 - **Named-loop-report strings** (bind the shared `<loop-name>` placeholder): `hyper-implement-loop reply-contract failure`, `hyper-implement-loop fixer format, iter N`, `hyper-implement-loop teardown`, `hyper-implement-loop unparseable review, iter N`, `hyper-implement-loop bridge failure, iter N`, `hyper-implement-loop fix loop`.
 - **State-field name reminder:** the shared file calls the awaiting-state field `awaiting_reply`; implement-loop's SKILL.md uses that exact name (added in Task 10).
+- **Send-resolution:** all lead→fixer `SendMessage` `to:` addresses (correctives, teardown) are resolved via the §A send-resolution procedure in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`. The fixer spawn is non-soliciting; the FIRST lead→fixer `SendMessage` is the Step 7 fix-round findings send. By the time any §1 or §3 corrective fires, `resolved_handle` is already cached (short-circuits R1 to a direct send) — but correctives still phrase the send via the §A procedure, not as a hardcoded `to: resolved_handle`.
 
 ## §1 — Anchored reply gate: corrective + escalation
 
@@ -35,11 +36,11 @@ Small extra prose (a one-line summary, a brief comment before or after the block
 
 There is no single output-file path to verify. The gate applies to the fixer's reply structure only — the lead does not perform a filesystem existence check here.
 
-On any gate failure, mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective message that carries the new id:
+On any gate failure, mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective message that carries the new id, addressed via the §A send-resolution procedure (with `resolved_handle` already cached by this point — the §A procedure short-circuits to it):
 
 ```
 SendMessage({
-  to: teammate_id,
+  to: <resolved via §A send-resolution procedure>,
   summary: "Reply contract: structured schema only — request <id>",
   message: "<re-state: prefix the reply with `request-id: <id>` on the first non-blank line; then for every cited finding emit finding:/status:/files-changed:/verification:/notes: fields on their own lines; status must be exactly 'fixed' or 'not-applicable'; notes: is required when status: not-applicable; no diff dump, no patch block, no source-body echo; small prose summary is tolerated but must not replace the schema; id is <new request_id_counter value>>"
 })
@@ -59,7 +60,7 @@ There is **NO git-working-tree / no-op / `.bak` / restore mechanism**. A fixer t
 
 **Gate failure in Step 7:** apply §1 (initial corrective + escalation to **"hyper-implement-loop reply-contract failure"** via Step 8 teardown if it still fails).
 
-**Semantic finding-map check (step 3 of the pipeline):** the lead reads the fixer reply in context and verifies that each cited blocking finding is accounted for. If one or more findings are unmet (status missing, or `fixed` but the lead judges the explanation impossible, or the required `notes:` for `not-applicable` is absent or empty): mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective `SendMessage` (with `summary: "... request <id>"`) re-issuing only the unmet findings and instructing the fixer to address them. The redo reply must echo `request-id: <new id>` and re-enters the FULL pipeline from step (1): id-classification routing → schema gate → semantic finding-map check. If the redo still fails the semantic check → Step 8 teardown, then STOP (**"hyper-implement-loop fixer format, iter N"**), surfacing the unmet findings for manual triage. The loop does NOT auto-restore — the code tree is left as the fixer last touched it.
+**Semantic finding-map check (step 3 of the pipeline):** the lead reads the fixer reply in context and verifies that each cited blocking finding is accounted for. If one or more findings are unmet (status missing, or `fixed` but the lead judges the explanation impossible, or the required `notes:` for `not-applicable` is absent or empty): mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective `SendMessage` (with `summary: "... request <id>"`) addressed via the §A send-resolution procedure (`resolved_handle` is already cached by this point — the §A procedure short-circuits to it), re-issuing only the unmet findings and instructing the fixer to address them. The redo reply must echo `request-id: <new id>` and re-enters the FULL pipeline from step (1): id-classification routing → schema gate → semantic finding-map check. If the redo still fails the semantic check → Step 8 teardown, then STOP (**"hyper-implement-loop fixer format, iter N"**), surfacing the unmet findings for manual triage. The loop does NOT auto-restore — the code tree is left as the fixer last touched it.
 
 **Invalid-finding path:** a finding the fixer returns as `not-applicable` with a non-empty `notes:` reason is treated as **addressed** for gate purposes and does not block the loop. The next Codex re-review is the arbiter: if Codex drops the finding the loop continues normally; if Codex re-raises it, it re-enters the normal loop and counts toward the cap.
 
