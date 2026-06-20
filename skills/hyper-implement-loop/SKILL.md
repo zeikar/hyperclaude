@@ -202,7 +202,7 @@ Exact procedure (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C for
 
 Reached only on Step 6's clean (no-blocking) exit — cap-reached and failure STOPs emit their own reports in Step 8 and never arrive here.
 
-**Convergence commit (post-teardown).** Now that the fixer teammate is torn down (Step 8), the lead commits its uncommitted fix edits **once** on the current feature branch — the fixer never commits (invariant), and teardown-first means no teammate is live during the git ops. `git add -A` carries the same scoping as hyper-implement's per-task commit (clean-tree preflight + gitignored `.hyperclaude/`); if autonomous verification left unrelated untracked files they ride in too — same exposure as hyper-implement, so eyeball the diff before pushing. This is the loop's ONLY commit:
+**Convergence commit (after Step 8 shutdown_request).** The lead commits its uncommitted fix edits **once** on the current feature branch — the fixer never commits (invariant). The no-wait teardown (§C) sends a shutdown_request best-effort and proceeds immediately: the fixer may remain live until session-exit auto-cleanup, but it is AT REST (idle since its last reply) and the lead sends it nothing during the git ops, so it performs no concurrent edits. `git add -A` carries the same scoping as hyper-implement's per-task commit (clean-tree preflight + gitignored `.hyperclaude/`); if autonomous verification left unrelated untracked files they ride in too — same exposure as hyper-implement, so eyeball the diff before pushing. This is the loop's ONLY commit:
 
 ```bash
 git add -A

@@ -203,7 +203,7 @@ Exact procedure (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C for
 
 ### Step 9 — Final report
 
-After successful teardown, report:
+After the Step 8 teardown attempt (shutdown_request sent best-effort, no-wait), report:
 
 - All `reviewArtifacts[]` paths.
 - Review iterations consumed.

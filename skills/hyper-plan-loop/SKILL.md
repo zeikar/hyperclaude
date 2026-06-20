@@ -212,7 +212,7 @@ On cap-reached, FIRST capture the cap report details (iterations consumed, resid
 
 (Cap is only reachable via Step 7, which only runs when the latest review had blocking findings — so cap-reached always means "blocking findings still open." A run where Codex returns non-blocking-only at any iteration exits cleanly via Step 6 before the cap can trip.)
 
-**Teardown is MANDATORY on EVERY exit path once the Step 3 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure (anchored gate / unsolicited-message protocol), planner-write failure, planner-format failure, plus any other unexpected tool error while the planner teammate is live. Run teardown FIRST, then report/STOP — never before. Teardown consists of a graceful shutdown exchange only (no explicit team-delete call — the team is cleaned up automatically on session exit).
+**Teardown is MANDATORY on EVERY exit path once the Step 3 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure (anchored gate / unsolicited-message protocol), planner-write failure, planner-format failure, plus any other unexpected tool error while the planner teammate is live. Run teardown FIRST, then report/STOP — never before. Teardown consists of a best-effort shutdown_request only; no explicit team-delete call (the team is cleaned up automatically on session exit).
 
 Exact procedure (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C for the full no-wait + degrade-path-branch procedure):
 
@@ -221,7 +221,7 @@ Exact procedure (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C for
 
 ### Step 9 — Final report
 
-After successful teardown, report:
+After the Step 8 teardown attempt (shutdown_request sent best-effort, no-wait), report:
 
 - The plan path.
 - Whether the slug was reused from research artifact(s) or freshly derived.
