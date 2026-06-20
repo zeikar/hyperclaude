@@ -735,8 +735,15 @@ for f in \
   fi
 done
 
-# Positive: teammate_id contract — every SKILL.md, failure-protocol.md, and the
-# shared loop-protocol must carry the 'teammate_id' run-state field name.
+# Positive: dual-handle / send-resolution contract. The durable dual-handle
+# marker 'resolved_handle' (cached by the §A send-resolution procedure) is
+# required in ALL 7 files. The literal 'teammate_id' fallback-handle field is
+# required in the 5 files that name it directly; the implement/docs-loop
+# failure-protocol.md express the fallback purely via 'resolved_handle' + the
+# bare-'teammate_name'-primary phrasing (Task-1-3 commit 77da235 deliberately
+# removed their literal 'to: teammate_id' line), so they are NOT required to
+# carry the bare 'teammate_id' token — their dual-handle binding is locked by
+# 'resolved_handle' here plus the per-loop teammate_name binding below.
 for f in \
   skills/hyper-plan-loop/SKILL.md \
   skills/hyper-implement-loop/SKILL.md \
@@ -745,15 +752,57 @@ for f in \
   skills/hyper-implement-loop/references/failure-protocol.md \
   skills/hyper-docs-loop/references/failure-protocol.md \
   references/loop-protocol.md; do
-  if grep -q 'teammate_id' "$f" 2>/dev/null; then
-    ok "$f: contains 'teammate_id' (id-resolution contract)"
+  if grep -q 'resolved_handle' "$f" 2>/dev/null; then
+    ok "$f: contains 'resolved_handle' (durable dual-handle / send-resolution marker)"
   else
-    miss "$f: missing 'teammate_id' (id-resolution contract)"
+    miss "$f: missing 'resolved_handle' (durable dual-handle / send-resolution marker)"
   fi
 done
 
-# Negative: no literal lead→teammate name sends remain (to: "planner" / "fixer" / "documenter").
-# loop-protocol.md is EXEMPT — it retains the abstract <teammate-name> alias by design.
+for f in \
+  skills/hyper-plan-loop/SKILL.md \
+  skills/hyper-implement-loop/SKILL.md \
+  skills/hyper-docs-loop/SKILL.md \
+  skills/hyper-plan-loop/references/failure-protocol.md \
+  references/loop-protocol.md; do
+  if grep -q 'teammate_id' "$f" 2>/dev/null; then
+    ok "$f: contains 'teammate_id' (fallback-handle field)"
+  else
+    miss "$f: missing 'teammate_id' (fallback-handle field)"
+  fi
+done
+
+# Per-loop name binding: each of the 6 loop files must bind its OWN role name
+# as the PRIMARY handle ('teammate_name = "<role>"') so a loop file cannot omit
+# its name binding and still pass. loop-protocol.md is the abstract base — it is
+# checked above for the 'teammate_name' word, not a concrete role name.
+for pair in \
+  'skills/hyper-plan-loop/SKILL.md:planner' \
+  'skills/hyper-plan-loop/references/failure-protocol.md:planner' \
+  'skills/hyper-implement-loop/SKILL.md:fixer' \
+  'skills/hyper-implement-loop/references/failure-protocol.md:fixer' \
+  'skills/hyper-docs-loop/SKILL.md:documenter' \
+  'skills/hyper-docs-loop/references/failure-protocol.md:documenter'; do
+  f="${pair%:*}"
+  role="${pair##*:}"
+  if grep -qF "teammate_name = \"$role\"" "$f" 2>/dev/null; then
+    ok "$f: binds teammate_name = \"$role\" (PRIMARY handle)"
+  else
+    miss "$f: missing teammate_name = \"$role\" PRIMARY-handle binding"
+  fi
+done
+
+# Negative (B4-a): no stale hardcoded PRIMARY id-only send remains in the 6 loop
+# files. The reversed contract routes every lead→teammate send via the §A
+# procedure (bare teammate_name PRIMARY → teammate_id FALLBACK once → cache
+# resolved_handle), NEVER a hardcoded 'to: teammate_id' primary send.
+#
+# Discriminator: a REAL stale send appears un-backticked as a SendMessage arg
+# (`to: teammate_id`). The migrated files DO legitimately contain the
+# backtick-wrapped anti-pattern prose `to: teammate_id` ("Hardcoding `to:
+# teammate_id` as the primary handle ...") — those describe what NOT to do and
+# must NOT trip. Anchoring on a non-backtick char before 'to:' (or line start)
+# matches the code-form send while skipping the backtick-quoted prose.
 for f in \
   skills/hyper-plan-loop/SKILL.md \
   skills/hyper-implement-loop/SKILL.md \
@@ -761,12 +810,46 @@ for f in \
   skills/hyper-plan-loop/references/failure-protocol.md \
   skills/hyper-implement-loop/references/failure-protocol.md \
   skills/hyper-docs-loop/references/failure-protocol.md; do
-  if grep -qE 'to:[[:space:]]*"(planner|fixer|documenter)"' "$f" 2>/dev/null; then
-    miss "$f: contains literal lead→teammate role-name send (to: \"planner\"/\"fixer\"/\"documenter\") — must use teammate_id"
+  if grep -nE '(^|[^`])to:[[:space:]]*teammate_id' "$f" 2>/dev/null | grep -q .; then
+    miss "$f: contains stale hardcoded PRIMARY 'to: teammate_id' send — must route via the §A send-resolution procedure"
   else
-    ok "$f: no literal lead→teammate role-name send (id-only addressing)"
+    ok "$f: no stale hardcoded PRIMARY 'to: teammate_id' send (routes via §A)"
   fi
 done
+
+# Negative (central, SOURCE-OF-TRUTH): references/loop-protocol.md is
+# authoritative — the positive §A check alone can pass while stale central
+# wording survives alongside the new text. FAIL if the migrated file still
+# carries a hardcoded primary 'to: teammate_id' send (un-backticked, as above)
+# OR an "address every send to teammate_id" / "id-only" addressing RULE. The
+# legitimate FALLBACK mention ("fall back once to `teammate_id`", the bare word)
+# must NOT trip — that is why the bare word is NOT in the pattern.
+if grep -nE '(^|[^`])to:[[:space:]]*teammate_id|address every (lead.teammate )?(send|SendMessage) (to )?teammate_id|id-only' references/loop-protocol.md 2>/dev/null | grep -q .; then
+  miss "references/loop-protocol.md: stale hardcoded-primary / id-only addressing wording present (must route via the §A send-resolution procedure)"
+else
+  ok "references/loop-protocol.md: no stale hardcoded-primary / id-only addressing rule (routes via §A)"
+fi
+
+# Positive (B4-b): §A carries the actual first-send fallback ALGORITHM, not just
+# a token — require all of resolved_handle / first-send marker / teammate_name /
+# the named procedure.
+if grep -q 'resolved_handle' references/loop-protocol.md 2>/dev/null \
+   && grep -qE 'first.send|FIRST-SEND' references/loop-protocol.md 2>/dev/null \
+   && grep -q 'teammate_name' references/loop-protocol.md 2>/dev/null \
+   && grep -q 'send-resolution procedure' references/loop-protocol.md 2>/dev/null; then
+  ok "references/loop-protocol.md §A: first-send fallback algorithm present (resolved_handle + first-send + teammate_name + send-resolution procedure)"
+else
+  miss "references/loop-protocol.md §A: first-send fallback algorithm incomplete (need resolved_handle + first-send + teammate_name + send-resolution procedure)"
+fi
+
+# Positive (§C object-shutdown shape): teardown shutdown_request is the OBJECT
+# { type: "shutdown_request" }, and the STRING form is explicitly rejected.
+if grep -q '{ type: "shutdown_request" }' references/loop-protocol.md 2>/dev/null \
+   && grep -qE 'summary is required|string.*rejected|string form' references/loop-protocol.md 2>/dev/null; then
+  ok "references/loop-protocol.md §C: object shutdown shape pinned ({ type: \"shutdown_request\" }) + string form rejected"
+else
+  miss "references/loop-protocol.md §C: object shutdown shape / string-rejected wording missing"
+fi
 
 # No-wait teardown: loop-protocol.md §C must contain 'best-effort' AND must NOT
 # contain the old rejected-shutdown recovery phrase ('approve: false').
