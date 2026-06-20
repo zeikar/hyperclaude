@@ -62,7 +62,7 @@ printf '### Prior Art\\n- nothing\\n' > "$last_path"
 printf '%s\\n' '{"type":"thread.started","thread_id":"00000000-0000-0000-0000-000000000001"}'
 printf '%s\\n' '{"type":"turn.started"}'
 printf '%s\\n' '{"type":"item.completed","item":{"item_type":"agent_message","text":"### Prior Art\\n- nothing\\n"}}'
-printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}'
+printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":2,"output_tokens":5,"reasoning_output_tokens":1}}'
 exit 0
 `;
 
@@ -105,7 +105,7 @@ printf '## Findings\\n- none\\n' > "$last_path"
 printf '%s\\n' '{"type":"thread.started","thread_id":"00000000-0000-0000-0000-0000000000cr"}'
 printf '%s\\n' '{"type":"turn.started"}'
 printf '%s\\n' '{"type":"item.completed","item":{"item_type":"agent_message","text":"## Findings\\n- none\\n"}}'
-printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":8,"output_tokens":4}}'
+printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":8,"cached_input_tokens":3,"output_tokens":4,"reasoning_output_tokens":2}}'
 exit 0
 `;
 
@@ -148,7 +148,7 @@ printf '### Findings\\n- none\\n' > "$last_path"
 printf '%s\\n' '{"type":"thread.started","thread_id":"00000000-0000-0000-0000-0000000000d0"}'
 printf '%s\\n' '{"type":"turn.started"}'
 printf '%s\\n' '{"type":"item.completed","item":{"item_type":"agent_message","text":"### Findings\\n- none\\n"}}'
-printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":7,"output_tokens":3}}'
+printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":7,"cached_input_tokens":4,"output_tokens":3,"reasoning_output_tokens":0}}'
 exit 0
 `;
 
@@ -228,6 +228,10 @@ test('mock codex: bridge spawns codex exec with --json + --output-last-message i
       outputContent.includes('### Prior Art'),
       'output file should include the body from --output-last-message'
     );
+    assert.ok(outputContent.includes('codex-input-tokens: 10'), 'frontmatter has codex-input-tokens');
+    assert.ok(outputContent.includes('codex-cached-input-tokens: 2'), 'frontmatter has codex-cached-input-tokens');
+    assert.ok(outputContent.includes('codex-output-tokens: 5'), 'frontmatter has codex-output-tokens');
+    assert.ok(outputContent.includes('codex-reasoning-output-tokens: 1'), 'frontmatter has codex-reasoning-output-tokens');
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }
@@ -280,6 +284,7 @@ test('mock codex: bridge handles failed codex (exit 7) — writes file and repor
     assert.ok(outputContent.includes('mock codex failure'), 'stderr verbatim');
     // Exit line.
     assert.ok(/status=7,\s*signal=(?:null|SIG[A-Z]+),\s*timed-out=false/.test(outputContent), 'exit line with status=7');
+    assert.ok(!outputContent.includes('codex-input-tokens'), 'no usage keys when codex emitted no turn.completed');
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }
@@ -350,6 +355,10 @@ test('mock codex: code-review --base main spawns codex exec --sandbox read-only 
     assert.ok(outputContent.includes('codex-thread-id:'), 'frontmatter should contain codex-thread-id');
     assert.ok(outputContent.includes('codex-resume-status: fresh'), 'frontmatter should contain codex-resume-status: fresh');
     assert.ok(outputContent.includes('## Findings'), 'body should include fake review output');
+    assert.ok(outputContent.includes('codex-input-tokens: 8'), 'frontmatter has codex-input-tokens');
+    assert.ok(outputContent.includes('codex-cached-input-tokens: 3'), 'frontmatter has codex-cached-input-tokens');
+    assert.ok(outputContent.includes('codex-output-tokens: 4'), 'frontmatter has codex-output-tokens');
+    assert.ok(outputContent.includes('codex-reasoning-output-tokens: 2'), 'frontmatter has codex-reasoning-output-tokens');
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }
@@ -537,6 +546,7 @@ test('mock codex: code-review failure (exit 7) writes structured failure body an
     assert.ok(outputContent.includes('## stderr'), 'stderr section present');
     assert.ok(outputContent.includes('mock review failure'), 'stderr verbatim');
     assert.ok(/status=7,\s*signal=(?:null|SIG[A-Z]+),\s*timed-out=false/.test(outputContent), 'exit line with status=7');
+    assert.ok(!outputContent.includes('codex-input-tokens'), 'no usage keys when codex emitted no turn.completed');
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }
@@ -665,6 +675,10 @@ test('mock codex: docs-review --docs-path spawns codex exec --sandbox read-only 
       assert.ok(outputContent.includes('template-version: 1'), 'frontmatter should contain template-version: 1');
       assert.ok(outputContent.includes('docs-target:'), 'frontmatter should contain docs-target:');
       assert.ok(outputContent.includes('### Findings'), 'body should include fake codex output');
+      assert.ok(outputContent.includes('codex-input-tokens: 7'), 'frontmatter has codex-input-tokens');
+      assert.ok(outputContent.includes('codex-cached-input-tokens: 4'), 'frontmatter has codex-cached-input-tokens');
+      assert.ok(outputContent.includes('codex-output-tokens: 3'), 'frontmatter has codex-output-tokens');
+      assert.ok(outputContent.includes('codex-reasoning-output-tokens: 0'), 'frontmatter has codex-reasoning-output-tokens');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
@@ -977,7 +991,7 @@ printf '### Updated Critique\\n- no new issues\\n' > "$last_path"
 printf '%s\\n' '{"type":"thread.started","thread_id":"00000000-0000-0000-0000-000000000099"}'
 printf '%s\\n' '{"type":"turn.started"}'
 printf '%s\\n' '{"type":"item.completed","item":{"item_type":"agent_message","text":"### Updated Critique\\n- no new issues\\n"}}'
-printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":5,"output_tokens":3}}'
+printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":5,"cached_input_tokens":1,"output_tokens":3,"reasoning_output_tokens":0}}'
 exit 0
 `;
 
@@ -998,7 +1012,7 @@ done
 cat > "$(dirname "$0")/stdin.log"
 printf '### Resumed body\\n' > "$last_path"
 printf '%s\\n' '{"type":"turn.started"}'
-printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":2,"output_tokens":1}}'
+printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":2,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0}}'
 exit 0
 `;
 
