@@ -229,6 +229,14 @@ Three related decisions stemming from a 2026-06-20 dogfood run (`SendMessage{to:
 
 **(c) Effective model and reasoning-effort are NOT recorded.** The `codex exec --json` event stream does not carry effective model or effort: `thread.started` carries only `thread_id`; `turn.completed` carries only `usage`; there is no `session_configured` or equivalent event. Recording effective model/effort would require either an extra `codex` spawn (rejected — doubles latency, doubles cost) or hardcoding the CLI's default (rejected — ties the bridge to Codex CLI internals that can change). The existing absence-means-flagless-invocation semantics of `codex-model-requested` / `codex-effort-requested` are unaffected — the resume contract is unchanged.
 
+### 2026-06-20 — `planner` gains `Edit` for in-place plan revision; write-file reply contract unchanged
+
+**(a) Why.** In caller-directed write-file mode the planner previously had only `Write`, so every `hyper-plan-loop` revise round re-emitted the entire plan. For large plans that wastes output tokens and risks the model unintentionally altering tasks the findings never touched. Adding `Edit` lets the planner patch the cited sections in place.
+
+**(b) Contract unchanged — added capability, not a new mode.** The write-file reply token stays `WROTE: <reqid> <path>` whether the planner used `Write` (initial creation) or `Edit` (later revision). The anchored reply gate, the post-acceptance structure `ok`/`bad` check, the exact-path rule, and `--resume` keying are all unaffected — `Edit` and `Write` both land the same file at the same path. No new reply shape or output mode was introduced.
+
+**(c) Scope.** `Edit` is for the planner's OWN plan artifact only — the agent still writes/edits no other file (code/tests/other docs remain the implementer's / fixer's / documenter's job). The initial write and the missing-file corrective still use `Write` (there is no file to edit yet); revise rounds and the gate/structure correctives may use either.
+
 ---
 
 ## Pointers (decisions documented elsewhere)

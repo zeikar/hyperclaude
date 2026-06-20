@@ -23,7 +23,7 @@ On any body echo, added prose, preamble, or a different path: mint a new id per 
 SendMessage({
   to: teammate_id,
   summary: "Reply contract: WROTE: <id> <path> only — request <id>",
-  message: "<re-state: use Write to write the full plan to the exact resolved path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else — no plan body, no prose, no preamble; id is <new request_id_counter value>>"
+  message: "<re-state: use Write or Edit to update the plan at the exact resolved path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else — no plan body, no prose, no preamble; id is <new request_id_counter value>>"
 })
 ```
 
@@ -57,7 +57,7 @@ There is no no-op / unchanged-plan detection. A planner that replies `WROTE:` bu
 
 **Structure check (step 2 of the pipeline):** the SKILL.md one-liner prints only `ok` or `bad`. The try/catch in it is load-bearing: any read failure (the planner deleted or clobbered the canonical path) prints `bad` instead of throwing — so a missing/unreadable file routes through the corrective path here, not to teardown as an unexpected tool error.
 
-If `bad` (the planner clobbered the canonical path with malformed content, OR the file is missing/unreadable): mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective `SendMessage` (with `summary: "... request <id>"`) instructing the planner to redo the revision and re-Write the exact resolved plan path, passing the new id and requiring `WROTE: <that new id> <exact resolved path>`. That corrective's reply re-enters the FULL pipeline from step (1): id-first parse → anchored reply gate → structure `ok`/`bad` check — the gate now expects that NEWEST `expected_request_id`. If the redo is still `bad` at the structure step → Step 8 teardown, then STOP (**"hyper-plan-loop planner format, iter N"**), surfacing the resolved plan path for manual triage. The loop does NOT auto-restore — the plan file is left as the planner last wrote it; `/hyperclaude:hyper-plan` regenerates it in one step. Only Read the full file into lead context for that human-facing failure diagnostic — never on the success path.
+If `bad` (the planner clobbered the canonical path with malformed content, OR the file is missing/unreadable): mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective `SendMessage` (with `summary: "... request <id>"`) instructing the planner to redo the revision and re-Write (or Edit) the exact resolved plan path, passing the new id and requiring `WROTE: <that new id> <exact resolved path>`. That corrective's reply re-enters the FULL pipeline from step (1): id-first parse → anchored reply gate → structure `ok`/`bad` check — the gate now expects that NEWEST `expected_request_id`. If the redo is still `bad` at the structure step → Step 8 teardown, then STOP (**"hyper-plan-loop planner format, iter N"**), surfacing the resolved plan path for manual triage. The loop does NOT auto-restore — the plan file is left as the planner last wrote it; `/hyperclaude:hyper-plan` regenerates it in one step. Only Read the full file into lead context for that human-facing failure diagnostic — never on the success path.
 
 On `ok`: Step 7 increments the iteration, re-invokes the bridge with `--resume auto`, then loops back to Step 6.
 

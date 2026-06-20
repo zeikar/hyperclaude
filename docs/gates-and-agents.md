@@ -211,7 +211,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 
 ### `planner`
 
-- **Tools:** `Read, Glob, Grep, Bash, WebFetch, Write`. In caller-directed write-file mode (used only by `hyper-plan-loop`), the planner writes the plan file itself at the lead-resolved path and replies `WROTE: <reqid> <path>`, echoing the lead-supplied per-request id. In the standard flow (`hyper-plan`), the planner returns the plan body and the skill owns the Write.
+- **Tools:** `Read, Edit, Glob, Grep, Bash, WebFetch, Write`. In caller-directed write-file mode (used only by `hyper-plan-loop`), the planner writes the plan file itself at the lead-resolved path and replies `WROTE: <reqid> <path>`, echoing the lead-supplied per-request id; on a later revise round it may `Edit` that same file in place instead of re-writing it wholesale (the reply is still `WROTE: <reqid> <path>` — `Edit` is an added capability, not a contract change). In the standard flow (`hyper-plan`), the planner returns the plan body and the skill owns the Write.
 - **Job:** decompose a task into ordered, bite-sized steps with file paths and per-step verification checks. Produces a numbered plan, typically saved to `.hyperclaude/plans/<timestamp>-<slug>.md` for `hyper-plan-review` to consume.
 - **Source:** [agents/planner.md](../agents/planner.md).
 
