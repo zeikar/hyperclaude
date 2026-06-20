@@ -3,11 +3,13 @@
 // the rest is mode-dispatched flag handling with strict allow-listing.
 
 const ALLOWED_FLAGS_PER_MODE = {
-  research:      new Set(['--task', '--task-file', '--slug', '--out', '--dry-run', '--timeout']),
-  'plan-review': new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout', '--resume']),
-  'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--out', '--dry-run', '--timeout', '--resume']),
-  'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--timeout', '--resume']),
+  research:      new Set(['--task', '--task-file', '--slug', '--out', '--dry-run', '--timeout', '--model', '--effort']),
+  'plan-review': new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout', '--resume', '--model', '--effort']),
+  'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--out', '--dry-run', '--timeout', '--resume', '--model', '--effort']),
+  'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--timeout', '--resume', '--model', '--effort']),
 };
+
+const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh']);
 
 export function parseArgs(argv) {
   const [mode, ...rest] = argv;
@@ -32,6 +34,8 @@ export function parseArgs(argv) {
     docsDir: null,
     diffBase: null,
     resumeFrom: null,
+    model: null,
+    effort: null,
   };
   for (let i = 0; i < rest.length; i++) {
     const flag = rest[i];
@@ -112,6 +116,18 @@ export function parseArgs(argv) {
           throw new Error(`--resume must be a non-empty path or "auto" (no leading dash), got: "${v}"`);
         }
         out.resumeFrom = v;
+        break;
+      }
+      case '--model': {
+        const v = next();
+        if (!v || v.startsWith('-')) throw new Error(`--model must be a non-empty model name with no leading dash, got: "${v}"`);
+        out.model = v;
+        break;
+      }
+      case '--effort': {
+        const v = next();
+        if (!ALLOWED_EFFORTS.has(v)) throw new Error(`--effort must be one of low|medium|high|xhigh, got: "${v}"`);
+        out.effort = v;
         break;
       }
     }
