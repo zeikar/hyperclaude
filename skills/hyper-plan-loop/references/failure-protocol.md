@@ -12,7 +12,8 @@ These fill the shared `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` bindin
 - **Post-acceptance validation stage** (binds the shared §E "loop-bound post-acceptance validation" hole): the file/structure check — `[ -s "<resolved plan path>" ]` for existence + the `node -e ...^##\s*Task\s` regex one-liner from SKILL.md Step 7. This is the "PLAN VALIDATION ACCEPTED" stage in plan-loop terms.
 - **Named-loop-report strings** (bind the shared `<loop-name>` placeholder): `hyper-plan-loop reply-contract failure`, `hyper-plan-loop planner-write failure`, `hyper-plan-loop planner format, iter N`.
 - **State-field name reminder:** the shared file calls the awaiting-state field `awaiting_reply`; plan-loop uses that exact name throughout.
-- **Send-resolution:** all lead→planner `SendMessage` `to:` addresses (correctives, teardown) are resolved via the §A send-resolution procedure in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
+- **Send-resolution:** all lead→planner `SendMessage` `to:` addresses (correctives, teardown) are resolved via the §A send-resolution procedure in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`. On the live-mailbox main path every send is addressed to bare `teammate_name` directly — no handle-resolution step, no cache.
+[DEGRADE] On a degraded host the `agent_id` fallback and `resolved_handle` cache apply instead — see §A-DEGRADE D1 in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
 
 ## §1 — Anchored reply gate: corrective + escalation
 
@@ -28,7 +29,8 @@ SendMessage({
 })
 ```
 
-**B2 note — initial corrective can be the FIRST lead→planner send:** in plan-loop the initial planner solicitation is the Agent SPAWN (not a lead→planner `SendMessage`). If the planner's initial `WROTE:` reply is malformed, or the plan file is missing or empty, THIS §1 corrective is the first lead→planner `SendMessage` and `resolved_handle` is still UNSET. The §A send-resolution procedure therefore runs its full R1 first-send fallback (try `teammate_name` bare name first; fall back once to `teammate_id`; cache the winner into `resolved_handle`). Only correctives that fire AFTER a successful revise `SendMessage` may assume `resolved_handle` is already cached. Do NOT claim correctives are by construction never the first send.
+**B2 note — initial corrective can be the FIRST lead→planner send:** in plan-loop the initial planner solicitation is the Agent SPAWN (not a lead→planner `SendMessage`). If the planner's initial `WROTE:` reply is malformed, or the plan file is missing or empty, THIS §1 corrective is the first lead→planner `SendMessage`. On the live-mailbox main path this corrective is addressed to bare `teammate_name` via §A R1 — no handle-resolution cache, no `agent_id` fallback. Do NOT claim correctives are by construction never the first send.
+[DEGRADE] On a degraded host this first corrective triggers §A-DEGRADE D1's bare-name→`teammate_id` fallback (since no prior D1 send has occurred, `resolved_handle` is still null). See §A-DEGRADE D1 in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
 
 If the next reply still fails the anchored gate → Step 8 teardown, then STOP (**"hyper-plan-loop reply-contract failure"**).
 
@@ -47,6 +49,7 @@ Its reply re-enters the anchored gate (§E Phase 2, expecting the new `expected_
 ## §2 — Lead-side unsolicited-message protocol
 
 See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §B — Unsolicited-message protocol skeleton. The plan-loop binds `<loop-bound reply-token>` = `WROTE: <id> <path>` and `<loop-name>` = `hyper-plan-loop`. The full interplay-with-§E paragraph (Phase 1 / Phase 2 routing for `WROTE:` traffic vs. non-`WROTE:` traffic) is in shared §B; do not duplicate it here.
+[DEGRADE] On a degraded run the planner's reply arrives as the planner's task-completion result (read per §A-DEGRADE D2 in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`), NOT as unsolicited mailbox traffic — a D2-read reply is never routed through the §B idle-correction.
 
 ## §3 — Revise-validation redo pipeline (Step 7 failure handling)
 
