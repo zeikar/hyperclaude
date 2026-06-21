@@ -566,11 +566,13 @@ else
   miss "hyper-plan-loop SKILL.md: does not reference shared loop-protocol"
 fi
 
-if grep -q '§F' skills/hyper-plan-loop/SKILL.md 2>/dev/null; then
-  ok "skills/hyper-plan-loop/SKILL.md: references §F skeleton"
-else
-  miss "skills/hyper-plan-loop/SKILL.md: does not reference §F skeleton"
-fi
+for sub in §F1 §F2 §F3 §F4 §F5; do
+  if grep -q "$sub" skills/hyper-plan-loop/SKILL.md 2>/dev/null; then
+    ok "skills/hyper-plan-loop/SKILL.md: references $sub"
+  else
+    miss "skills/hyper-plan-loop/SKILL.md: does not reference $sub"
+  fi
+done
 
 echo
 echo "==> hyper-implement-loop reqid promotion assertions"
@@ -584,11 +586,13 @@ else
   miss "hyper-implement-loop SKILL.md: does not reference shared loop-protocol"
 fi
 
-if grep -q '§F' "$il_skill" 2>/dev/null; then
-  ok "skills/hyper-implement-loop/SKILL.md: references §F skeleton"
-else
-  miss "skills/hyper-implement-loop/SKILL.md: does not reference §F skeleton"
-fi
+for sub in §F1 §F2 §F3 §F4 §F5; do
+  if grep -q "$sub" "$il_skill" 2>/dev/null; then
+    ok "skills/hyper-implement-loop/SKILL.md: references $sub"
+  else
+    miss "skills/hyper-implement-loop/SKILL.md: does not reference $sub"
+  fi
+done
 
 if grep -q 'request_id_counter' "$il_skill" 2>/dev/null; then
   ok "hyper-implement-loop SKILL.md: 'request_id_counter' run-state field present"
@@ -673,11 +677,13 @@ else
   miss "hyper-docs-loop SKILL.md: does not reference shared loop-protocol"
 fi
 
-if grep -q '§F' "$dl_skill" 2>/dev/null; then
-  ok "skills/hyper-docs-loop/SKILL.md: references §F skeleton"
-else
-  miss "skills/hyper-docs-loop/SKILL.md: does not reference §F skeleton"
-fi
+for sub in §F1 §F2 §F3 §F4 §F5; do
+  if grep -q "$sub" "$dl_skill" 2>/dev/null; then
+    ok "skills/hyper-docs-loop/SKILL.md: references $sub"
+  else
+    miss "skills/hyper-docs-loop/SKILL.md: does not reference $sub"
+  fi
+done
 
 if grep -q 'request_id_counter' "$dl_skill" 2>/dev/null; then
   ok "hyper-docs-loop SKILL.md: 'request_id_counter' run-state field present"

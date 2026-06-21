@@ -142,7 +142,7 @@ Full two-phase state machine, the two acceptance stages, and the stale-recovery 
 
 ### Step 4a — Unsolicited planner messages
 
-See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F4 for unsolicited-message handling (§E two-phase classification is the authoritative router; §B governs genuinely-unsolicited non-`WROTE:` traffic). This loop's anchored reply-token is `WROTE: <id> <path>`; the local binding (accept regex, §1/§2 recovery) is in `references/failure-protocol.md` §2/§6.
+See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F4 for unsolicited-message handling (§E two-phase classification is the authoritative router; §B governs genuinely-unsolicited non-`WROTE:` traffic). This loop's anchored reply-token is `WROTE: <id> <path>`; the local binding: reply-token shape + accept rule in `references/failure-protocol.md` **Binding declarations**; corrective/recovery in **§1**; unsolicited-message handling in **§2** (which points at shared §B).
 
 ### Step 5 — Plan-review iteration 1 (fresh)
 
