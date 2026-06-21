@@ -292,6 +292,12 @@ The smoke removal-simulation (`scripts/test/smoke.sh`) proves this: strip the §
 - `docs/development.md` — the smoke-description paragraph (~§A-DEGRADE contract assertions): drop the `§A-DEGRADE` isolation-check sentence and the `agent_id` fallback / condition (2) DRIVING / conditions (1)/(3) STOP references; restore to describe only the bare-name routing positive lock + teardown object-shape lock.
 - `docs/decisions.md` — this 2026-06-21 entry stays as the historical record (do not delete it on removal).
 
+### 2026-06-21 — shared loop-skeleton extraction + prose de-dup
+
+Token-reduction Level-1 refactor: triplicated SKILL boilerplate (agent-teams tool contract framing, Step 0 protocol-read, Step 2 agent-teams probe + stop message, Step 4a unsolicited-message handling, Step 8 teardown pointer, and degrade-condition pointers) was consolidated into a single new **§F shared loop skeleton** in `references/loop-protocol.md`; each of the three loop SKILL.md files now points at the named §F sub-blocks (F1–F6) by a one-liner rather than restating the prose. Literal prose restatements collapsed to single canonical + pointer — including the `review_iteration` independence sentence (state field lives once in §E). The documented agent-teams stop message now lives once in §F3 with a `<fallback-command>` binding hole that each loop fills with its own fallback command names. **No behavior or semantic change.** `[DEGRADE]` isolation + §E race-guards preserved. Reference the 2026-06-21 §A(2) STOP→degraded-DRIVING entry (immediately above) for the isolation this §A-DEGRADE layer preserves.
+
+(acceptance results recorded on completion)
+
 ---
 
 ## Pointers (decisions documented elsewhere)
