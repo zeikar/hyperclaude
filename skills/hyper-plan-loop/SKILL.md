@@ -23,7 +23,7 @@ Skip when:
 
 ## Agent-teams tool contract
 
-This skill uses the experimental agent-teams tools — `Agent` / `SendMessage`. Their argument shapes and idle-notification semantics (a payload-less wake signal that does NOT carry the teammate's reply text — the loop-bound `WROTE:` reply arrives only if the planner explicitly `SendMessage`s it (Step 3 reply-transport rule), else the lead falls back to a corrective round-trip) all live in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A, loaded at Step 0. Loop-specific bindings:
+See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F1 + §A for the `Agent`/`SendMessage` argument shapes and idle-notification semantics (a payload-less wake — the loop-bound `WROTE:` reply arrives only via planner `SendMessage`, else the lead falls back to a corrective round-trip). Loop-specific bindings:
 - **Plan ownership:** the planner writes the canonical plan file itself via caller-directed write-file mode (its Step 3 prompt carries the exact resolved path). The lead never Writes or Reads the plan body on the normal path — it does only a quiet `ok`/`bad` structure check, and only Reads the body for human-facing failure diagnostics. Every write-file-mode reply (initial, retry, revise redo) is gated to `WROTE: <reqid> <path>`-only (Step 4 anchored gate). Unsolicited planner messages follow the lead-side protocol (`references/failure-protocol.md` §2) — prompt-only idle discipline is insufficient.
 
 **Planner request id.** Every lead→planner solicitation carries a per-run, lead-owned, monotonically increasing integer id. The lead is the SOLE id source — the planner only echoes it. The counter increments on EVERY solicitation: spawn = 1, each Step 7 revise = +1, AND every §1/§3 corrective redo — anchored-gate corrective AND file-check corrective alike — gets its OWN new id (a corrective is a fresh solicitation; reusing the prior id reintroduces the blind spot). The `shutdown_request` object message is EXEMPT (no id).
@@ -50,7 +50,7 @@ Mint protocol, lifecycle, and phase classification: see `${CLAUDE_PLUGIN_ROOT}/r
 
 ### Step 0 — Read the failure & recovery protocol
 
-Before spawning any teammate, Read both protocol files into context: (1) `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` — the shared cross-loop protocol; (2) `references/failure-protocol.md` (sibling of this file) — the plan-loop binding + plan-loop-specific recoveries. Both are mandatory — the loop's failure branches reference sections by number (shared §A–§E and local §1–§5) and the lead must follow them verbatim when reached.
+See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F2 for the two-file read requirement. Both `loop-protocol.md` (shared §A–§E) AND `references/failure-protocol.md` (sibling, plan-loop binding) are mandatory before spawning; this loop's local file binds the `WROTE: <id> <path>` reply-token shape.
 
 ### Step 1 — Resolve task + slug + plan path
 
@@ -69,24 +69,18 @@ Reuse the stock `hyper-plan` logic — see `skills/hyper-plan/SKILL.md` Steps 1�
 
 ### Step 2 — Confirm agent-teams availability
 
-Run this Bash probe before spawning anything:
+See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F3 for the probe + documented stop message; `<fallback-command>` = `/hyperclaude:hyper-plan + /hyperclaude:hyper-plan-review`.
 
 ```bash
 [ "$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" = "1" ]
 ```
 
-If the exit code is non-zero (env var unset or not `"1"`) → STOP immediately with the message below. Nothing has been spawned; no teardown is needed.
-
 Initialize and record the following run-state fields (the Step 3 spawn will mint id `1`): `request_id_counter = 0`, `expected_request_id = null`, `awaiting_reply = false`, `solicit_sent_at = null`.
 
-Failure handling:
+Failure handling (both cases emit the §F3 documented message with `<fallback-command>` = `/hyperclaude:hyper-plan + /hyperclaude:hyper-plan-review`):
 
-- **Env var unset** → STOP with the message below. No teardown (nothing was created).
-- **Step 3 spawn fails** → STOP with the same message. No teardown (team never formed).
-
-Documented stop message:
-
-> agent teams unavailable — this skill requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`; run /hyperclaude:hyper-setup to diagnose prerequisites. Use /hyperclaude:hyper-plan + /hyperclaude:hyper-plan-review manually instead.
+- **Env var unset** → STOP with the §F3 message (fallback bound above). No teardown (nothing was created).
+- **Step 3 spawn fails** → STOP with the §F3 message (fallback bound above). No teardown (team never formed).
 
 ### Step 3 — Spawn the planner teammate
 
@@ -148,13 +142,11 @@ Full two-phase state machine, the two acceptance stages, and the stale-recovery 
 
 ### Step 4a — Unsolicited planner messages
 
-While the planner is live and BEFORE Step 8 teardown, the only planner message the lead expects is the anchored `WROTE:` reply to the lead's most recent SendMessage (spawn, revise, or corrective). Any other inbound planner message — duplicate body, `RESEND:`-style re-emit, nag, or anything arriving when the lead solicited nothing (including a message auto-delivered after a long Codex-review turn) — is **unsolicited**. Handle it per `references/failure-protocol.md` §2. This lead-side rule is **mandatory** — prompt-only idle discipline (Step 3) is insufficient. The teardown exchange is exempt (a `shutdown_response` after `shutdown_request` is expected, never a violation).
-
-**Phase-aware cross-reference:** while AWAITING (`awaiting_reply == true`), a `WROTE:` whose `reqid < expected_request_id` is handled by §6's stale branch (ignore content + stale-recovery sub-step), NOT routed through §2; while NOT awaiting (`awaiting_reply == false`), a `WROTE:` with `id <= request_id_counter` is ignored SILENTLY (NO §2 idle-correction for the stale `WROTE:` itself), while all non-`WROTE:` traffic IS routed through Step 4a/§2; §2 still governs the post-corrective idle case. See `references/failure-protocol.md` §6 (state machine) and §2 (interplay).
+See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F4 for unsolicited-message handling (§E two-phase classification is the authoritative router; §B governs genuinely-unsolicited non-`WROTE:` traffic). This loop's anchored reply-token is `WROTE: <id> <path>`; the local binding (accept regex, §1/§2 recovery) is in `references/failure-protocol.md` §2/§6.
 
 ### Step 5 — Plan-review iteration 1 (fresh)
 
-**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **10 total reviews** (iter 1 fresh + at most **9 resumed revise rounds**). `review_iteration` is independent of `request_id_counter` — the id increments on every solicitation including correctives; `review_iteration` only on bridge re-invocation (see the run-state fields in the "Agent-teams tool contract" section).
+**Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **10 total reviews** (iter 1 fresh + at most **9 resumed revise rounds**). See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E for the `review_iteration`-vs-`request_id_counter` independence rule.
 
 Invoke via the Bash tool with `timeout: 600000`:
 
@@ -216,7 +208,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<
 
 ### Step 8 — Cap + teardown
 
-Cap at **10 total reviews** (iter 1 fresh + at most 9 resumed revise rounds). `review_iteration` is independent of `request_id_counter` — the id increments on every solicitation including correctives; `review_iteration` only on bridge re-invocation (see the run-state fields in the "Agent-teams tool contract" section).
+Cap at **10 total reviews** (iter 1 fresh + at most 9 resumed revise rounds). See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E for the `review_iteration`-vs-`request_id_counter` independence rule.
 
 On cap-reached, FIRST capture the cap report details (iterations consumed, residual blocking findings from the latest review, plan path left in its latest revised state), THEN run teardown, THEN emit the named-loop report (**"hyper-plan-loop revise loop"**): the loop ran out of rounds before Codex stopped flagging plan-level correctness/path/ordering/missing-behavior issues. The plan path needs manual triage.
 
@@ -224,10 +216,7 @@ On cap-reached, FIRST capture the cap report details (iterations consumed, resid
 
 **Teardown is MANDATORY on EVERY exit path once the Step 3 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure (anchored gate / unsolicited-message protocol), planner-write failure, planner-format failure, plus any other unexpected tool error while the planner teammate is live. Run teardown FIRST, then report/STOP — never before. Teardown consists of a best-effort shutdown_request only; no explicit team-delete call (the team is cleaned up automatically on session exit).
 
-Exact procedure (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C for the full no-wait + degrade-path-branch procedure):
-
-1. Send the `shutdown_request` addressed via the **§A send-resolution procedure** (R1 only — teardown is id-exempt, R2 is skipped): `SendMessage({ to: "planner", message: { type: "shutdown_request" } })` — `message` MUST be the OBJECT `{ type: "shutdown_request" }` (a string message is rejected); no `summary`. R1 sends to bare `teammate_name` on the live-mailbox main path.
-2. Send best-effort ONCE, then treat the teammate as effectively terminated and proceed to report/STOP WITHOUT waiting for any confirmation. The planner is at rest (idle since the spawn step wrote the plan), so confirmation is structurally impossible. There is no retry.
+Teardown procedure: see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F5 → §C.
 [DEGRADE] On a degraded run, teardown follows §A-DEGRADE D3 instead — D3 resolves the target in order: (a) `resolved_handle` set → send to it; (b) `resolved_handle` null but `teammate_id` captured → send to `teammate_id`; (c) both null → STOP WITHOUT teardown (no-addressable-teammate exception, genuine STOP per §A-DEGRADE condition (1)/(3)).
 
 ### Step 9 — Final report
@@ -245,13 +234,10 @@ After the Step 8 teardown attempt (shutdown_request sent best-effort, no-wait), 
 
 ## Anti-patterns
 
-Core invariants (full list in `references/failure-protocol.md` §5):
+Cross-loop invariants (reviewer-as-agent, re-spawning, skipping shutdown): see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §D. Plan-loop-specific:
 
-- Making the reviewer a team agent. The Codex bridge IS the reviewer — this preserves the "Claude builds, Codex reviews" invariant.
-- Re-spawning the planner fresh each iteration. Context-reuse via the live teammate is the entire reason this skill exists.
 - Reading the plan body into lead context each revise round, or accepting any non-`WROTE:` reply as success.
 - Writing `<plan>-v2.md` (or any) sibling files. Always overwrite the same plan path; `--resume` keys on it.
-- Skipping `shutdown_request` on exit; stopping silently at the cap.
 [DEGRADE] - Hardcoding `to: teammate_id` as the primary handle for lead→planner sends instead of routing via the §A send-resolution procedure. `teammate_id` is the FALLBACK (degrade-only); the PRIMARY is bare `teammate_name`. All lead→planner sends (revise, corrective, AND teardown `shutdown_request`) must go through the §A procedure — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A and §D anti-pattern 3.
 - Treating non-blocking findings as revise targets. Step 6 classifies by **meaning** — style nits, vague "consider X" suggestions, and pure prose-polish do NOT block, regardless of what severity label Codex attached. Only plan-level correctness / wrong paths / broken ordering / unverifiable steps / missing required behavior gate the loop.
 - Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.
