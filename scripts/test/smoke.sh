@@ -537,6 +537,11 @@ else
   miss "shared loop-protocol: 'awaiting_reply' field name missing"
 fi
 
+# Binding-hole invariant: the loop-agnostic loop-protocol.md must stay free of
+# any loop-specific reply token (e.g. plan-loop's 'WROTE:') — those belong only
+# in each loop's local failure-protocol.md. Checked over the whole file: the
+# §A-DEGRADE D2 example names plan-loop by role but no longer carries a literal
+# 'WROTE:' token, so the simple whole-file check holds.
 if ! grep -q "WROTE:" "$shared_proto" 2>/dev/null; then
   ok "shared loop-protocol: 'WROTE:' token absent (binding-hole invariant)"
 else
@@ -735,15 +740,93 @@ for f in \
   fi
 done
 
-# Positive: dual-handle / send-resolution contract. The durable dual-handle
-# marker 'resolved_handle' (cached by the §A send-resolution procedure) is
-# required in ALL 7 files. The literal 'teammate_id' fallback-handle field is
-# required in the 5 files that name it directly; the implement/docs-loop
-# failure-protocol.md express the fallback purely via 'resolved_handle' + the
-# bare-'teammate_name'-primary phrasing (Task-1-3 commit 77da235 deliberately
-# removed their literal 'to: teammate_id' line), so they are NOT required to
-# carry the bare 'teammate_id' token — their dual-handle binding is locked by
-# 'resolved_handle' here plus the per-loop teammate_name binding below.
+echo
+echo "==> §A-DEGRADE removable-layer assertions"
+
+# The degraded-host behavior is carved into a single cleanly-removable layer:
+# the '## §A-DEGRADE' section in loop-protocol.md plus every physical
+# '[DEGRADE]'-tagged line across loop-protocol.md + the six loop files. The
+# main §A/§B/§C/§E path is pure live-mailbox bare 'teammate_name'.
+
+# (a) the §A-DEGRADE section heading appears exactly once in loop-protocol.md.
+degrade_heads=$(grep -cE '^## §A-DEGRADE' references/loop-protocol.md 2>/dev/null)
+if [ "$degrade_heads" = "1" ]; then
+  ok "references/loop-protocol.md: '## §A-DEGRADE' section heading appears exactly once"
+else
+  miss "references/loop-protocol.md: '## §A-DEGRADE' heading count is $degrade_heads (want exactly 1)"
+fi
+
+# (b) the [DEGRADE] removal-instruction marker is present.
+if grep -qF '[DEGRADE]' references/loop-protocol.md 2>/dev/null; then
+  ok "references/loop-protocol.md: '[DEGRADE]' removal-instruction marker present"
+else
+  miss "references/loop-protocol.md: '[DEGRADE]' removal-instruction marker missing"
+fi
+
+# (c) the four degrade sub-block labels D0/D1/D2/D3 all exist.
+for d in D0 D1 D2 D3; do
+  if grep -qE "\*\*$d " references/loop-protocol.md 2>/dev/null; then
+    ok "references/loop-protocol.md: §A-DEGRADE sub-block '$d' present"
+  else
+    miss "references/loop-protocol.md: §A-DEGRADE sub-block '$d' missing"
+  fi
+done
+
+# REMOVAL-SIMULATION isolation check — the mechanical proof that §A-DEGRADE is a
+# single clean-deletion unit. For each of the 7 mechanical-scope files, build a
+# "post-removal" view = the file with (i) the '## §A-DEGRADE' section body
+# dropped (awk: from the heading up to the next '## ' heading; ONLY
+# loop-protocol.md has the section, so this is a no-op on the other six) AND
+# (ii) every physical '[DEGRADE]'-tagged line removed. NO degrade machinery
+# token may survive that view.
+#
+# Forbidden machinery set: §A-DEGRADE / teammate_id / resolved_handle / agent_id
+# / the D0-D3 step labels / notification-reply / task-completion / task result /
+# shim. Only bare 'teammate_name' and the request-id fields (request_id_counter /
+# expected_request_id / awaiting_reply / solicit_sent_at / review_iteration)
+# legitimately survive — those are NOT in the set.
+#
+# The bare English adjective 'degrade'/'degraded' is deliberately NOT forbidden:
+# it appears in main-path negative/cross-ref prose ("NOT a degrade trigger",
+# "degrade-path-branch") that legitimately states what the live-mailbox path
+# does NOT do, and is not a load-bearing leak signal. The literal '§A-DEGRADE'
+# stays forbidden (re-inlining the section is still caught), as do all the
+# machinery tokens above — so the source is kept clean with NO carve-out.
+degrade_forbidden='§A-DEGRADE|teammate_id|resolved_handle|agent_id|\bD0\b|\bD1\b|\bD2\b|\bD3\b|notification-reply|task-completion|task result|shim'
+for f in \
+  references/loop-protocol.md \
+  skills/hyper-plan-loop/SKILL.md \
+  skills/hyper-implement-loop/SKILL.md \
+  skills/hyper-docs-loop/SKILL.md \
+  skills/hyper-plan-loop/references/failure-protocol.md \
+  skills/hyper-implement-loop/references/failure-protocol.md \
+  skills/hyper-docs-loop/references/failure-protocol.md; do
+  leak=$(awk '
+      BEGIN { skip = 0 }
+      /^## §A-DEGRADE/ { skip = 1; next }
+      skip == 1 && /^## / { skip = 0 }
+      skip == 1 { next }
+      { print }
+    ' "$f" 2>/dev/null \
+    | grep -v '\[DEGRADE\]' \
+    | grep -nE "$degrade_forbidden")
+  if [ -n "$leak" ]; then
+    miss "$f: degrade-token leak survives §A-DEGRADE+[DEGRADE] removal (isolation broken): $(printf '%s' "$leak" | head -1)"
+  else
+    ok "$f: post-removal view carries NO degrade machinery token (clean single-unit deletion)"
+  fi
+done
+
+# Dual-handle confinement (flipped). The dual-handle machinery — 'resolved_handle'
+# (the cached degrade-resolved handle) and 'teammate_id' (the agent_id fallback
+# field) — is now DEGRADE-ONLY: it lives in §A-DEGRADE D0/D1 and the §E
+# degrade-tagged field defs. The reversed contract makes the main path pure bare
+# 'teammate_name', so neither field may appear OUTSIDE the §A-DEGRADE section or
+# a '[DEGRADE]'-tagged line. Assert confinement (NOT presence): strip the
+# §A-DEGRADE section body + every [DEGRADE] line, then require ZERO surviving
+# 'resolved_handle'/'teammate_id' — consistent with the removal-sim forbidden
+# set above (they are removed, not kept). Bare 'teammate_name' is the surviving
+# main-path handle, bound per-loop below.
 for f in \
   skills/hyper-plan-loop/SKILL.md \
   skills/hyper-implement-loop/SKILL.md \
@@ -752,23 +835,19 @@ for f in \
   skills/hyper-implement-loop/references/failure-protocol.md \
   skills/hyper-docs-loop/references/failure-protocol.md \
   references/loop-protocol.md; do
-  if grep -q 'resolved_handle' "$f" 2>/dev/null; then
-    ok "$f: contains 'resolved_handle' (durable dual-handle / send-resolution marker)"
+  outside=$(awk '
+      BEGIN { skip = 0 }
+      /^## §A-DEGRADE/ { skip = 1; next }
+      skip == 1 && /^## / { skip = 0 }
+      skip == 1 { next }
+      { print }
+    ' "$f" 2>/dev/null \
+    | grep -v '\[DEGRADE\]' \
+    | grep -nE 'resolved_handle|teammate_id')
+  if [ -n "$outside" ]; then
+    miss "$f: dual-handle field ('resolved_handle'/'teammate_id') leaks OUTSIDE §A-DEGRADE/[DEGRADE] (must be degrade-only): $(printf '%s' "$outside" | head -1)"
   else
-    miss "$f: missing 'resolved_handle' (durable dual-handle / send-resolution marker)"
-  fi
-done
-
-for f in \
-  skills/hyper-plan-loop/SKILL.md \
-  skills/hyper-implement-loop/SKILL.md \
-  skills/hyper-docs-loop/SKILL.md \
-  skills/hyper-plan-loop/references/failure-protocol.md \
-  references/loop-protocol.md; do
-  if grep -q 'teammate_id' "$f" 2>/dev/null; then
-    ok "$f: contains 'teammate_id' (fallback-handle field)"
-  else
-    miss "$f: missing 'teammate_id' (fallback-handle field)"
+    ok "$f: dual-handle fields confined to §A-DEGRADE/[DEGRADE] (main path is pure bare-name)"
   fi
 done
 
@@ -830,16 +909,20 @@ else
   ok "references/loop-protocol.md: no stale hardcoded-primary / id-only addressing rule (routes via §A)"
 fi
 
-# Positive (B4-b): §A carries the actual first-send fallback ALGORITHM, not just
-# a token — require all of resolved_handle / first-send marker / teammate_name /
-# the named procedure.
+# Positive (B4-b): the send-resolution machinery is split correctly across the
+# two layers — main §A carries the pure bare-'teammate_name' send-resolution
+# procedure, while the actual first-send fallback ALGORITHM now lives in
+# §A-DEGRADE D0/D1 (resolved_handle + first-send markers). Require all of
+# resolved_handle / first-send marker / teammate_name / the named procedure
+# present in loop-protocol.md (resolved_handle/first-send carried by §A-DEGRADE
+# D0/D1, teammate_name + send-resolution procedure by main §A).
 if grep -q 'resolved_handle' references/loop-protocol.md 2>/dev/null \
    && grep -qE 'first.send|FIRST-SEND' references/loop-protocol.md 2>/dev/null \
    && grep -q 'teammate_name' references/loop-protocol.md 2>/dev/null \
    && grep -q 'send-resolution procedure' references/loop-protocol.md 2>/dev/null; then
-  ok "references/loop-protocol.md §A: first-send fallback algorithm present (resolved_handle + first-send + teammate_name + send-resolution procedure)"
+  ok "references/loop-protocol.md: first-send fallback algorithm present in §A-DEGRADE D0/D1 (resolved_handle + first-send) + main §A bare-name send-resolution procedure (teammate_name)"
 else
-  miss "references/loop-protocol.md §A: first-send fallback algorithm incomplete (need resolved_handle + first-send + teammate_name + send-resolution procedure)"
+  miss "references/loop-protocol.md: first-send fallback algorithm incomplete (need resolved_handle + first-send in §A-DEGRADE D0/D1 + teammate_name + send-resolution procedure)"
 fi
 
 # Positive (§C object-shutdown shape): teardown shutdown_request is the OBJECT
@@ -938,15 +1021,17 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      least one Codex plan-review runs, and the loop reaches a terminal
      state (clean exit, iteration cap, or controlled failure) bounded
      by the review cap, ending after a best-effort `shutdown_request`
-     to the captured `agent_id` (the loop does NOT wait for shutdown
-     confirmation; the teammate is auto-cleaned on session exit).
-     Confirm lead→teammate messages address the spawn-captured
-     `agent_id` (id-only, not the role name "planner"); confirm any
-     degrade (agentId missing, or returned but teammate lacks
-     SendMessage, or a send not-addressable) deterministically STOPs
-     with the loop's documented fallback — no notification-reply
-     proceed; a degrade with no addressable teammate STOPs without
-     a teardown attempt.
+     (the loop does NOT wait for shutdown confirmation; the teammate is
+     auto-cleaned on session exit).
+     Confirm lead→teammate messages on the main path route by bare
+     `teammate_name` via the mailbox; the `agent_id` fallback is the
+     §A-DEGRADE override (not the main-path address). Confirm that on a
+     degraded host: condition (1)/(3) degrade (no agent_id at spawn, or
+     a send unroutable on BOTH bare name AND agent_id) STOPs WITHOUT a
+     teardown attempt; condition (2) (the teammate replies via its task
+     result, not the mailbox) deterministically DRIVES via §A-DEGRADE D2
+     — same §E id-classification + the loop-bound anchored-reply gate,
+     only the reply read-source differs — NOT a STOP.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
@@ -961,15 +1046,18 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      review cap (6 total Codex reviews maximum), and that the loop
      reaches a terminal state (clean exit on no blocking findings, or
      the 6-review cap reached), ending after a best-effort
-     `shutdown_request` to the captured `agent_id` (the loop does NOT
-     wait for shutdown confirmation; the teammate is auto-cleaned on
-     session exit). If degrade happens AFTER `hyper-implement` ran,
-     verify the already-committed implementation is preserved (degrade
-     is not a clean no-op in that case). Confirm lead→teammate messages
-     address the spawn-captured `agent_id` (id-only, not the role name
-     "fixer"); confirm any degrade deterministically STOPs — no
-     notification-reply proceed; a degrade with no addressable teammate
-     STOPs without a teardown attempt.
+     `shutdown_request` (the loop does NOT wait for shutdown
+     confirmation; the teammate is auto-cleaned on session exit). If
+     degrade happens AFTER `hyper-implement` ran, verify the
+     already-committed implementation is preserved (degrade is not a
+     clean no-op in that case). Confirm lead→teammate messages on the
+     main path route by bare `teammate_name` via the mailbox; the
+     `agent_id` fallback is the §A-DEGRADE override (not the main-path
+     address). Confirm that on a degraded host: condition (1)/(3)
+     degrade STOPs WITHOUT a teardown attempt; condition (2) (the fixer
+     replies via its task result, not the mailbox) deterministically
+     DRIVES via §A-DEGRADE D2 — same §E id-classification + the
+     loop-bound anchored-reply gate — NOT a STOP.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
@@ -985,14 +1073,17 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      `request-id: <integer>` and carry the per-finding structured
      schema (`finding:` / `status:` / `files-changed:` / `verification:`
      / `notes:`), and that the loop reaches a terminal state bounded by
-     the 6-review cap, ending after a best-effort `shutdown_request` to
-     the captured `agent_id` (the loop does NOT wait for shutdown
-     confirmation; the teammate is auto-cleaned on session exit).
-     Confirm lead→teammate messages address the spawn-captured
-     `agent_id` (id-only, not the role name "documenter"); confirm any
-     degrade deterministically STOPs — no notification-reply proceed;
-     a degrade with no addressable teammate STOPs without a teardown
-     attempt.
+     the 6-review cap, ending after a best-effort `shutdown_request`
+     (the loop does NOT wait for shutdown confirmation; the teammate is
+     auto-cleaned on session exit).
+     Confirm lead→teammate messages on the main path route by bare
+     `teammate_name` via the mailbox; the `agent_id` fallback is the
+     §A-DEGRADE override (not the main-path address). Confirm that on a
+     degraded host: condition (1)/(3) degrade STOPs WITHOUT a teardown
+     attempt; condition (2) (the documenter replies via its task result,
+     not the mailbox) deterministically DRIVES via §A-DEGRADE D2 — same
+     §E id-classification + the loop-bound anchored-reply gate — NOT a
+     STOP.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.

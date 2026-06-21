@@ -29,7 +29,7 @@ SendMessage({
 })
 ```
 
-**B2 note — initial corrective can be the FIRST lead→planner send:** in plan-loop the initial planner solicitation is the Agent SPAWN (not a lead→planner `SendMessage`). If the planner's initial `WROTE:` reply is malformed, or the plan file is missing or empty, THIS §1 corrective is the first lead→planner `SendMessage`. On the live-mailbox main path this corrective is addressed to bare `teammate_name` via §A R1 — no handle-resolution cache, no `agent_id` fallback. Do NOT claim correctives are by construction never the first send.
+**B2 note — initial corrective can be the FIRST lead→planner send:** in plan-loop the initial planner solicitation is the Agent SPAWN (not a lead→planner `SendMessage`). If the planner's initial `WROTE:` reply is malformed, or the plan file is missing or empty, THIS §1 corrective is the first lead→planner `SendMessage`. On the live-mailbox main path this corrective is addressed to bare `teammate_name` via §A R1 — no handle-resolution cache, no fallback handle. Do NOT claim correctives are by construction never the first send.
 [DEGRADE] On a degraded host this first corrective triggers §A-DEGRADE D1's bare-name→`teammate_id` fallback (since no prior D1 send has occurred, `resolved_handle` is still null). See §A-DEGRADE D1 in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
 
 If the next reply still fails the anchored gate → Step 8 teardown, then STOP (**"hyper-plan-loop reply-contract failure"**).
