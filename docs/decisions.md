@@ -296,7 +296,7 @@ The smoke removal-simulation (`scripts/test/smoke.sh`) proves this: strip the §
 
 Token-reduction Level-1 refactor: triplicated SKILL boilerplate (agent-teams tool contract framing, Step 0 protocol-read, Step 2 agent-teams probe + stop message, Step 4a unsolicited-message handling, Step 8 teardown pointer, and degrade-condition pointers) was consolidated into a single new **§F shared loop skeleton** in `references/loop-protocol.md`; each of the three loop SKILL.md files now points at the named §F sub-blocks (F1–F6) by a one-liner rather than restating the prose. Literal prose restatements collapsed to single canonical + pointer — including the `review_iteration` independence sentence (state field lives once in §E). The documented agent-teams stop message now lives once in §F3 with a `<fallback-command>` binding hole that each loop fills with its own fallback command names. **No behavior or semantic change.** `[DEGRADE]` isolation + §E race-guards preserved. Reference the 2026-06-21 §A(2) STOP→degraded-DRIVING entry (immediately above) for the isolation this §A-DEGRADE layer preserves.
 
-(acceptance results recorded on completion)
+Verified on completion: `node --test` (4 suites) → tests 309 / fail 0, and `bash scripts/test/smoke.sh` → passed 164 / failed: 0 (incl. the §A-DEGRADE removal-simulation + dual-handle confinement assertions still green). Slimming: the three loop SKILL.md files dropped 4045→3644, 4138→3805, 4052→3722 words (−1064 total); `loop-protocol.md` grew +260 (the single §F copy absorbing the prose de-dups), for a net −804 across the seven files — the per-trigger win is modest by design, the structural win is one shared copy instead of three (drift eliminated).
 
 ---
 
