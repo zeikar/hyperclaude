@@ -554,10 +554,22 @@ else
   miss "shared loop-protocol: 'loop-bound' binding-hole markers missing"
 fi
 
+if grep -qE '^## §F' "$shared_proto" 2>/dev/null; then
+  ok "shared loop-protocol: §F loop-skeleton section present"
+else
+  miss "shared loop-protocol: §F loop-skeleton section missing"
+fi
+
 if grep -q '\${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md' skills/hyper-plan-loop/SKILL.md 2>/dev/null; then
   ok "hyper-plan-loop SKILL.md: references shared loop-protocol at Step 0"
 else
   miss "hyper-plan-loop SKILL.md: does not reference shared loop-protocol"
+fi
+
+if grep -q '§F' skills/hyper-plan-loop/SKILL.md 2>/dev/null; then
+  ok "skills/hyper-plan-loop/SKILL.md: references §F skeleton"
+else
+  miss "skills/hyper-plan-loop/SKILL.md: does not reference §F skeleton"
 fi
 
 echo
@@ -570,6 +582,12 @@ if grep -q '\${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md' "$il_skill" 2>/d
   ok "hyper-implement-loop SKILL.md: references shared loop-protocol at Step 0"
 else
   miss "hyper-implement-loop SKILL.md: does not reference shared loop-protocol"
+fi
+
+if grep -q '§F' "$il_skill" 2>/dev/null; then
+  ok "skills/hyper-implement-loop/SKILL.md: references §F skeleton"
+else
+  miss "skills/hyper-implement-loop/SKILL.md: does not reference §F skeleton"
 fi
 
 if grep -q 'request_id_counter' "$il_skill" 2>/dev/null; then
@@ -653,6 +671,12 @@ if grep -q '\${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md' "$dl_skill" 2>/d
   ok "hyper-docs-loop SKILL.md: references shared loop-protocol at Step 0"
 else
   miss "hyper-docs-loop SKILL.md: does not reference shared loop-protocol"
+fi
+
+if grep -q '§F' "$dl_skill" 2>/dev/null; then
+  ok "skills/hyper-docs-loop/SKILL.md: references §F skeleton"
+else
+  miss "skills/hyper-docs-loop/SKILL.md: does not reference §F skeleton"
 fi
 
 if grep -q 'request_id_counter' "$dl_skill" 2>/dev/null; then
