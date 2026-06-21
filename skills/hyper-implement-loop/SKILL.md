@@ -23,16 +23,16 @@ Skip when:
 
 ## Agent-teams tool contract
 
-This skill uses the experimental agent-teams tools — `Agent` / `SendMessage`. Their argument shapes and idle-notification semantics (a payload-less wake signal that does NOT carry the teammate's reply text — the loop-bound structured findings reply arrives only if the fixer explicitly `SendMessage`s it, else the lead falls back to a corrective round-trip) all live in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A, loaded at Step 0. Loop-specific bindings:
+See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F1 + §A for the `Agent`/`SendMessage` argument shapes and idle-notification semantics (a payload-less wake — the loop-bound structured findings reply arrives only via fixer `SendMessage`, else the lead falls back to a corrective round-trip). Loop-specific bindings:
 - **Fixer-reply ownership:** there is NO canonical output file — the fixer applies edits in place and replies with the structured findings-map schema (`finding:` / `status:` / `files-changed:` / `verification:` / `notes:` per cited finding). The lead avoids reading full source bodies on the normal path, but MAY run scoped `git status` / `git diff --stat` / targeted file reads for validation and failure reporting. Unsolicited fixer messages follow the lead-side protocol (`references/failure-protocol.md` §2) — prompt-only idle discipline is insufficient.
 
-**Fixer request id.** The run-state fields (`request_id_counter`, `expected_request_id`, `awaiting_reply`, `solicit_sent_at`, `review_iteration`) and their lifecycle (mint protocol, MESSAGE ACCEPTED / POST-ACCEPTANCE VALIDATION ACCEPTED acceptance stages, Phase 1 / Phase 2 routing, stale-recovery) are defined in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E (single source of truth); this loop binds to those names.
+**Fixer request id.** Run-state fields (`request_id_counter`, `expected_request_id`, `awaiting_reply`, `solicit_sent_at`, `review_iteration`) and their lifecycle are defined in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E (single source of truth); this loop binds to those names. This loop also binds the `request-id: <id>` structured schema (integer id, echoed verbatim by the fixer on every post-spawn reply).
 
 **Loop-local id-source rule.** Every lead→fixer solicitation carries a per-run, lead-owned, monotonically increasing integer id. The lead is the SOLE id source — the fixer only echoes it. The counter increments on EVERY solicitation: each Step 7 fix-round = +1, AND every §1/§3 corrective gets its OWN new id. The `shutdown_request` object message is EXEMPT (no id).
 
 **Spawn-is-not-a-solicitation.** Unlike plan-loop's spawn (which mints id 1 because the planner is asked to immediately Write the plan), the implement-loop spawn (Step 4) is contract-only — the fixer goes idle without sending any reply. So `request_id_counter` stays at 0 until the FIRST Step 7 fix solicitation, which mints id 1. The Step 4 spawn does NOT change `request_id_counter` or `awaiting_reply`. After spawn, the lead expects EXACTLY ONE payload-less idle notification (the fixer's post-spawn idle). The lead consumes that idle as a readiness signal and does NOT route it through §B/§E unsolicited handling. From the second wake onward (which is always after the first Step 7 solicitation has been sent), §E Phase 1 / Phase 2 routing applies normally.
 
-The lead must also retain the following handle-resolution run-state across turns: `teammate_name = "fixer"` (the spawn `name`; bare-name handle for every lead→fixer send, per §A R1). Every lead→fixer `SendMessage` is addressed via the **§A send-resolution procedure** (R1: bare `teammate_name` — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A for the authoritative algorithm). The spawn step captures the teammate handle but does NOT change `request_id_counter` or `awaiting_reply` (spawn-is-not-a-solicitation stays).
+The lead must also retain the following handle-resolution run-state across turns: `teammate_name = "fixer"` (the spawn `name`; bare-name handle for every lead→fixer send, per §A R1 — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A for the authoritative send-resolution algorithm). The spawn step captures the teammate handle but does NOT change `request_id_counter` or `awaiting_reply` (spawn-is-not-a-solicitation stays).
 [DEGRADE] Degrade-only run-state: `teammate_id` (the opaque `agent_id` captured at Step 4 spawn per §A-DEGRADE D0 — never parsed; FALLBACK handle for the first degraded send) and `resolved_handle` (`null` until D1 resolves it; the winning handle for later degraded sends). Unused on the live-mailbox main path.
 
 Loop-local run state (e.g. `reviewArtifacts[]`, `review_iteration`) is named where it appears in Steps 5/7.
@@ -51,7 +51,7 @@ This skill requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` to be set in the en
 
 ### Step 0 — Read the failure & recovery protocol
 
-Before spawning any teammate, Read both protocol files into context: (1) `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` — the shared cross-loop protocol; (2) `references/failure-protocol.md` (sibling of this file) — the implement-loop binding + implement-loop-specific recoveries. Both are mandatory — the loop's failure branches reference sections by number (shared §A–§E and local §1–§5) and the lead must follow them verbatim when reached.
+See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F2 for the two-file read requirement. Both `loop-protocol.md` (shared §A–§E) AND `references/failure-protocol.md` (sibling, implement-loop binding) are mandatory before spawning; this loop's local file binds the `request-id: <id>` structured schema (integer id prefix on every fixer post-spawn reply).
 
 ### Step 1 — Resolve the plan path
 
@@ -65,7 +65,7 @@ Reuse the stock `hyper-implement` plan-path resolution — see `skills/hyper-imp
 
 ### Step 2 — Confirm agent-teams availability
 
-Run the following Bash probe **before Step 3's `hyper-implement` run**:
+See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F3 for the probe + documented stop message; `<fallback-command>` = `/hyperclaude:hyper-implement + /hyperclaude:hyper-code-review`.
 
 ```bash
 [ "$CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" = "1" ]
@@ -73,14 +73,10 @@ Run the following Bash probe **before Step 3's `hyper-implement` run**:
 
 This probe MUST run BEFORE Step 3's `hyper-implement` run so that an unavailable host is detected and the skill STOPs before any tree mutation — preserving the clean-STOP-before-mutation property.
 
-Failure handling:
+Failure handling (both cases emit the §F3 documented message with `<fallback-command>` = `/hyperclaude:hyper-implement + /hyperclaude:hyper-code-review`):
 
-- **Env unset / probe fails** → STOP with the message below before any mutation. No teardown (nothing was created).
-- **Step 4 spawn fails** (note: the fixer is spawned in Step 4, *after* `hyper-implement` completes) → STOP with the same message. No teardown — the team never formed. The implementation output is already in the working tree and is preserved — the user can run `/hyperclaude:hyper-code-review` manually.
-
-Documented stop message:
-
-> agent teams unavailable — this skill requires the experimental agent-teams feature; run /hyperclaude:hyper-setup to diagnose prerequisites. Use /hyperclaude:hyper-implement + /hyperclaude:hyper-code-review manually instead.
+- **Env unset / probe fails** → STOP with the §F3 message (fallback bound above) before any mutation. No teardown (nothing was created).
+- **Step 4 spawn fails** (note: the fixer is spawned in Step 4, *after* `hyper-implement` completes) → STOP with the §F3 message (fallback bound above). No teardown — the team never formed. The implementation output is already in the working tree and is preserved — the user can run `/hyperclaude:hyper-code-review` manually.
 
 ### Step 3 — Run hyper-implement to completion (boundary A)
 
@@ -131,9 +127,7 @@ The `prompt` string MUST contain:
 
 ### Step 4a — Unsolicited fixer messages
 
-While the fixer is live and BEFORE Step 8 teardown, the only fixer message the lead expects is the anchored structured-schema reply (prefixed by `request-id: <id>` per Step 7) to the lead's most recent SendMessage (fix, redo, or corrective). Any other inbound fixer message — duplicate body, `RESEND:`-style re-emit, nag, or anything arriving when the lead solicited nothing (including a message auto-delivered after a long Codex-review turn) — is **unsolicited**. Handle it per `references/failure-protocol.md` §2 (which points at shared §B). This lead-side rule is **mandatory** — prompt-only idle discipline (Step 4) is insufficient. The teardown exchange is exempt (a `shutdown_response` after `shutdown_request` is expected, never a violation).
-
-**Phase-aware cross-reference (per shared §E):** while AWAITING (`awaiting_reply == true`), an id-bearing reply with `reqid < expected_request_id` is shared §E Phase 2's stale branch (ignore content + stale-recovery sub-step), NOT routed through §2. While NOT awaiting (`awaiting_reply == false`), an id-bearing reply with `reqid <= request_id_counter` is ignored SILENTLY; all non-id-bearing unsolicited traffic IS §B's domain. See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E (state machine) and §B (interplay).
+See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F4 for unsolicited-message handling (§E two-phase classification is the authoritative router; §B governs genuinely-unsolicited non-reply-token traffic). This loop's anchored reply-token is the structured findings-map schema prefixed by `request-id: <id>`; the local binding (accept rule, §1/§2 recovery) is in `references/failure-protocol.md` §2/§6.
 
 ### Step 5 — Code-review iteration 1 (fresh)
 
@@ -201,10 +195,7 @@ On cap-reached with blocking findings still open: FIRST capture the cap report d
 
 **Teardown is MANDATORY on EVERY exit path once the Step 4 teammate spawn has succeeded** — loop success, cap reached, and every post-spawn STOP: bridge failure, reply-contract failure, fixer format failure, unparseable review, plus any other unexpected tool error while the fixer teammate is live. Run teardown FIRST, then report/STOP — never before. (A failure *before* the Step 4 spawn — e.g. `hyper-implement` aborting in Step 3 — owes no teardown: STOP (no team formed).)
 
-Exact procedure (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C for the full no-wait + degrade-path-branch procedure):
-
-1. Send the `shutdown_request` addressed via the **§A send-resolution procedure** (R1 only — teardown is id-exempt, R2 is skipped): `SendMessage({ to: "fixer", message: { type: "shutdown_request" } })` — `message` MUST be the OBJECT `{ type: "shutdown_request" }` (a string message is rejected); no `summary`. R1 sends to bare `teammate_name` on the live-mailbox main path.
-2. Send best-effort ONCE, then treat the teammate as effectively terminated and proceed to report/STOP WITHOUT waiting for any confirmation. The fixer is at rest (idle since its last reply (or the Step 4 spawn if no fix round ran)), so confirmation is structurally impossible. There is no retry.
+Teardown procedure: see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F5 → §C.
 [DEGRADE] On a degraded run, teardown follows §A-DEGRADE D3 instead — D3 resolves the target in order: (a) `resolved_handle` set → send to it; (b) `resolved_handle` null but `teammate_id` captured → send to `teammate_id`; (c) both null → STOP WITHOUT teardown (no-addressable-teammate exception, genuine STOP per §A-DEGRADE condition (1)/(3)).
 
 ### Step 9 — Final report
@@ -233,13 +224,10 @@ Report the **actual** git outcome (never assume success): the commit SHA + clean
 
 ## Anti-patterns
 
-Core invariants (full list in `references/failure-protocol.md` §5):
+Cross-loop invariants (reviewer-as-agent, re-spawning, skipping shutdown, §E-inlining): see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §D. Full list also in `references/failure-protocol.md` §5. Implement-loop-specific:
 
-- Making the reviewer a team agent. The Codex bridge IS the reviewer — this preserves the "Claude builds, Codex reviews" invariant.
-- Re-spawning the fixer fresh each iteration. Context-reuse via the live teammate is the entire reason this skill exists.
 - Committing or pushing from the fixer, or letting the fixer invoke codex or `scripts/codex-bridge.mjs`.
 - Using `--commit <sha>` as the diff target, or omitting `--base main` on any iteration. `--base main` is the fixed target for all code-review invocations.
-- Skipping `shutdown_request` on exit; stopping silently at the cap.
 [DEGRADE] - Hardcoding `to: teammate_id` as the primary handle for lead→fixer sends instead of routing via the §A send-resolution procedure. `teammate_id` is the FALLBACK (degrade-only); the PRIMARY is bare `teammate_name`. All lead→fixer sends (fix, corrective, AND teardown `shutdown_request`) must go through the §A procedure — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A and §D anti-pattern 3.
 - Editing `hyper-implement` or `hyper-plan-loop`. This skill is purely additive.
 - Inlining the shared §E pseudo-code into this SKILL.md instead of pointing at `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E. SKILL.md is the always-loaded surface — duplicating §E bloats every trigger and risks the two copies drifting.
