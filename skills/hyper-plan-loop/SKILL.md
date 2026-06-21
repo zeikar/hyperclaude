@@ -31,9 +31,9 @@ This skill uses the experimental agent-teams tools — `Agent` / `SendMessage`. 
 The lead must retain the following run-state across turns and never conflate these fields:
 
 - `plan_path` — the resolved canonical plan path from Step 1.
-- `teammate_name` — `"planner"` (the spawn `name`); the PRIMARY handle tried first on the first lead→planner send, per the §A send-resolution procedure.
-- `teammate_id` — the opaque `agent_id` captured at Step 3 spawn (§A binding; never parsed); the FALLBACK handle for the first send. Never parse its format.
-- `resolved_handle` — the handle (`teammate_name` or `teammate_id`) that won the first lead→planner send; `null` until that first send resolves it. Every lead→planner send goes through the **§A send-resolution procedure** (R1: if `resolved_handle` set → send direct; else first send tries bare `teammate_name` → `teammate_id` fallback once → cache winner; both fail → ENV-DEGRADE STOP). See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A for the authoritative algorithm.
+- `teammate_name` — `"planner"` (the spawn `name`); the bare-name handle for every lead→planner send, per the §A send-resolution procedure.
+[DEGRADE] - `teammate_id` — the opaque `agent_id` captured at Step 3 spawn (§A-DEGRADE D0; never parsed); the FALLBACK handle for the first degraded send. Degrade-only — unused on the live-mailbox main path.
+[DEGRADE] - `resolved_handle` — the degraded handle (`teammate_name` or `teammate_id`) that won the first degraded send; `null` until D1 resolves it. Degrade-only — unused on the live-mailbox main path.
 - `awaiting_reply`, `request_id_counter`, `expected_request_id`, `solicit_sent_at`, `review_iteration` — these are the cross-loop state-machine fields. Lifecycle and semantics (mint protocol, MESSAGE ACCEPTED / POST-ACCEPTANCE VALIDATION ACCEPTED acceptance stages, Phase 1 / Phase 2 routing, stale-recovery) are defined in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E (single source of truth); this loop binds to them by name.
 
 Mint protocol, lifecycle, and phase classification: see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E. The `references/failure-protocol.md` (sibling) carries the plan-loop binding declarations (reply-token shape `WROTE: <id> <path>`, exact-path accept regex, file/structure post-acceptance validation).
@@ -106,17 +106,21 @@ The `prompt` string MUST contain:
 - **Research context** — full contents of ALL matched research artifacts inline (there may be a Codex + Claude pair), if any were found in Step 1. Do not make the planner re-read them.
 - **Output format** — a multi-task plan with `## Task N: <title>` headings. Each task block: **Files to create / modify** (exact paths), **Steps** (`[ ]`-checkboxes, 2–5 min each), **Verification** (a command or observable change), **Commit message** (one line, conventional-commits). No frontmatter — plan body only; the skill owns the file name.
 - **Write-file mode** — the exact resolved plan path from Step 1, stated literally, with an explicit instruction: use the `Write` tool to write the full plan to THAT EXACT path yourself (never a different path, never a `-v2.md` sibling), then reply with exactly `WROTE: 1 <that exact path>` and NOTHING else — no plan body, no summary of changes, no preamble. (The spawn mints request id `1`: the lead sets `request_id_counter = 1`, `expected_request_id = 1`, `awaiting_reply = true`, and immediately before the Agent-spawn call captures `solicit_sent_at` via a Bash `date -u +%FT%TZ`; the planner must echo that id verbatim.)
-- **Reply transport (MANDATORY)** — that `WROTE:` reply MUST be delivered by calling `SendMessage({ to: "team-lead", summary: "Plan written request 1", message: "WROTE: 1 <that exact path>" })`. Plain assistant text is NOT visible to the lead, and going idle only emits a payload-less idle notification — so if you merely print `WROTE:` and idle WITHOUT the SendMessage call, the lead never receives the confirmation and the loop stalls until a corrective round-trip. Call `SendMessage` first, then idle. Every later solicitation carries its own id; the planner must echo THAT id verbatim in its reply (e.g. `WROTE: 2 <path>` for id `2`), and the `summary` echoes `request <id>` for human mailbox debugging (the message body stays authoritative). This applies identically to every later revise-round reply.
+- **Reply transport (MANDATORY)** — that `WROTE:` reply MUST be delivered by calling `SendMessage({ to: "team-lead", summary: "Plan written request 1", message: "WROTE: 1 <that exact path>" })`. Plain assistant text is NOT visible to the lead on a live-mailbox host, and going idle only emits a payload-less idle notification — so if you merely print `WROTE:` and idle WITHOUT the SendMessage call, the lead never receives the confirmation and the loop stalls until a corrective round-trip. Call `SendMessage` first, then idle. Every later solicitation carries its own id; the planner must echo THAT id verbatim in its reply (e.g. `WROTE: 2 <path>` for id `2`), and the `summary` echoes `request <id>` for human mailbox debugging (the message body stays authoritative). This applies identically to every later revise-round reply.
+[DEGRADE] Exception (degraded host only): if `SendMessage` is unavailable on your host (degraded), emit that same `WROTE:` line as your FINAL ASSISTANT TEXT — the lead reads it from your task-completion result per §A-DEGRADE D2.
 - **Idle / no-resend discipline** — after replying `WROTE: <id> <path>`, go idle and wait; do NOT resend, re-announce, or nag. The lead will next contact you only via SendMessage carrying revise findings or a `shutdown_request`, and may take several minutes running Codex review between turns (this is normal). Never re-emit a prior reply.
 - State that the planner stays alive as a teammate, will receive Codex feedback in later turns, and must retain its full planning context.
 
-**After the `Agent(...)` call** — capture and validate both handles:
+**After the `Agent(...)` call** — capture and validate handles:
 
-- Record `teammate_name = "planner"` (the PRIMARY handle).
-- Capture the returned `agent_id` VERBATIM/OPAQUELY into run-state `teammate_id` (§A binding — never parse the `@`/suffix); this is the FALLBACK handle.
-- Set `resolved_handle = null` (no lead→planner send has been made yet).
-- **Note:** the Agent spawn is NOT a lead→planner `SendMessage`. The planner's spawn-time `WROTE: 1 <path>` reply is a `SendMessage({ to: "team-lead", … })` — that exercises teammate→lead routing, NOT lead→planner routing. The FIRST lead→planner send is the Step 7 revise (on a run where the initial plan is accepted cleanly) OR an initial §1 corrective sent via Step 4 when the `WROTE:` reply is malformed or missing. THAT send resolves `resolved_handle` via the §A send-resolution procedure (R1).
-- **Degrade detection:** if `agent_id` is missing OR unusable (per §A ENV-DEGRADE rule — no `agent_id`, or `SendMessage` is not available to this teammate; OR, later, the first lead→planner send fails on BOTH `teammate_name` AND `teammate_id` per R1) → the planner has already written the plan (the spawn minted id 1 and triggered the write), so record the partial plan-artifact path (`plan_path` from Step 1) and STOP honestly with the fallback, noting that path for manual inspection. Do NOT enter the Step 7 revise loop. Apply §C's degrade-path teardown branch: STOP WITHOUT teardown when no addressable teammate exists.
+- Record `teammate_name = "planner"` (the bare-name handle for all lead→planner sends, per §A R1).
+[DEGRADE] - Capture the returned `agent_id` VERBATIM/OPAQUELY into run-state `teammate_id` (§A-DEGRADE D0 — never parse the `@`/suffix); this is the FALLBACK handle for the first degraded send.
+[DEGRADE] - Set `resolved_handle = null` (no degraded lead→planner send has been made yet; degrade-only field).
+- **Note:** the Agent spawn is NOT a lead→planner `SendMessage`. The planner's spawn-time `WROTE: 1 <path>` reply is a `SendMessage({ to: "team-lead", … })` — that exercises teammate→lead routing, NOT lead→planner routing. The FIRST lead→planner send is the Step 7 revise (on a run where the initial plan is accepted cleanly) OR an initial §1 corrective sent via Step 4 when the `WROTE:` reply is malformed or missing.
+[DEGRADE] - **Degrade detection (conditions (1)/(2)/(3) per §A-DEGRADE):**
+[DEGRADE]   - Condition (1): `agent_id` missing from the spawn result → no fallback handle exists; record `plan_path` from Step 1 (planner may have written it — the spawn prompted the write) and STOP with the fallback noting that path for manual inspection. STOP WITHOUT teardown (no addressable teammate — §A-DEGRADE D3 no-usable-handle exception).
+[DEGRADE]   - Condition (2): the teammate replies via its task-completion result (`SendMessage` unavailable on this host) → this is §A-DEGRADE D2 driving; do NOT STOP. Read the `WROTE: 1 <path>` reply from the spawn task result (D2 case (i)) and apply the SAME Step 4 anchored gate + file check; then continue the loop (later rounds use D2 case (ii) — reply read from the D1 `teammate_id` SendMessage task result). Reference §A-DEGRADE for the driving algorithm.
+[DEGRADE]   - Condition (3): first lead→planner send fails on BOTH bare `teammate_name` AND `teammate_id` (D1 fallback exhausted) → record `plan_path` and STOP honestly; the planner may have written the plan at spawn so note that path for manual inspection. STOP WITHOUT teardown (no addressable teammate).
 
 ### Step 4 — Confirm the planner wrote the plan
 
@@ -179,7 +183,8 @@ The lead never Reads the plan body into its context here (that would reintroduce
 
 Before sending, increment the id: `request_id_counter += 1`, `expected_request_id = request_id_counter`, `awaiting_reply = true`; immediately before the SendMessage call, capture `solicit_sent_at` via a Bash `date -u +%FT%TZ` (the field-definition rule above is binding — assistant-turn start is NOT valid). Pass that new id in the message and in the reply instruction.
 
-Send the blocking findings to the still-live planner, addressed via the **§A send-resolution procedure** (R1: if `resolved_handle` set → send direct; else first send tries bare `teammate_name` → `teammate_id` fallback once → cache winner; both fail → ENV-DEGRADE STOP — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A for the authoritative algorithm):
+Send the blocking findings to the still-live planner, addressed via the **§A send-resolution procedure** (R1: bare `teammate_name` — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A for the authoritative algorithm):
+[DEGRADE] On a degraded run, the lead reads each round's `WROTE:` reply from the planner's task-completion result per §A-DEGRADE D2 — the initial `WROTE: 1` is case (i) read from the spawn task result, later rounds are case (ii) via D1 `teammate_id` send. Apply the SAME Step 4 anchored gate + file check after reading; then continue to the next review round. Driving ends at "validate → continue"; teardown is NOT part of this sequence.
 
 ```
 SendMessage({
@@ -189,7 +194,7 @@ SendMessage({
 })
 ```
 
-(Replace `<id>` with the actual integer just minted. The `to:` handle is resolved via the §A procedure as described above — on the first lead→planner send this run, R1 runs the bare-name→`teammate_id` fallback and caches the winner into `resolved_handle`; subsequent sends use `resolved_handle` directly.)
+(Replace `<id>` with the actual integer just minted. The `to:` handle is resolved via the §A procedure as described above — R1 sends to bare `teammate_name` on the live-mailbox main path.)
 
 Do NOT re-send the task or research — the planner still holds that context.
 
@@ -221,8 +226,9 @@ On cap-reached, FIRST capture the cap report details (iterations consumed, resid
 
 Exact procedure (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C for the full no-wait + degrade-path-branch procedure):
 
-1. Send the `shutdown_request` addressed via the **§A send-resolution procedure** (R1 only — teardown is id-exempt, R2 is skipped): `SendMessage({ to: <resolved via §A R1>, message: { type: "shutdown_request" } })` — `message` MUST be the OBJECT `{ type: "shutdown_request" }` (a string message is rejected); no `summary`. On a clean run where no revise or corrective round ran, this teardown IS the first lead→planner send, so R1 runs the full bare-`teammate_name`→`teammate_id` fallback — NOT a hardcoded `to: resolved_handle` (which is `null` on a clean run).
-2. Send best-effort ONCE, then treat the teammate as effectively terminated and proceed to report/STOP WITHOUT waiting for any confirmation. The planner is at rest (idle since the spawn step wrote the plan), so confirmation is structurally impossible. There is no retry. A degrade STOP with no addressable teammate skips teardown entirely (§C degrade-path branch).
+1. Send the `shutdown_request` addressed via the **§A send-resolution procedure** (R1 only — teardown is id-exempt, R2 is skipped): `SendMessage({ to: "planner", message: { type: "shutdown_request" } })` — `message` MUST be the OBJECT `{ type: "shutdown_request" }` (a string message is rejected); no `summary`. R1 sends to bare `teammate_name` on the live-mailbox main path.
+2. Send best-effort ONCE, then treat the teammate as effectively terminated and proceed to report/STOP WITHOUT waiting for any confirmation. The planner is at rest (idle since the spawn step wrote the plan), so confirmation is structurally impossible. There is no retry.
+[DEGRADE] On a degraded run, teardown follows §A-DEGRADE D3 instead — D3 handles `resolved_handle == null` (first teardown send goes to D0-captured `teammate_id`) and the no-addressable-teammate STOP-WITHOUT-teardown exception (genuine STOP per §A-DEGRADE condition (1)/(3)).
 
 ### Step 9 — Final report
 
@@ -246,6 +252,6 @@ Core invariants (full list in `references/failure-protocol.md` §5):
 - Reading the plan body into lead context each revise round, or accepting any non-`WROTE:` reply as success.
 - Writing `<plan>-v2.md` (or any) sibling files. Always overwrite the same plan path; `--resume` keys on it.
 - Skipping `shutdown_request` on exit; stopping silently at the cap.
-- Hardcoding `to: teammate_id` as the primary handle for lead→planner sends instead of routing via the §A send-resolution procedure. `teammate_id` is the FALLBACK; the PRIMARY is bare `teammate_name`. All lead→planner sends (revise, corrective, AND teardown `shutdown_request`) must go through the §A procedure — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A and §D anti-pattern 3.
+[DEGRADE] - Hardcoding `to: teammate_id` as the primary handle for lead→planner sends instead of routing via the §A send-resolution procedure. `teammate_id` is the FALLBACK (degrade-only); the PRIMARY is bare `teammate_name`. All lead→planner sends (revise, corrective, AND teardown `shutdown_request`) must go through the §A procedure — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A and §D anti-pattern 3.
 - Treating non-blocking findings as revise targets. Step 6 classifies by **meaning** — style nits, vague "consider X" suggestions, and pure prose-polish do NOT block, regardless of what severity label Codex attached. Only plan-level correctness / wrong paths / broken ordering / unverifiable steps / missing required behavior gate the loop.
 - Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.
