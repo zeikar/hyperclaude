@@ -1026,12 +1026,13 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      Confirm lead→teammate messages on the main path route by bare
      `teammate_name` via the mailbox; the `agent_id` fallback is the
      §A-DEGRADE override (not the main-path address). Confirm that on a
-     degraded host: condition (1)/(3) degrade (no agent_id at spawn, or
-     a send unroutable on BOTH bare name AND agent_id) STOPs WITHOUT a
-     teardown attempt; condition (2) (the teammate replies via its task
-     result, not the mailbox) deterministically DRIVES via §A-DEGRADE D2
-     — same §E id-classification + the loop-bound anchored-reply gate,
-     only the reply read-source differs — NOT a STOP.
+     degraded host: condition (1)/(3) degrade (bare-name send failed and
+     no fallback teammate_id was captured, or both bare name and
+     teammate_id exhausted) STOPs WITHOUT a teardown attempt; condition
+     (2) (the teammate replies via its task result, not the mailbox)
+     deterministically DRIVES via §A-DEGRADE D2 — same §E
+     id-classification + the loop-bound anchored-reply gate, only the
+     reply read-source differs — NOT a STOP.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
@@ -1054,10 +1055,12 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      main path route by bare `teammate_name` via the mailbox; the
      `agent_id` fallback is the §A-DEGRADE override (not the main-path
      address). Confirm that on a degraded host: condition (1)/(3)
-     degrade STOPs WITHOUT a teardown attempt; condition (2) (the fixer
-     replies via its task result, not the mailbox) deterministically
-     DRIVES via §A-DEGRADE D2 — same §E id-classification + the
-     loop-bound anchored-reply gate — NOT a STOP.
+     degrade (bare-name send failed and no fallback teammate_id was
+     captured, or both bare name and teammate_id exhausted) STOPs
+     WITHOUT a teardown attempt; condition (2) (the fixer replies via
+     its task result, not the mailbox) deterministically DRIVES via
+     §A-DEGRADE D2 — same §E id-classification + the loop-bound
+     anchored-reply gate — NOT a STOP.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.
      One branch always applies — this check is required either way.
@@ -1079,10 +1082,12 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      Confirm lead→teammate messages on the main path route by bare
      `teammate_name` via the mailbox; the `agent_id` fallback is the
      §A-DEGRADE override (not the main-path address). Confirm that on a
-     degraded host: condition (1)/(3) degrade STOPs WITHOUT a teardown
-     attempt; condition (2) (the documenter replies via its task result,
-     not the mailbox) deterministically DRIVES via §A-DEGRADE D2 — same
-     §E id-classification + the loop-bound anchored-reply gate — NOT a
+     degraded host: condition (1)/(3) degrade (bare-name send failed and
+     no fallback teammate_id was captured, or both bare name and
+     teammate_id exhausted) STOPs WITHOUT a teardown attempt; condition
+     (2) (the documenter replies via its task result, not the mailbox)
+     deterministically DRIVES via §A-DEGRADE D2 — same §E
+     id-classification + the loop-bound anchored-reply gate — NOT a
      STOP.
      If agent teams are unavailable: verify it prints the documented
      graceful-fallback message and leaves no team behind.

@@ -120,7 +120,7 @@ The `prompt` string MUST contain:
 [DEGRADE] - Capture the returned `agent_id` VERBATIM/OPAQUELY into run-state `teammate_id` (§A-DEGRADE D0 — never parse the `@`/suffix); this is the FALLBACK handle for the first degraded send. Capturing the id does NOT bump `request_id_counter` or `awaiting_reply` (spawn-is-not-a-solicitation stays).
 [DEGRADE] - Set `resolved_handle = null` (no degraded lead→documenter send has been made yet; degrade-only field).
 [DEGRADE] - **Degrade detection (conditions (1)/(2)/(3) per §A-DEGRADE):**
-[DEGRADE]   - Condition (1): `agent_id` missing from the spawn result → no fallback handle exists. The documenter spawn is pre-side-effect (no doc-tree mutation has occurred) — STOP with the fallback; nothing to preserve. STOP WITHOUT teardown (no addressable teammate — §A-DEGRADE D3 no-usable-handle exception).
+[DEGRADE]   - Condition (1): the first bare-name send FAILED and `teammate_id` was not captured at spawn (D0 captured nothing — no fallback handle available). The documenter spawn is pre-side-effect (no doc-tree mutation has occurred) — STOP with the fallback; nothing to preserve. STOP WITHOUT teardown (no addressable teammate — §A-DEGRADE D3 no-usable-handle exception). This condition is reached ONLY after a bare-name send has actually failed, NOT at spawn time.
 [DEGRADE]   - Condition (2): the documenter replies via its task-completion result (`SendMessage` unavailable on this host) → this is §A-DEGRADE D2 driving; do NOT STOP. Read the structured reply from the documenter task result (every reply is D2 case (ii) for docs-loop — spawn is non-soliciting, so the first reply comes from the first D1 `teammate_id` SendMessage task result). Apply the SAME §1 schema gate + §3 semantic finding-map check, then continue the loop. Reference §A-DEGRADE D2 for the driving algorithm.
 [DEGRADE]   - Condition (3): first lead→documenter send fails on BOTH bare `teammate_name` AND `teammate_id` (D1 fallback exhausted) → the documenter spawn is pre-side-effect (no doc-tree mutation) — STOP with the fallback; nothing to preserve. STOP WITHOUT teardown (no addressable teammate).
 
@@ -208,7 +208,7 @@ Exact procedure (see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §C for
 
 1. Send the `shutdown_request` addressed via the **§A send-resolution procedure** (R1 only — teardown is id-exempt, R2 is skipped): `SendMessage({ to: "documenter", message: { type: "shutdown_request" } })` — `message` MUST be the OBJECT `{ type: "shutdown_request" }` (a string message is rejected); no `summary`. R1 sends to bare `teammate_name` on the live-mailbox main path.
 2. Send best-effort ONCE, then treat the teammate as effectively terminated and proceed to report/STOP WITHOUT waiting for any confirmation. The documenter is at rest (idle since its last reply (or the Step 4 spawn if no fix round ran)), so confirmation is structurally impossible. There is no retry.
-[DEGRADE] On a degraded run, teardown follows §A-DEGRADE D3 instead — D3 handles `resolved_handle == null` (first teardown send goes to D0-captured `teammate_id`) and the no-addressable-teammate STOP-WITHOUT-teardown exception (genuine STOP per §A-DEGRADE condition (1)/(3)).
+[DEGRADE] On a degraded run, teardown follows §A-DEGRADE D3 instead — D3 resolves the target in order: (a) `resolved_handle` set → send to it; (b) `resolved_handle` null but `teammate_id` captured → send to `teammate_id`; (c) both null → STOP WITHOUT teardown (no-addressable-teammate exception, genuine STOP per §A-DEGRADE condition (1)/(3)).
 
 ### Step 9 — Final report
 
