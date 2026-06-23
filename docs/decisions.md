@@ -111,6 +111,20 @@ Sub-decisions: **(a)** web search stays enabled (`--search` as in every mode); t
 
 **Non-blocking in the autonomous loops (deliberate).** `hyper-implement-loop` / `hyper-auto` keep their blocking criteria scoped to correctness / data-loss / security / broken-build / regression / missing-behavior; over-engineering findings are **surfaced but not auto-sent to the fixer**. Simplification (deleting an abstraction, inlining a helper) is a higher-judgment edit than a bug fix — auto-applying it in a loop risks removing something load-bearing — so it's left to a human, mirroring how `hyper-docs-loop` keeps its Gaps / Links / Cross-Doc sections report-only. The lens's primary home is the human-in-the-loop manual `hyper-code-review`; the loops are intentionally not widened for it.
 
+### Code-review `--background` change context (template-version 3)
+
+`templates/codex/code-review.md` was bumped from version 2 to 3 to add a `--background` slot: a short author-supplied change context injected into every fresh code-review spawn. Four sub-decisions govern it.
+
+**(a) Descriptive, not prescriptive.** The orchestrator (`hyper-code-review` skill) passes the change context via `--background`, but the content must be strictly descriptive — what changed, what it touches, intent — and must NOT tell Codex what to flag or pre-judge severities. **Why:** the builder/critic independence invariant requires the critic's rubric to remain deterministic and unsteered. A builder-authored severity hint would leak the builder's own blind spots into the review, defeating the gate.
+
+**(b) Injection boundary (fence + semantic instruction).** `--background` is CLI/user-supplied text rendered into the Codex prompt, so it is treated as UNTRUSTED. It is rendered inside a fenced `### Change context` block with a triple-backtick (` ``` `) text fence. A fence-collision guard rewrites any run of N≥3 backticks in the supplied text so it cannot close the fence — the trailing "space + single backtick" makes the run invalid as a CommonMark closing fence. A static template sentence additionally instructs Codex to treat the block as author-supplied DATA, never as instructions, and to not alter the rubric, severities, or what is flagged based on it. **Why:** a header label alone is not a boundary; structural fence plus semantic instruction together prevent injected text from hijacking the review prompt.
+
+**(c) Mutual exclusion with `--resume`.** The args parser rejects `--background` combined with ANY `--resume` value, including `--resume auto` — error: `"--background is only supported when --resume is omitted"`. **Why:** resumed sessions already carry the change context in the Codex thread; a silently-ignored flag would be worse than a hard error. Accepted limitation: a `--resume auto` run that falls back to a fresh spawn will NOT carry `--background` — this is intentional and safe, because `--background`'s value is highest on the first fresh review.
+
+**(d) Rendering is inline; no new helper.** The `--background` slot is rendered directly inside the fresh code-review spawn path. No single-use helper was introduced. The resume path is untouched.
+
+**Template-version progression:** code-review prompt went 1 (initial) → 2 (over-engineering lens, see entry above) → 3 (this `--background` slot). The output contract (`### Findings` / `### Verdict` sections and severity vocabulary) is UNCHANGED, so loop parsing and the resume gate are unaffected.
+
 ### MIN_CODEX is 0.130
 
 The bridge depends on `codex exec resume`, the `-c sandbox_mode=read-only` override, and global `--search` placed before the subcommand — all verified on codex-cli 0.130.0. The bridge version-checks before spawning Codex on non-dry-run paths (docs-review validates input read + 200KB size first) and fails with an upgrade hint; smoke probes catch surface drift earlier.

@@ -112,6 +112,8 @@ Default: branch diff vs `main`. Variants:
 /hyperclaude:hyper-code-review vs <ref>           # vs an arbitrary base
 ```
 
+The bridge accepts an optional `--background "<text>"` flag: a short, strictly descriptive change context (what changed, what it touches, author intent) passed to the Codex critic to orient the review — it does NOT alter the review rubric, preserving builder/critic independence. The `hyper-code-review` skill composes and passes this background automatically on a fresh, non-resume review; direct bridge CLI callers (`node scripts/codex-bridge.mjs code-review ... --background "..."`) may pass it explicitly. Omitting it is a no-op. `--background` is mutually exclusive with `--resume` and is rejected if any `--resume` value is present (resumed sessions already carry the change context in the Codex thread); `--resume auto` that falls back to a fresh run proceeds without `--background`.
+
 Writes `.hyperclaude/code-reviews/<timestamp>-<slug>.md`. Read findings; fix what matters before shipping.
 
 This is the post-implement gate. The two reviews inside `hyper-implement` catch per-task drift; this one catches cross-task issues.
@@ -207,6 +209,8 @@ Status taxonomy recorded in `codex-resume-status` frontmatter:
 | `resume-failed` | resume spawn died after validation passed |
 
 `research` does NOT support `--resume` (deferred; see decisions.md).
+
+`--background` is rejected with any `--resume` value (including `--resume auto`). A `--resume auto` invocation that falls back to a fresh spawn will NOT carry `--background` — intentional and safe: background's value is on the first fresh review; resume rounds already hold the context in the Codex thread.
 
 ## 8. Ship — tag and push
 

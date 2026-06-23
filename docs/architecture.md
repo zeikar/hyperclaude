@@ -154,7 +154,7 @@ node scripts/codex-bridge.mjs <mode> [flags]
 |---------------|------------------------------------------------------------|--------------------------------------------------------------------------------------|
 | `research`    | `--task <text>` OR `--task-file <path>`                    | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--slug`, `--out`, `--timeout`, `--dry-run` |
 | `plan-review` | `--plan-path <path>`                                       | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--slug`, `--out`, `--timeout`, `--dry-run` |
-| `code-review` | none — defaults to `--base main`                           | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`; one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--resume <path\|auto>`, `--title`, `--out`, `--timeout`, `--dry-run` |
+| `code-review` | none — defaults to `--base main`                           | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`; one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--resume <path\|auto>`, `--background <text>` (fresh only — rejected with `--resume`), `--title`, `--out`, `--timeout`, `--dry-run` |
 | `docs-review` | `--docs-path <file>` OR `--docs-dir <dir>`                 | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--diff-base <ref>`, `--out`, `--timeout`, `--dry-run` |
 
 Defaults:
@@ -167,6 +167,8 @@ Defaults:
 - `--effort <low|medium|high|xhigh>` has no default. When omitted, Codex inherits the user's `~/.codex/config.toml` reasoning-effort setting. Valid values are exactly `low`, `medium`, `high`, `xhigh`; `none` and `minimal` are rejected (not a supported exec reasoning level). The bridge passes it as `-c model_reasoning_effort=<value>`. Available on all four modes; v1 is bridge-only.
 
 When either flag is passed the selection tokens are inserted into the semantic argv **after** the subcommand and **before** `--sandbox read-only` (fresh) or before `-c sandbox_mode=read-only` (resume), preserving the [sandbox invariant](#sandbox-policy) in all cases.
+
+`--background <text>` (code-review fresh only): an optional free-text field describing what changed and why. The bridge renders it into the `{{REVIEW_BACKGROUND}}` slot of the fresh `code-review` prompt template (v3). When absent the slot renders as an empty string (no-op). When present the bridge injects a fenced `### Change context` block marked as untrusted DATA (with a fence-collision guard) plus a static template instruction to treat it as data, not instructions. Rejected with an error if `--resume` is also passed.
 
 ### Output contract
 
@@ -181,7 +183,7 @@ slug: <kebab-case>
 generated: <ISO-8601 timestamp>
 plugin-version: <hyperclaude version of the loaded copy that ran, or "unknown">
 codex-version: <semver from `codex --version`>
-template-version: <N>                  # from the fresh template's own frontmatter — research/docs-review: 1, plan-review/code-review: 2
+template-version: <N>                  # from the fresh template's own frontmatter — research/docs-review: 1, plan-review: 2, code-review: 3
 task: |-                               # research / plan-review only — block scalar
   <task text or plan path>
 cwd: "<absolute path>"                 # always
