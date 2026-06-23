@@ -96,6 +96,37 @@ else
 fi
 
 echo
+echo "==> Bridge code-review --background dry-run"
+if out=$(node scripts/codex-bridge.mjs code-review --background "neutral summary" --dry-run 2>&1); then
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    process.exit(j.ok && j.dryRun && j.slug === "vs-main" ? 0 : 1);
+  '; then
+    ok "codex-bridge code-review --background --dry-run produces expected JSON"
+  else
+    miss "codex-bridge code-review --background --dry-run JSON shape unexpected: $out"
+  fi
+else
+  miss "codex-bridge code-review --background --dry-run failed: $out"
+fi
+
+echo
+echo "==> Bridge code-review --background + --resume mutual-exclusion"
+if out=$(node scripts/codex-bridge.mjs code-review --background "x" --resume auto --dry-run 2>&1); then
+  miss "codex-bridge code-review --background + --resume should exit non-zero but exited 0: $out"
+else
+  ok "codex-bridge code-review --background + --resume exits non-zero (mutual-exclusion enforced)"
+fi
+
+echo
+echo "==> Bridge code-review unknown-flag rejection"
+if out=$(node scripts/codex-bridge.mjs code-review --bogus-flag --dry-run 2>&1); then
+  miss "codex-bridge code-review --bogus-flag should exit non-zero but exited 0: $out"
+else
+  ok "codex-bridge code-review --bogus-flag exits non-zero (unknown-flag rejection unchanged)"
+fi
+
+echo
 echo "==> setup-doctor probe"
 if out=$(node scripts/setup-doctor.mjs 2>&1); then
   if printf '%s' "$out" | node -e '
