@@ -48,31 +48,15 @@ Parse `$ARGUMENTS` with the grammar above. Construct an argv array (NOT a single
 | `--resume` present (Group 2) | Append `['--resume', <Group 3 or 'auto'>]` to above |
 | Anything else | Tell the user the contract above, ask them to clarify, **STOP**. Do NOT fall through to `--base <argument>` — this is shell-injection-prone and produces bad slug filenames. |
 
-### Step 2 — Compose neutral background
+### Step 2 — Compose neutral background (fresh runs only)
 
-**Resume gate — check this first.** If the invocation resolved to a resume (Group 2 was matched in Step 1 — i.e., `--resume` of any kind is present in the argv), **skip this step entirely**. Do NOT compose a background string and do NOT append `--background`. Two reasons: (1) resumed sessions already carry the change context inside the Codex thread, making background redundant; (2) the bridge rejects `--background` combined with any `--resume` flag as mutually exclusive — passing both would hard-error.
+**Skip entirely if resuming** (Group 2 matched): do NOT compose or pass `--background` — the bridge rejects it alongside any `--resume` (mutually exclusive), and the prior context already lives in the Codex thread.
 
-**Compose (non-resume only).** Write 1–3 sentences of neutral, purely descriptive background summarising what changed, what it touches, and the author's intent. This summary is optional — for a trivial change where no useful context exists, skip it and omit `--background` entirely.
+Otherwise, optionally write 1–3 sentences of **neutral, descriptive** background — what changed, what it touches, author intent. Skip it for a trivial change (just omit `--background`).
 
-**Guardrail:** the summary MUST be neutral and descriptive only. Do NOT state what to flag, do NOT pre-judge or rank findings, and do NOT assign or suggest severities. The background exists solely to orient Codex on the scope of the change — not to steer its conclusions. This preserves builder/critic independence.
+**Guardrail:** describe only. Never state what to flag, pre-judge or rank findings, or assign severities — background orients Codex on scope, it must not steer conclusions (builder/critic independence).
 
-**Shell-safe passing (use this recipe exactly):**
-
-a. Write the composed summary to a file in the session scratchpad directory using the `Write` tool — NOT via shell `echo`. Use a generic reference; do NOT hardcode any literal absolute path. The temp file MUST live outside the repo/git worktree (in the session scratchpad) and MAY be removed after the bridge call. Assign the path to a shell variable:
-
-   ```
-   BACKGROUND_FILE="<session scratchpad dir>/code-review-background.txt"
-   ```
-
-b. In the Bash invocation, pass the flag as:
-
-   ```
-   --background "$(cat "$BACKGROUND_FILE")"
-   ```
-
-   The inner quotes around `$BACKGROUND_FILE` keep the path argument safe; the outer quotes around `$(...)` make the file contents a single argv token with no word-splitting or glob expansion. The untrusted prose lives only in the file, never in the command string.
-
-c. Do NOT inline the summary into the command string. Do NOT `echo` it through the shell.
+**Pass it shell-safely** (free prose may contain quotes / `$()` / backticks): `Write` the summary to a file in the session scratchpad — outside the repo, not via `echo`, no hardcoded literal path — assign its path to `BACKGROUND_FILE`, then pass `--background "$(cat "$BACKGROUND_FILE")"`. The inner quotes protect the path; the outer `"$(...)"` makes the contents one argv token. Never inline the prose into the command string.
 
 ### Step 3 — Run the bridge
 
