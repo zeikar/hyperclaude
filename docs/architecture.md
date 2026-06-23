@@ -25,6 +25,7 @@ hyperclaude/
 ├── skills/                      one directory per skill, each with SKILL.md
 │   ├── hyper-interview/         gate — Claude requirements-clarification interview (no Codex)
 │   ├── hyper-research/          gate — Codex research
+│   ├── hyper-plan/              gate — Claude plan generator (dispatches planner agent)
 │   ├── hyper-plan-review/       gate — Codex plan critique
 │   ├── hyper-code-review/       gate — Codex code review
 │   ├── hyper-docs-sync/         gate — Claude doc sync orchestrator
@@ -32,12 +33,16 @@ hyperclaude/
 │   ├── hyper-plan-loop/         gate — autonomous plan-revise loop (persistent planner teammate)
 │   ├── hyper-implement-loop/    gate — autonomous implement-hardening loop (persistent fixer teammate)
 │   ├── hyper-docs-loop/         gate — autonomous docs-hardening loop (persistent documenter teammate)
+│   ├── hyper-auto/              gate — chain plan-loop into implement-loop in one gesture
 │   ├── hyper-implement/         helper — plan execution loop
 │   ├── hyper-tdd/               helper — TDD discipline
 │   └── hyper-debug/             helper — debugging discipline
 ├── agents/                      sub-Claude personas (planner, implementer, verifier, documenter, researcher, fixer)
 ├── references/                  plugin-wide reference content not owned by any single skill (currently: loop-protocol.md — Step-0 base for hyper-plan-loop, hyper-implement-loop, and hyper-docs-loop; carries §A–§E for the agent-teams contract/state-machine PLUS the shared §F loop skeleton — Step 0/2/4a/8 boilerplate + degrade-condition pointers — that each SKILL binds by pointing at the named §F sub-blocks; the §A-DEGRADE section is the removable degraded-host override — see decisions.md 2026-06-21)
-├── hooks/                       event-bound hook scripts (SessionStart reminder, PostToolUse plugin-version stamp)
+├── hooks/                       event-bound hook scripts
+│   ├── hooks.json               hook manifest (registered SessionStart + PostToolUse hooks)
+│   ├── session-start-reminder.mjs  SessionStart reminder (injects workflow-router template)
+│   └── stamp-artifact.mjs       PostToolUse(Write) stamp (injects plugin-version into artifacts)
 ├── scripts/
 │   ├── codex-bridge.mjs         CLI entry; re-exports the helpers below
 │   ├── setup-doctor.mjs         standalone local probe (non-bridge; never spawns Codex)
