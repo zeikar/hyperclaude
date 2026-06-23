@@ -5,7 +5,7 @@
 const ALLOWED_FLAGS_PER_MODE = {
   research:      new Set(['--task', '--task-file', '--slug', '--out', '--dry-run', '--timeout', '--model', '--effort']),
   'plan-review': new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout', '--resume', '--model', '--effort']),
-  'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--out', '--dry-run', '--timeout', '--resume', '--model', '--effort']),
+  'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--background', '--out', '--dry-run', '--timeout', '--resume', '--model', '--effort']),
   'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--timeout', '--resume', '--model', '--effort']),
 };
 
@@ -30,6 +30,7 @@ export function parseArgs(argv) {
     baseRef: null,
     commit: null,
     title: null,
+    background: null,
     docsPath: null,
     docsDir: null,
     diffBase: null,
@@ -88,6 +89,12 @@ export function parseArgs(argv) {
         break;
       }
       case '--title': out.title = next(); break;
+      case '--background': {
+        const v = next();
+        if (!v || v.startsWith('-')) throw new Error(`--background must be a non-empty string with no leading dash, got: "${v}"`);
+        out.background = v;
+        break;
+      }
       case '--docs-path': {
         if (out.docsDir !== null) throw new Error('--docs-path and --docs-dir are mutually exclusive');
         const v = next();
@@ -135,6 +142,9 @@ export function parseArgs(argv) {
   if (mode === 'code-review' && !out.reviewTarget) {
     out.reviewTarget = 'base';
     out.baseRef = 'main';
+  }
+  if (mode === 'code-review' && out.background && out.resumeFrom) {
+    throw new Error('--background is only supported when --resume is omitted');
   }
   if (mode === 'research' && out.task && out.taskFile) throw new Error('--task and --task-file are mutually exclusive');
   if (mode === 'research' && !out.task && !out.taskFile) throw new Error('--task or --task-file is required for research');

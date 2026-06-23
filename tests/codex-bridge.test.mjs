@@ -160,6 +160,7 @@ test('parseArgs: research mode', () => {
     baseRef: null,
     commit: null,
     title: null,
+    background: null,
     docsPath: null,
     docsDir: null,
     diffBase: null,
