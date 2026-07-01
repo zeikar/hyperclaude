@@ -248,10 +248,33 @@ for f in \
   hooks/session-start-reminder.mjs \
   hooks/stamp-artifact.mjs \
   commands/hyper-setup.md \
-  scripts/setup-doctor.mjs
+  scripts/setup-doctor.mjs \
+  scripts/memory/extract.mjs \
+  skills/hyper-memory/SKILL.md
 do
   if [ -f "$f" ]; then ok "$f"; else miss "$f missing"; fi
 done
+
+echo
+echo "==> hyper-memory extract dry-run"
+if node --check scripts/memory/extract.mjs 2>/dev/null; then
+  ok "node --check scripts/memory/extract.mjs"
+else
+  miss "scripts/memory/extract.mjs has syntax errors"
+fi
+
+if out=$(node scripts/memory/extract.mjs --dry-run 2>&1); then
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    process.exit(j.ok === true && typeof j.scanned === "number" && j.written === 0 ? 0 : 1);
+  '; then
+    ok "hyper-memory extract --dry-run produces expected JSON (ok, scanned numeric, written 0)"
+  else
+    miss "hyper-memory extract --dry-run JSON shape unexpected: $out"
+  fi
+else
+  miss "hyper-memory extract --dry-run failed: $out"
+fi
 
 echo
 echo "==> SessionStart hook"
