@@ -221,6 +221,14 @@ git push origin main v0.X.Y
 
 Driven by an explicit release request — when the user asks to release, run the flow end to end (see Release flow in [CLAUDE.md](../CLAUDE.md)). The autonomous `hyper-implement` executor is the exception: during plan execution it commits each task on a feature branch (`hyper/<slug>`, created when started from `main`/`master`) and creates a local tag only if the plan's final task says to — it never pushes the branch or the tag.
 
+## On-demand: memory — extract durable repo-local knowledge
+
+```
+/hyperclaude:hyper-memory
+```
+
+Not part of the numbered research → ship cycle above — `hyper-memory` runs on demand, whenever a batch of work has accumulated in `.hyperclaude/` (several archived plans, plan-reviews, research artifacts) and it's worth mining for durable knowledge. Orchestration-only — no Codex. It scans `plans/done/`, `plan-reviews/` (ship-as-is verdicts), and `research/`, and writes one evidence-anchored candidate markdown file per deterministic copy-based span to `.hyperclaude/memory/candidates/`. Humans curate: promote (add a live `anchors:` repo path, then `mv` to `.hyperclaude/memory/promoted/`) or reject (`rm`). v1 is extraction + curation only; auto-injecting promoted knowledge into future sessions is the v2 north star, not implemented here. See [gates-and-agents.md](gates-and-agents.md) for the full mechanics.
+
 ---
 
 ## Slug propagation

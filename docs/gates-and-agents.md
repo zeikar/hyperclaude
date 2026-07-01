@@ -174,6 +174,19 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 
 ---
 
+## `hyper-memory` — repo-local knowledge extraction (1)
+
+- **Slash:** `/hyperclaude:hyper-memory [--dry-run] [--root <path>]`
+- **Mechanics:** orchestration-only — no Codex, no agent dispatch. The skill runs `scripts/memory/extract.mjs` via `Bash` and parses its one-line JSON summary. The script fully scans the accumulated `.hyperclaude/` corpus (`plans/done/`, `plan-reviews/` — ship-as-is verdicts only, `research/`) and, for each artifact, deterministically copies an exact span (a research bullet, a plan-review verdict line, or a plan's H1 title) into one candidate markdown file per span — no free-form summarization.
+- **Writes:** `.hyperclaude/memory/candidates/<compound-key>.md`, one per candidate. Each candidate's frontmatter carries `plugin-version`, `type`, `source-artifact` (the `.hyperclaude/**` artifact the span was mined from — provenance), `anchors` (always `[]` at extraction — none of the three sources deterministically names a live canonical repo path), `mode`, `slug`, `git-head`, `generated`, `staleness`; the body is `## Claim` (a templated one-liner) and `## Evidence` (strictly the verbatim copied span).
+- **Idempotency:** a candidate is skipped on re-run if its compound-key file already exists in EITHER `.hyperclaude/memory/candidates/` OR `.hyperclaude/memory/promoted/` — an already-promoted candidate is never resurrected.
+- **Curation (human, out of band):** promote a candidate by adding at least one live, real repo source/doc path to its `anchors:` list, then plain `mv` it from `candidates/` to `.hyperclaude/memory/promoted/` (never `git mv` — `.hyperclaude/` is gitignored). `source-artifact:` provenance alone never satisfies the promotion gate. Reject by `rm`-ing the candidate file.
+- **Use when:** a batch of work has accumulated in `.hyperclaude/` (several archived plans, plan-reviews, research artifacts) and it's worth mining for durable repo-local knowledge. Not part of the research → ship cycle — run on demand.
+- **Skip when:** only a single small artifact exists since the last extraction; or you want the knowledge auto-injected into a session (v2 north star, not implemented).
+- **Source:** [skills/hyper-memory/SKILL.md](../skills/hyper-memory/SKILL.md), module [scripts/memory/extract.mjs](../scripts/memory/extract.mjs).
+
+---
+
 ## Helper skills (3)
 
 Helper skills shape Claude's behavior on tasks. They are not Codex gates themselves and don't directly produce `.hyperclaude/` artifacts. (`hyper-implement` may chain into `/hyperclaude:hyper-code-review` during its final pass — that nested gate writes a `.hyperclaude/code-reviews/` file via the regular gate path, but the helper skill itself doesn't.)
@@ -273,3 +286,4 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 | Code diff needs Codex review | `/hyperclaude:hyper-code-review` |
 | About to write behavior-bearing code | apply `hyper-tdd` |
 | Test failed unexpectedly | apply `hyper-debug` |
+| A batch of `.hyperclaude/` artifacts accumulated; want to mine durable repo-local knowledge | `/hyperclaude:hyper-memory` |

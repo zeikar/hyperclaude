@@ -95,6 +95,9 @@ External dependencies: Claude Code plugin runtime, `codex-cli >= 0.130.0` with t
    /hyperclaude:hyper-implement-loop <plan path>             # implement → code-review → fix, looped
    /hyperclaude:hyper-docs-loop                              # docs → review → fix, looped (default: docs/)
    /hyperclaude:hyper-auto add OAuth login to the API        # plan-loop → implement-loop, end-to-end
+
+   # On-demand, outside the cycle:
+   /hyperclaude:hyper-memory                                 # mine .hyperclaude/ artifacts for repo-local knowledge candidates
    ```
 
 ## Documentation

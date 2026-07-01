@@ -13,7 +13,7 @@ The plugin is meant to be installed into Claude Code (`/plugin install hyperclau
 Prerequisites: Node 18+, `codex-cli >= 0.130.0` on PATH, `git`. No `npm install` step — stdlib only.
 
 ```bash
-node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs tests/setup-doctor.test.mjs
+node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs tests/setup-doctor.test.mjs tests/memory-extract.test.mjs
                                           # unit tests. NOTE: `node --test tests/*.mjs`
                                           # works too; `node --test tests/` (dir form) does NOT — it
                                           # interprets the path as a test name and fails.
@@ -66,7 +66,7 @@ If you add a new spawn path, re-check both argv shapes. New flags must be added 
 ## Layers
 
 - **Commands** (`commands/<name>.md`) — explicitly-invoked slash commands (`/hyperclaude:<name>`), distinct from description-triggered Skills. Auto-discovered by Claude Code; no manifest entry required. The only command is `hyper-setup`: a local prerequisite probe that never spawns Codex or agents — it runs `scripts/setup-doctor.mjs` and reports the result.
-- **Skills** (`skills/<name>/SKILL.md`) — what Claude reads on the matching trigger. Each skill is one markdown file with YAML frontmatter (`name`, `description`). Skills call the bridge via `Bash` and dispatch agents via the `Agent` tool. A skill MAY also spawn an agent as a persistent team teammate for stateful multi-turn loops (`hyper-plan-loop`, `hyper-implement-loop`, `hyper-docs-loop`); this uses Claude Code's experimental agent-teams feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`).
+- **Skills** (`skills/<name>/SKILL.md`) — what Claude reads on the matching trigger. Each skill is one markdown file with YAML frontmatter (`name`, `description`). Skills call the bridge via `Bash` and dispatch agents via the `Agent` tool. A skill MAY also spawn an agent as a persistent team teammate for stateful multi-turn loops (`hyper-plan-loop`, `hyper-implement-loop`, `hyper-docs-loop`); this uses Claude Code's experimental agent-teams feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). `hyper-memory` is orchestration-only — no Codex, no agent dispatch — it runs `scripts/memory/extract.mjs` via `Bash` to extract repo-local knowledge candidates from accumulated `.hyperclaude/` artifacts to `.hyperclaude/memory/candidates/`; it joins the non-Codex-spawning set alongside the `hyper-setup` command and the hooks.
 - **Agents** (`agents/<name>.md`) — sub-Claude personas with restricted `tools:` lists. Used by skills, never the other way around.
 - **Hooks** (`hooks/*.mjs`, registered in `hooks/hooks.json`) — two: (1) a SessionStart reminder that injects a workflow-router template — `templates/hooks/session-start-reminder.md` by default, or the loop-first `session-start-reminder-loop.md` when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (so the `*-loop`/`hyper-auto` skills become the default recommendation only when agent-teams is actually available) — plus an optional `.hyperclaude/` snapshot footer; (2) a PostToolUse(`Write`) stamp hook (`hooks/stamp-artifact.mjs`) that injects a `plugin-version` line into every Claude-written `.hyperclaude/**/*.md` artifact lacking one — deterministic provenance for plans/epics/research-claude that does NOT depend on the model authoring the line (bridge artifacts already carry it and are written via fs, so the hook skips them). Both are pure orchestration — they never spawn codex.
 - **Templates** (`templates/codex/*.md`, `templates/hooks/*.md`) — prompt bodies loaded at runtime with `{{UPPERCASE_KEY}}` substitution.
@@ -88,8 +88,10 @@ All four modes use a fresh prompt template (`code-review` uses `templates/codex/
 | `references/loop-protocol.md` | `docs/architecture.md`, `docs/gates-and-agents.md`, `docs/decisions.md` |
 | `hooks/*.mjs`, `templates/hooks/*.md` | `docs/architecture.md` (SessionStart hook section) |
 | `templates/codex/*.md` (incl. `code-review.md`) | `docs/architecture.md`, `docs/development.md` (template-version section); a code-review prompt/spawn change also touches `docs/decisions.md`, `docs/workflow.md`, `docs/gates-and-agents.md`, `README.md`, and `skills/hyper-implement-loop/*` (the loop parses the code-review contract) |
-| `scripts/test/smoke.sh`, `tests/*.mjs` | `docs/development.md` |
+| `scripts/test/smoke.sh`, `tests/*.mjs` (incl. `tests/memory-extract.test.mjs`) | `docs/development.md` |
 | `.claude-plugin/plugin.json` | `site/index.html` (the `vMAJOR.MINOR` status-banner line — search `the design has converged`; the README header carries no version line), `docs/development.md` (release flow) |
+| `scripts/memory/extract.mjs` | `docs/architecture.md`, `docs/development.md`, `docs/gates-and-agents.md` |
+| `skills/hyper-memory/SKILL.md` | `docs/gates-and-agents.md`, `docs/workflow.md`, `README.md` |
 
 Behavioral surface changes (CLI flags, frontmatter keys, output paths, mode names) should also propagate to `README.md` and `docs/workflow.md` if the change is user-visible.
 
@@ -103,11 +105,13 @@ Plan files (Claude-authored) live in `.hyperclaude/plans/` and are the input to 
 
 `.hyperclaude/` is gitignored by convention, so `git mv .hyperclaude/<a> .hyperclaude/<b>` fails with "source directory is empty" — use plain `mv`. Tracked files (templates, scripts) still use `git mv`.
 
+**`.hyperclaude/memory/`** is a new artifact area, written on-demand by `hyper-memory` (`scripts/memory/extract.mjs`), not part of the research→ship cycle. `candidates/` holds proposed knowledge candidates mined from the `plans/done/` + `plan-reviews/` + `research/` corpus; they accumulate, deduped idempotently by compound-key filename checked across BOTH `candidates/` AND `promoted/` (so an already-promoted candidate is never resurrected by a later extraction run). Promotion is a plain `mv` from `candidates/` to `promoted/`, gated on the curator first adding a real, live `anchors:` repo path to the candidate — there is no archival step.
+
 ## Release flow
 
 When the user asks to release, run the whole flow end to end — don't stop after the commit.
 
-1. **Tests green — re-run immediately before committing**, not "earlier this session": `node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs tests/setup-doctor.test.mjs` and `bash scripts/test/smoke.sh`. Unit must report `fail 0`; smoke must report `failed: 0`. Either red → stop and fix first.
+1. **Tests green — re-run immediately before committing**, not "earlier this session": `node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs tests/setup-doctor.test.mjs tests/memory-extract.test.mjs` and `bash scripts/test/smoke.sh`. Unit must report `fail 0`; smoke must report `failed: 0`. Either red → stop and fix first.
 2. **Bump `version`** in `.claude-plugin/plugin.json`. **Pre-adoption policy (no installed user base):** a breaking change rides a **MINOR** bump, not a major — bridge subcommand renames, frontmatter key changes, artifact directory renames, layer/command/skill removals all count; additive/fix work is a patch. (We reached `1.0.0` as a *maturity marker* — the design has converged — not as a strict-semver stability contract. Revisit major-on-break once there's a real user base.) The bump rides in the release commit, not a separate one. When the bump changes the `vMAJOR.MINOR` shown in the status banner, also update it in `README.md` and `site/index.html` (search for `the design has converged`) so the user-visible docs match.
 3. **Commit + push to `main`.** Conventional-commit subject; breaking changes take a `!` (`feat!:` / `refactor!:`) and a `BREAKING CHANGE:` footer spelling out migration steps. Review `git status` and stage the release's files explicitly — don't blanket `git add -A`. (`.hyperclaude/` is gitignored so its artifacts never appear, but any *other* untracked file would be swept into the release commit.)
 4. **Tag:** `git tag -a vX.Y.Z -m "vX.Y.Z: <one-line>"` then `git push origin vX.Y.Z`.

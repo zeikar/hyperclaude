@@ -34,6 +34,7 @@ hyperclaude/
 │   ├── hyper-implement-loop/    gate — autonomous implement-hardening loop (persistent fixer teammate)
 │   ├── hyper-docs-loop/         gate — autonomous docs-hardening loop (persistent documenter teammate)
 │   ├── hyper-auto/              gate — chain plan-loop into implement-loop in one gesture
+│   ├── hyper-memory/            orchestration-only — extracts repo-local knowledge candidates (no Codex)
 │   ├── hyper-implement/         helper — plan execution loop
 │   ├── hyper-tdd/               helper — TDD discipline
 │   └── hyper-debug/             helper — debugging discipline
@@ -48,6 +49,7 @@ hyperclaude/
 │   ├── setup-doctor.mjs         standalone local probe (non-bridge; never spawns Codex)
 │   ├── codex/                   bridge modules (slug, frontmatter, git, templates,
 │   │                            args, paths, codex spawn + JSONL, failure, resume)
+│   ├── memory/extract.mjs       hyper-memory extraction module (non-bridge; never spawns Codex)
 │   └── test/smoke.sh            acceptance smoke checks
 ├── templates/codex/             prompt templates rendered into Codex stdin
 │   ├── research.md
@@ -266,12 +268,29 @@ Codex gates and Claude-authored plans write artifacts to `.hyperclaude/` in the 
 ├── epics/           Claude-authored epic roadmaps (tier: epic) for oversized tasks; hyper-implement refuses these
 ├── plan-reviews/    Codex critiques of plans (plan-review mode)
 ├── code-reviews/    Codex code-review outputs (code-review mode)
-└── docs-reviews/    Codex docs accuracy outputs (docs-review mode)
+├── docs-reviews/    Codex docs accuracy outputs (docs-review mode)
+└── memory/          hyper-memory candidates/ + promoted/ (see below; not part of the research→ship cycle)
 ```
 
 Naming is consistent across all subdirs: `<YYYYMMDD-HHMM>-<slug>.md`. The slug is the trace key — a `research` slug carries through to the `plan` written by Claude, then into the `plan-review` of that plan. The bridge's `extractSlugFromPlanFilename()` reuses the slug from a plan filename when invoking `plan-review`, so the trio shares a slug end-to-end.
 
 The `specs/` artifact is **Claude-authored** (from `hyper-interview`, like plans) — not a bridge output, so its frontmatter is the skill-defined set `mode: interview`, `idea`, `slug`, `generated`, `type: greenfield|brownfield`, plus the PostToolUse-hook-added `plugin-version`. It does NOT carry the bridge's `codex-*` / `template-version` keys. The `slug` is minted from the idea text with the same deterministic rule `research`/`plan` use, so carrying the idea forward keeps the trace linked.
+
+### `memory/` — repo-local knowledge candidates
+
+`.hyperclaude/memory/` is written on-demand by `hyper-memory` (`scripts/memory/extract.mjs`), not by a bridge mode — it spawns NO Codex. Layout:
+
+```
+.hyperclaude/memory/
+├── candidates/      proposed, unreviewed knowledge candidates
+└── promoted/        human-curated, accepted candidates
+```
+
+Each candidate is one file named `<compound-key>.md`, where the compound key is a 12-char hex slice of a sha256 hash over `mode`, `slug`, `generated`, `git-head`, and `claim` (never the slug alone — slugs are not unique across artifacts). The extractor scans `plans/done/`, `plan-reviews/` (ship-as-is verdicts only), and `research/`, copying an exact verbatim span per artifact (a research bullet, a plan-review verdict line, or a plan's H1 title) — no summarization. Candidate frontmatter: `plugin-version`, `type`, `source-artifact`, `anchors`, `mode`, `slug`, `git-head`, `generated`, `staleness`; body: `## Claim` + `## Evidence` (the verbatim span).
+
+`source-artifact:` and `anchors:` are deliberately distinct fields: `source-artifact:` is evidence provenance (the `.hyperclaude/**` artifact the span was mined from — a gitignored artifact, not a canonical repo source); `anchors:` is a YAML list of live canonical repo source/doc paths the claim is *about*, and the extractor **always** emits `anchors: []` — none of the three v1 sources deterministically names a real repo file. Promotion requires a human curator to first add at least one real, on-disk repo path to `anchors:`, then plain `mv` the file from `candidates/` to `promoted/` (not `git mv` — `.hyperclaude/` is gitignored). Idempotency is checked across BOTH directories: a candidate whose compound-key file exists in EITHER `candidates/` OR `promoted/` is skipped on re-run, so a promoted candidate is never resurrected. There is no archival step for `memory/` — rejection is a plain `rm` of the candidate file.
+
+The module reuses `parseFrontmatter` (re-exported from `scripts/codex/frontmatter.mjs`), `extractSlugFromPlanFilename` (from `scripts/codex/slug.mjs`), and `getPluginVersion` (from `scripts/codex/plugin.mjs`). It authors its own `plugin-version` line at write time — unlike Claude-authored plans/specs, the PostToolUse stamp hook does not apply here, because the hook fires only on the `Write` tool and this module writes via `node:fs/promises`.
 
 For the per-artifact frontmatter shapes of the bridge-authored gates, see "Output contract" above.
 
