@@ -286,7 +286,7 @@ export function buildCandidatesForArtifact(artifact, currentHead) {
         ...common,
         type: 'research-note',
         sourceArtifact: artifact.relPath,
-        claim: `Research (${slug}) ${headingName}: ${bullet.slice(0, 120)}`,
+        claim: `Research '${slug}': ${headingName}`,
         evidence: bullet,
       });
     }
@@ -315,7 +315,7 @@ export function buildCandidatesForArtifact(artifact, currentHead) {
       type: 'implemented-plan',
       // The plan file is itself a gitignored artifact, not a canonical anchor.
       sourceArtifact: artifact.relPath,
-      claim: `Implemented plan: ${title}`,
+      claim: `Implemented plan '${slug}'`,
       evidence: title,
     });
     return out;

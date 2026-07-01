@@ -237,7 +237,7 @@ test('buildCandidatesForArtifact: plan → anchors [] and evidence is the verbat
   assert.deepEqual(cands[0].anchors, []);
   assert.equal(cands[0].type, 'implemented-plan');
   assert.equal(cands[0].evidence, 'The Real Title');
-  assert.equal(cands[0].claim, 'Implemented plan: The Real Title');
+  assert.equal(cands[0].claim, "Implemented plan 'a-plan'");
   assert.equal(cands[0].sourceArtifact, '.hyperclaude/plans/done/20260101-0900-a-plan.md');
 });
 
@@ -299,9 +299,11 @@ test('buildCandidatesForArtifact: research → anchors [] and evidence is the ve
     assert.equal(c.type, 'research-note');
   }
   assert.equal(cands[0].evidence, 'Keep stdlib only');
-  assert.equal(cands[0].claim, 'Research (res) Recommendations: Keep stdlib only');
+  assert.equal(cands[0].claim, "Research 'res': Recommendations");
   assert.equal(cands[1].evidence, 'Beware races');
-  assert.equal(cands[1].claim, 'Research (res) Pitfalls: Beware races');
+  assert.equal(cands[1].claim, "Research 'res': Pitfalls");
+  // Claim is a clean label, NOT a truncated copy of the evidence span.
+  assert.ok(!cands[0].claim.includes('Keep stdlib only') && !cands[1].claim.includes('Beware races'));
 });
 
 test('buildCandidatesForArtifact: research with no bullets → zero candidates', () => {
