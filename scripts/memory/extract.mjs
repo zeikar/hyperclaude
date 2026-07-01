@@ -139,6 +139,7 @@ export function firstBulletUnderHeading(content, heading) {
   const idx = lines.findIndex((l) => l.trim() === heading);
   if (idx === -1) return null;
   for (let i = idx + 1; i < lines.length; i++) {
+    if (/^#{1,6}\s/.test(lines[i])) return null;
     const m = lines[i].match(/^\s*[-*]\s+(.*)$/);
     if (m) return m[1].trim();
   }
@@ -368,14 +369,36 @@ export async function run({ hcRoot = '.hyperclaude', dryRun = false } = {}) {
 
 // ---------- CLI entry ----------
 
+/**
+ * Strict CLI argv parser. Accepts ONLY `--dry-run` and `--root <path>` — any
+ * other flag-like token (starts with `-`), or a `--root` missing its value
+ * (absent or itself flag-like), throws. Mirrors the two documented flags in
+ * SKILL.md exactly; do not widen the accepted set here without updating both.
+ */
+export function parseArgs(argv) {
+  let dryRun = false;
+  let hcRoot = '.hyperclaude';
+  for (let i = 0; i < argv.length; i++) {
+    const tok = argv[i];
+    if (tok === '--dry-run') {
+      dryRun = true;
+    } else if (tok === '--root') {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith('-')) {
+        throw new Error(`--root requires a path value, got: ${value ?? '(none)'}`);
+      }
+      hcRoot = value;
+      i += 1;
+    } else {
+      throw new Error(`unknown argument: ${tok}`);
+    }
+  }
+  return { dryRun, hcRoot };
+}
+
 async function main() {
   try {
-    const argv = process.argv.slice(2);
-    const dryRun = argv.includes('--dry-run');
-    let hcRoot = '.hyperclaude';
-    const rootIdx = argv.indexOf('--root');
-    if (rootIdx !== -1 && argv[rootIdx + 1]) hcRoot = argv[rootIdx + 1];
-
+    const { dryRun, hcRoot } = parseArgs(process.argv.slice(2));
     const result = await run({ hcRoot, dryRun });
     process.stdout.write(JSON.stringify(result) + '\n');
     process.exit(0);

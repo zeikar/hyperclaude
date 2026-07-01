@@ -68,4 +68,13 @@ Two locations only — no multi-state machine:
 
 **Invocation argument:** $ARGUMENTS
 
-Accepts ONLY the flags the script implements — `--dry-run` and `--root <path>` — passed straight through to `node "${CLAUDE_PLUGIN_ROOT}/scripts/memory/extract.mjs"`. There is no other flag to document or invent.
+**Accepted argument grammar — nothing outside this table:**
+
+| Token(s)          | Meaning                                    |
+|-------------------|---------------------------------------------|
+| `--dry-run`       | compute candidates/keys, write nothing       |
+| `--root <path>`   | corpus root to scan (default `.hyperclaude`) |
+
+The script's CLI parser rejects anything else (unknown flags, `--root` with a missing/flag-like value) with `{"ok":false,"error":...}` and a non-zero exit — see `scripts/memory/extract.mjs`.
+
+Do NOT interpolate the raw `$ARGUMENTS` string into the Bash command. Parse it into individual tokens, keep only tokens matching the grammar above, and pass each as its own shell-quoted argument (e.g. quote the `--root` path value) when invoking `node "${CLAUDE_PLUGIN_ROOT}/scripts/memory/extract.mjs"`. Any token outside the grammar means: do not pass it through — the script would reject it anyway.

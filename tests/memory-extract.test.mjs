@@ -24,6 +24,7 @@ import {
   writeCandidateIfAbsent,
   computeStaleness,
   buildCandidatesForArtifact,
+  parseArgs,
   run,
 } from '../scripts/memory/extract.mjs';
 
@@ -137,6 +138,26 @@ test('firstBulletUnderHeading: null when heading absent', () => {
 
 test('firstBulletUnderHeading: null when heading present but no bullet', () => {
   assert.equal(firstBulletUnderHeading('### Recommendations\n\nprose only\n', '### Recommendations'), null);
+});
+
+test('firstBulletUnderHeading: does not steal a bullet from a LATER heading', () => {
+  const body = '### Recommendations\n\nprose only, no bullet here\n\n### Pitfalls\n\n- Beware races\n';
+  assert.equal(firstBulletUnderHeading(body, '### Recommendations'), null);
+  assert.equal(firstBulletUnderHeading(body, '### Pitfalls'), 'Beware races');
+});
+
+test('buildCandidatesForArtifact: research Recommendations has no bullet before Pitfalls does → no mislabeled Recommendations candidate', () => {
+  const artifact = {
+    mode: 'research',
+    name: '20260101-0900-res.md',
+    relPath: '.hyperclaude/research/20260101-0900-res.md',
+    frontmatter: { slug: 'res' },
+    content: '### Recommendations\n\nprose only, no bullet\n\n### Pitfalls\n\n- Beware races\n',
+  };
+  const cands = buildCandidatesForArtifact(artifact, 'unknown');
+  assert.equal(cands.length, 1);
+  assert.equal(cands[0].evidence, 'Beware races');
+  assert.ok(!cands[0].claim.includes('Recommendations'));
 });
 
 test('firstH1: returns title with "# " removed', () => {
@@ -458,6 +479,64 @@ test('run(): missing corpus → ok:true, scanned:0', async () => {
   const result = await run({ hcRoot: root });
   assert.equal(result.ok, true);
   assert.equal(result.scanned, 0);
+});
+
+// ---------- parseArgs (strict CLI argv) ----------
+
+test('parseArgs: --dry-run alone → dryRun true, default hcRoot', () => {
+  assert.deepEqual(parseArgs(['--dry-run']), { dryRun: true, hcRoot: '.hyperclaude' });
+});
+
+test('parseArgs: --root <path> → hcRoot set, dryRun false', () => {
+  assert.deepEqual(parseArgs(['--root', '/tmp/fixture']), { dryRun: false, hcRoot: '/tmp/fixture' });
+});
+
+test('parseArgs: --root <path> --dry-run together', () => {
+  assert.deepEqual(parseArgs(['--root', '/tmp/fixture', '--dry-run']), {
+    dryRun: true,
+    hcRoot: '/tmp/fixture',
+  });
+});
+
+test('parseArgs: no args → defaults', () => {
+  assert.deepEqual(parseArgs([]), { dryRun: false, hcRoot: '.hyperclaude' });
+});
+
+test('parseArgs: unknown flag "--dryrun" (typo) is rejected, not silently accepted', () => {
+  assert.throws(() => parseArgs(['--dryrun']), /unknown argument/);
+});
+
+test('parseArgs: "--root --dry-run" does not consume --dry-run as the root value', () => {
+  assert.throws(() => parseArgs(['--root', '--dry-run']), /--root requires a path value/);
+});
+
+test('parseArgs: "--root" with no following value is rejected', () => {
+  assert.throws(() => parseArgs(['--root']), /--root requires a path value/);
+});
+
+test('parseArgs: unknown flag anywhere is rejected', () => {
+  assert.throws(() => parseArgs(['--dry-run', '--bogus']), /unknown argument/);
+});
+
+// ---------- CLI subprocess: invalid argv → {ok:false}, non-zero exit ----------
+
+test('CLI: --dryrun typo → ok:false JSON, non-zero exit, no real extraction run', () => {
+  const scriptPath = fileURLToPath(new URL('../scripts/memory/extract.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [scriptPath, '--dryrun'], { encoding: 'utf8', timeout: 10000 });
+  assert.notEqual(result.status, 0);
+  const parsed = JSON.parse(result.stdout.trim());
+  assert.equal(parsed.ok, false);
+});
+
+test('CLI: --root --dry-run (flag consumed as root value) → ok:false JSON, non-zero exit', () => {
+  const scriptPath = fileURLToPath(new URL('../scripts/memory/extract.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [scriptPath, '--root', '--dry-run'], {
+    encoding: 'utf8',
+    timeout: 10000,
+  });
+  assert.notEqual(result.status, 0);
+  const parsed = JSON.parse(result.stdout.trim());
+  assert.equal(parsed.ok, false);
 });
 
 // ---------- enumerateArtifacts / SOURCE_DIRS ----------
