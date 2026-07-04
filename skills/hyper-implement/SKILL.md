@@ -79,23 +79,23 @@ Tell the user which branch per-task commits will land on. Never push the branch 
 
 For EACH task in order:
 
-1. **Implementer.** Dispatch via the Agent tool. Prefer `subagent_type: hyperclaude:implementer`. Prompt MUST include:
+1. **Implementer.** Dispatch via the Agent tool. Prefer `subagent_type: hyperclaude:implementer`, **`run_in_background: false`** (spec review in Step 3.2 gates on this result). Prompt MUST include:
    - The full task text (paste it; do not make the subagent re-read the plan file).
    - Project context: where this fits, recent commits, base SHA before this task.
    - Global constraints from the plan's preamble (zero deps, sandbox invariant, naming traps, etc.).
    - A self-review checklist before reporting back.
    - Expected report format: status (DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT), files changed, test counts. (No commit SHA — the implementer never commits; the lead commits in step 6 after both reviews pass and records the SHA.)
 
-2. **Spec compliance review.** Once implementer reports DONE, dispatch a fresh **general-purpose** subagent (NOT the verifier — verifier runs tests, doesn't compare to spec). Prompt:
+2. **Spec compliance review.** Once implementer reports DONE, dispatch a fresh **general-purpose** subagent (NOT the verifier — verifier runs tests, doesn't compare to spec), **`run_in_background: false`** (its verdict gates the fix loop and Step 3.3). Prompt:
    - The full task text.
    - The implementer's report (verbatim).
    - The git SHA range (`<base>..<head>`).
    - Instruction: read the actual code; don't trust the report. Look for missing requirements AND unrequested extras.
    - Expected outcome: ✅ compliant, or ❌ with specific file:line issues.
 
-   If issues found → re-dispatch the implementer with the fix list → re-review. Loop until ✅.
+   If issues found → re-dispatch the implementer with the fix list, **`run_in_background: false`** (synchronous so re-review sees the fixed tree) → re-review. Loop until ✅.
 
-3. **Code quality review.** After spec ✅, dispatch another fresh general-purpose subagent. Focus on:
+3. **Code quality review.** After spec ✅, dispatch another fresh general-purpose subagent, **`run_in_background: false`** (its approval gates the commit in Step 3.6). Focus on:
    - Clarity (names, decomposition, file responsibility).
    - Test quality (do tests verify behavior, not types?).
    - YAGNI (any unrequested abstractions or features?).
@@ -104,7 +104,7 @@ For EACH task in order:
 
    Loop until reviewer approves (Minor-only is acceptable; Critical/Important must be fixed).
 
-4. **Verifier — when tests or build steps changed.** If the task added or modified test files (`tests/**`, `*.test.*`, `*.spec.*`) or build/CI configuration (`package.json` scripts, smoke script, CI workflow), dispatch `subagent_type: hyperclaude:verifier`. Verifier runs `node --test`, `bash scripts/test/smoke.sh`, lint, etc. and reports PASS / PARTIAL / FAIL with verbatim output. Verifier never modifies files. Skip the verifier when the task didn't touch tests or build inputs — the spec/quality reviews above already cover code correctness.
+4. **Verifier — when tests or build steps changed.** If the task added or modified test files (`tests/**`, `*.test.*`, `*.spec.*`) or build/CI configuration (`package.json` scripts, smoke script, CI workflow), dispatch `subagent_type: hyperclaude:verifier`, **`run_in_background: false`** (its PASS/FAIL gates the commit). Verifier runs `node --test`, `bash scripts/test/smoke.sh`, lint, etc. and reports PASS / PARTIAL / FAIL with verbatim output. Verifier never modifies files. Skip the verifier when the task didn't touch tests or build inputs — the spec/quality reviews above already cover code correctness.
 
 5. **Mark the task's step checkboxes as `- [x]` in the plan file.** After both reviews approve, use the Edit tool to convert every `- [ ]` inside the current `## Task N: <title>` block to `- [x]`. Scope is the task block only — leave other tasks' boxes alone. This keeps the plan file's checkbox state the durable source of "what's done" — survives context loss and lets a resumed session see exactly which tasks remain. Do this BEFORE the commit/TodoWrite updates so the durable artifact lands first.
 
