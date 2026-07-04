@@ -15,5 +15,10 @@ Thumbs.db
 
 # Local-only state from running hyperclaude in self-test
 .hyperclaude/
-# Local Claude runtime state (scheduled-task locks, etc.)
-.claude/
+# Local Claude runtime state (scheduled-task locks, etc.) — but track the
+# repo-local cc-changelog skill (its mutable version-state file stays ignored)
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/cc-changelog/
+.claude/skills/cc-changelog/.last-checked-version
