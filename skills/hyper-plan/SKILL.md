@@ -60,7 +60,7 @@ Base path: `.hyperclaude/plans/<timestamp>-<slug>.md`. If it exists, append `-2`
 
 ### Step 3 — Dispatch planner (scope-aware)
 
-Use the Agent tool with `subagent_type: hyperclaude:planner`. Prompt MUST include:
+Use the Agent tool with `subagent_type: hyperclaude:planner`, **`run_in_background: false`** (Step 4 consumes the returned body inline to detect mode and Write the plan). Prompt MUST include:
 
 - **Task** — verbatim.
 - **Research context** — full contents of all matched research artifacts inline (there may be a Codex + Claude pair), if any were found in Step 1. Do not make the agent re-read them.
@@ -98,7 +98,7 @@ Detect the planner's chosen mode from its heading style: `## Milestone N:` headi
 
    The `tier: epic` marker is what makes `/hyperclaude:hyper-implement` refuse it — it's a roadmap, not a task plan. Keeping it out of `.hyperclaude/plans/` also keeps it off hyper-implement's newest-plan auto-pick entirely.
 
-2. **Expand Milestone 1.** Dispatch the `planner` again (return-body mode, **detailed** format). The prompt MUST give Milestone 1's title + scope as the task, the full roadmap as context (so the expansion respects milestone boundaries and dependencies), and any Step 1 research context. Require the `## Task N:` detailed format.
+2. **Expand Milestone 1.** Dispatch the `planner` again (return-body mode, **detailed** format), **`run_in_background: false`** (the returned body is Written verbatim in item 3). The prompt MUST give Milestone 1's title + scope as the task, the full roadmap as context (so the expansion respects milestone boundaries and dependencies), and any Step 1 research context. Require the `## Task N:` detailed format.
 
 3. **Write the detailed plan** with the planner's response verbatim (no frontmatter) to the **Step 2 plans path** (`.hyperclaude/plans/<timestamp>-<slug>.md`) — the same canonical path the detailed case uses. The roadmap is in `.hyperclaude/epics/`, so there is no name collision, and the Milestone-1 plan keeps the canonical `<slug>` — preserving the `research → plan → plan-review` shared-slug trace. (Do NOT append `-m1`: that would leak into the slug `slug.mjs` extracts and break the shared-slug convention.)
 
@@ -139,7 +139,7 @@ Base path `.hyperclaude/plans/<timestamp>-<milestone-slug>.md`; append `-2`, `-3
 
 ### M-4 — Dispatch the planner (detailed)
 
-Dispatch `hyperclaude:planner` (return-body mode, **detailed** `## Task N:` format). The prompt MUST include:
+Dispatch `hyperclaude:planner` (return-body mode, **detailed** `## Task N:` format), **`run_in_background: false`** (M-5 Writes the returned body verbatim). The prompt MUST include:
 
 - **Task** — Milestone K's title + scope, verbatim from the roadmap.
 - **Epic context** — the FULL roadmap body inline, naming the source roadmap path, so the expansion respects `Depends on:` ordering and does not duplicate sibling milestones.
