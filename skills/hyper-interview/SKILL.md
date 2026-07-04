@@ -34,7 +34,7 @@ Do NOT write code, scaffold anything, or invoke an implementation skill until th
 ### Step 1 — Resolve the idea + project context
 
 1. The idea is `$ARGUMENTS`. If empty, fall back to the user's most recent build/implement intent in this conversation; if none exists, ask "What do you want to build?" and stop.
-2. **Greenfield vs brownfield.** Dispatch the `Explore` agent (read-only) ONCE to check whether the cwd has source code bearing on the idea:
+2. **Greenfield vs brownfield.** Dispatch the `Explore` agent (read-only) ONCE with **`run_in_background: false`** (the greenfield/brownfield verdict and area map gate Step 2's questions, which cite Explore's findings; result awaited inline) to check whether the cwd has source code bearing on the idea:
    - Relevant code exists → **brownfield**: have Explore map the relevant area (paths, key symbols, patterns) so the questions can cite repo evidence instead of asking the user what the code already reveals.
    - Otherwise → **greenfield**.
    - Keep this to a single Explore dispatch; don't fan out. If exploration fails, proceed as greenfield and note the limitation.
