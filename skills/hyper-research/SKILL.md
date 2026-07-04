@@ -96,7 +96,7 @@ This path runs Claude-native research via the `researcher` agent. It uses `WebFe
    Base path: `.hyperclaude/research/<timestamp>-<slug>-claude.md` (the `-claude` suffix is how the Claude artifact coexists with the Codex one when both ran). If it exists, append `-2`, `-3`, … before the extension until free.
    - **No-ASCII-slug fallback** (mirrors the bridge): if slug derivation yields no ASCII characters (e.g. an all-Korean topic), the filename is timestamp + `-claude` — `.hyperclaude/research/<timestamp>-claude.md` (with the same `-2`/`-3` collision suffixing) — and the frontmatter `slug:` line is the bare key with an empty value: `slug: ` (key, colon, single space, nothing after — NOT `slug: ""`).
 
-4. Dispatch the `researcher` agent with the Agent tool, `subagent_type: hyperclaude:researcher`, in return-body mode (the agent returns the report markdown; it does not write files). The prompt MUST include:
+4. Dispatch the `researcher` agent with the Agent tool, `subagent_type: hyperclaude:researcher`, **`run_in_background: false`** (steps 5–6 consume the agent body synchronously), in return-body mode (the agent returns the report markdown; it does not write files). The prompt MUST include:
    - **Task** — the resolved task description, verbatim.
    - **Required section structure** — the report must use exactly these headings, in this order: `### Prior Art`, `### Pitfalls`, `### Recommendations`, `### Open Questions`.
 
