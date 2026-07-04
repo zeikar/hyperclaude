@@ -74,7 +74,7 @@ Group all changed files + their diffs that map to the same target doc. Never dis
 
 ### Step 5 — Dispatch `documenter` agent
 
-For each affected doc, dispatch via the Agent tool with `subagent_type: hyperclaude:documenter`. In the prompt, include:
+For each affected doc, dispatch via the Agent tool with `subagent_type: hyperclaude:documenter` and **`run_in_background: false`** (each documenter must land its edit before the loop continues; Step 6's `git status` / `git diff --stat` report requires a settled tree). In the prompt, include:
 
 - The target doc path
 - **Whether the doc EXISTS or needs to be CREATED**: check `[ -f "<target>" ]` via Bash before dispatching. If absent, dispatch in CREATE mode (the agent writes a new file with a sensible scaffold). If present, dispatch in UPDATE mode (agent edits in place). Make this explicit in the dispatch prompt.
