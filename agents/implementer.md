@@ -17,7 +17,7 @@ description: |
   user: "Add a /healthz endpoint that returns 200 OK."
   assistant: "I'll dispatch the implementer agent — the change is bounded and a plan isn't needed."
   <commentary>
-  For one-step concrete changes, dispatch the implementer directly without going through the planner.
+  For one-step concrete changes, dispatch the implementer directly without going through the planner (pass `run_in_background: false` to get the result inline).
   </commentary>
   </example>
 

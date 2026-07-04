@@ -13,7 +13,7 @@ Autonomous plan-hardening gate. Creates a per-run team, spawns the `planner` age
 - User wants an autonomous plan → review → revise cycle in a single gesture.
 
 Skip when:
-- The task is one step — dispatch the `implementer` agent directly.
+- The task is one step — dispatch the `implementer` agent directly (pass `run_in_background: false` for the result inline).
 - You want hands-on control over each plan / review round — use `/hyperclaude:hyper-plan` + `/hyperclaude:hyper-plan-review` manually.
 - The experimental agent-teams feature is unavailable (this skill stops with a documented fallback message — see Step 2).
 

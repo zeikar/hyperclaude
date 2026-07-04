@@ -57,7 +57,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 - **Slug:** reused from the matching `hyper-research` artifact's `slug:` when one exists, so the `research → plan → plan-review` trio shares one slug. Otherwise derived from task text (lowercase, ASCII, ≤5 words, kebab-case).
 - **`--resume`:** not supported — re-plan by re-running with a refined task.
 - **Use when:** about to start multi-task work and you want a plan `/hyperclaude:hyper-plan-review` can critique and `/hyperclaude:hyper-implement` can execute.
-- **Skip when:** the task is one step (dispatch `implementer` directly); a recent plan already covers it.
+- **Skip when:** the task is one step (dispatch `implementer` directly with `run_in_background: false`); a recent plan already covers it.
 - **Source:** [skills/hyper-plan/SKILL.md](../skills/hyper-plan/SKILL.md). No template — the skill prompts the agent inline.
 
 ### `hyper-plan-review` — Codex plan critique
@@ -278,7 +278,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 | Multi-task plan ready; want disciplined execution | `/hyperclaude:hyper-implement` |
 | Want autonomous implement → review → fix loop in one gesture | `/hyperclaude:hyper-implement-loop` (requires experimental agent-teams) |
 | Want plan-loop → implement-loop chained end-to-end in one gesture | `/hyperclaude:hyper-auto` (requires experimental agent-teams) |
-| One concrete coded step, no plan needed | `implementer` agent directly |
+| One concrete coded step, no plan needed | `implementer` agent directly (`run_in_background: false`) |
 | Need to confirm tests / build pass | `verifier` agent |
 | Code change might affect docs | `/hyperclaude:hyper-docs-sync` |
 | Docs need accuracy gate | `/hyperclaude:hyper-docs-review` |

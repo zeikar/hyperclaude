@@ -16,7 +16,7 @@ For an **oversized** task the planner returns an epic roadmap (`tier: epic`, sav
 - Expanding the next milestone of an existing epic roadmap: `/hyperclaude:hyper-plan milestone <K>` (see *Milestone expansion*).
 
 Skip when:
-- The task is one step — dispatch the `implementer` agent directly.
+- The task is one step — dispatch the `implementer` agent directly (pass `run_in_background: false` for the result inline).
 - A recent plan already covers this task.
 
 ## How to invoke

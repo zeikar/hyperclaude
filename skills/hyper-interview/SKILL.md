@@ -17,7 +17,7 @@ This is the **light** interview — the brainstorming-style conversational flow 
 - The idea is vague or under-specified and jumping straight to a plan would guess at scope ("interview me", "ask me what you need", "not sure exactly what I want", "make sure you understand before building").
 
 Skip when:
-- The request is already concrete (file paths, function names, acceptance criteria) — go to `hyper-plan`, or dispatch `implementer` for one step.
+- The request is already concrete (file paths, function names, acceptance criteria) — go to `hyper-plan`, or dispatch `implementer` for one step (pass `run_in_background: false` for the result inline).
 - The user pasted a PRD / spec / plan and wants it executed — use `hyper-plan` / `hyper-implement`.
 - The user says "just do it" / "skip the questions" — respect it. Don't interrogate; proceed to the work they asked for.
 
