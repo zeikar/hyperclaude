@@ -270,6 +270,16 @@ Token-reduction Level-1 refactor: triplicated SKILL boilerplate (agent-teams too
 
 Verified green on completion (`node --test` + `bash scripts/test/smoke.sh`, incl. the §A-DEGRADE removal-simulation + dual-handle confinement assertions). Net effect: one shared §F copy instead of three restatements — the per-trigger token win is modest by design, the structural win is drift elimination.
 
+### 2026-07-04 — subagents background-by-default (v2.1.198); non-loop gate dispatches pin `run_in_background: false`
+
+Claude Code 2.1.198 flipped the platform default: `Agent`-tool subagents now run in the **background** unless the dispatch explicitly pins `run_in_background: false`. Under the old default, a caller that awaited the result inline still worked because the platform ran synchronously by default; under the new default, an un-annotated dispatch returns a task handle immediately and the very next gate step would race ahead of the agent's actual result.
+
+The sequential / result-inline dispatches in `hyper-implement` (the initial per-task implementer/reviewer dispatches AND any fix-loop re-dispatch), `hyper-plan` (the `planner` dispatches, both fresh and Milestone-expansion), `hyper-docs-sync` (the per-doc `documenter` dispatch), `hyper-research` (the single-Claude path's `researcher` dispatch — NOT the default-parallel path, see below), and `hyper-interview` (the up-front `Explore` dispatch) now pin `run_in_background: false` so each of these gates keeps blocking on the prior agent's result — deterministic gating no longer relies on the old platform default.
+
+`hyper-research`'s default-parallel path is the deliberate exception: its backgrounded `researcher` dispatch stays `run_in_background: true` by design — that dispatch is meant to overlap with the concurrent Codex-bridge call, not block on it.
+
+**Loop teammate spawns are deliberately NOT annotated.** The persistent-teammate spawns in the `*-loop` skills — `hyper-plan-loop`'s `planner`, `hyper-implement-loop`'s `fixer`, `hyper-docs-loop`'s `documenter` — carry no `run_in_background` pin. Those spawns MUST stay background: the whole agent-teams / `SendMessage` model depends on the teammate running as a live, addressable background process across multiple lead turns. Pinning `run_in_background: false` there would block the lead on the teammate's first turn and break the persistent-teammate model entirely.
+
 ---
 
 ## Pointers (decisions documented elsewhere)

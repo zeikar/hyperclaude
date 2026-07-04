@@ -90,6 +90,8 @@ For each `## Task N:` in the plan, this skill:
 4. Dispatches the `verifier` agent if tests / build steps are involved.
 5. Marks the task complete and moves on.
 
+These dispatches — the initial per-task dispatches above and any inline fix-loop re-dispatch — run synchronously (`run_in_background: false`): Claude Code 2.1.198 defaults subagents to background, so pinning `false` keeps each gate blocking on the prior agent's result.
+
 Fix loops happen inline — reviewer ❌ → implementer fixes → re-review. The skill does not pause for user input between tasks; it executes the whole plan. On full completion (all tasks executed + acceptance green) it archives the executed plan to `.hyperclaude/plans/done/`, so a finished plan stops surfacing as the SessionStart "Active plan". Archival means "plan implemented" — it's independent of code-review findings (those are downstream hardening) and applies under `hyper-implement-loop` too.
 
 When to skip the skill: one-step plans (just dispatch `implementer` directly), tightly-coupled tasks that benefit from shared context, or fast prototyping.
