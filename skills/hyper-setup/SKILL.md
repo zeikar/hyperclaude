@@ -1,6 +1,8 @@
 ---
+name: hyper-setup
 description: Diagnose hyperclaude prerequisites and report fixes
 allowed-tools: Bash(node:*), Read
+disable-model-invocation: true
 ---
 
 # hyper-setup
@@ -41,14 +43,14 @@ For the `checks[]` path:
    - If `ok` is `false` (one or more hard FAILs): `N hard prerequisite(s) failing — hyperclaude will not work until fixed.` (N = count of `checks[]` entries with `severity:"hard"` and `status:"FAIL"`).
    - The agent-teams WARN must never flip the overall verdict to fail.
 
-4. **Error fallback — ONLY when there is no parseable JSON, or the JSON has an `error` key (not merely `ok:false` with a `checks[]` array), the command MUST print verbatim:** `Prerequisite probe could not complete: <error or "no parseable output">. hyperclaude prerequisites are UNKNOWN — re-run /hyperclaude:hyper-setup or run the doctor script directly.` — and MUST NOT fabricate a pass.
+4. **Error fallback — ONLY when there is no parseable JSON, or the JSON has an `error` key (not merely `ok:false` with a `checks[]` array), the skill MUST print verbatim:** `Prerequisite probe could not complete: <error or "no parseable output">. hyperclaude prerequisites are UNKNOWN — re-run /hyperclaude:hyper-setup or run the doctor script directly.` — and MUST NOT fabricate a pass.
 
 ## Anti-patterns
 
-- Do NOT spawn Codex, the bridge (`codex-bridge.mjs`), or any agent. This command only runs the doctor probe.
-- Do NOT auto-install missing tools or modify env variables. This command is read-only; report-and-advise only.
-- The `Bash(node:*)` filter permits arbitrary node scripts, so never edit this command to invoke anything beyond the doctor probe — read-only is prompt-enforced, not tool-enforced.
+- Do NOT spawn Codex, the bridge (`codex-bridge.mjs`), or any agent. This skill only runs the doctor probe.
+- Do NOT auto-install missing tools or modify env variables. This skill is read-only; report-and-advise only.
+- The `Bash(node:*)` filter permits arbitrary node scripts, so never edit this skill to invoke anything beyond the doctor probe — read-only is prompt-enforced, not tool-enforced.
 - Do NOT treat the agent-teams WARN as a hard failure.
 - No npm dependencies.
-- No `commands` entry in `.claude-plugin/plugin.json` — Claude Code auto-discovers `commands/*.md`.
+- No manifest entry needed — Claude Code auto-discovers `skills/*/SKILL.md`. `disable-model-invocation: true` keeps this skill explicit-invoke-only (`/hyperclaude:hyper-setup`); it is never auto-triggered by its description.
 - Do not widen `allowed-tools` beyond `Bash(node:*), Read`.

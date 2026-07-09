@@ -280,6 +280,16 @@ The sequential / result-inline dispatches in `hyper-implement` (the initial per-
 
 **Loop teammate spawns are deliberately NOT annotated.** The persistent-teammate spawns in the `*-loop` skills — `hyper-plan-loop`'s `planner`, `hyper-implement-loop`'s `fixer`, `hyper-docs-loop`'s `documenter` — carry no `run_in_background` pin. Those spawns MUST stay background: the whole agent-teams / `SendMessage` model depends on the teammate running as a live, addressable background process across multiple lead turns. Pinning `run_in_background: false` there would block the lead on the teammate's first turn and break the persistent-teammate model entirely.
 
+### 2026-07-09 — `commands/` folded into skills; `hyper-setup` is now an invoke-only skill
+
+Claude Code merged plugin **commands into skills**: a `commands/<name>.md` and a `skills/<name>/SKILL.md` both produce the same plugin-namespaced slash command (here `/hyperclaude:<name>`) and behave the same; `commands/` still works but is legacy. `hyper-setup` was the plugin's one command — chosen as a command precisely because a setup probe must be **explicit-invoke-only and never auto-trigger**, which description-triggered skills couldn't guarantee at the time.
+
+Skills now express that directly via **`disable-model-invocation: true`** frontmatter (the same guard the docs cite for `/deploy`, `/commit`). So `hyper-setup` moved to `skills/hyper-setup/SKILL.md` with that flag, and the `commands/` layer was removed entirely — everything is now a skill.
+
+**The body is unchanged in mechanism.** The inline `` !`node …/setup-doctor.mjs` `` probe-expansion (`!`…`` runs at prompt-render before Claude sees the content) works **identically** in a `SKILL.md` invoked via `/<name>` — confirmed against the official Skills docs — so the migration only added two frontmatter lines (`name`, `disable-model-invocation`) and swapped "command"→"skill" wording; the probe invocation string and both error-fallback sentences (which the smoke test asserts) are preserved verbatim.
+
+**Dependency note:** the invoke-only guard now relies on a Claude Code that honors `disable-model-invocation`. Its introduction version is undocumented; the earliest changelog mention is a v2.1.126 *fix* (so the feature predates it), and v2.1.196 added a further guard against scheduled-task firing. On an older host that ignores the flag, `hyper-setup` would become auto-triggerable by its description — accepted, because the plugin is pre-adoption and tracks recent Claude Code (as a command it carried zero auto-trigger risk on any version; this is the one capability traded away by the merge).
+
 ---
 
 ## Pointers (decisions documented elsewhere)

@@ -145,13 +145,13 @@ Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex   
       <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl sm:text-3xl font-bold text-white mb-8">Layers</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-10">
-          <!-- Commands -->
+          <!-- Setup skill -->
           <div class="rounded-xl border border-gray-700 bg-gray-900 p-5">
-            <h3 class="text-lg font-semibold text-indigo-300 mb-2">Commands</h3>
+            <h3 class="text-lg font-semibold text-indigo-300 mb-2">Setup skill</h3>
             <p class="text-gray-400 text-sm">
-              Explicitly-invoked slash commands, auto-discovered; no manifest entry required. Currently one:
+              One invoke-only skill (<code class="text-indigo-300 bg-gray-800 px-1 rounded">disable-model-invocation</code>):
               <code class="text-indigo-300 bg-gray-800 px-1 rounded">hyper-setup</code> &mdash;
-              a local prerequisite doctor that never spawns Codex or agents.
+              a local prerequisite doctor, run only on explicit <code class="text-indigo-300 bg-gray-800 px-1 rounded">/hyperclaude:hyper-setup</code>, that never spawns Codex or agents.
             </p>
           </div>
           <!-- Skills -->
@@ -223,7 +223,7 @@ Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex   
 
         <!-- Step 2 -->
         <div class="mb-8">
-          <h3 class="text-lg font-semibold text-gray-200 mb-3">2. Verify prerequisites with the built-in doctor command</h3>
+          <h3 class="text-lg font-semibold text-gray-200 mb-3">2. Verify prerequisites with the built-in doctor</h3>
           <div class="relative group">
             <pre class="rounded-lg border border-gray-700 bg-gray-900 p-4 text-sm text-green-300 font-mono overflow-x-auto"><code id="code-setup">/hyperclaude:hyper-setup</code></pre>
             <button

@@ -159,19 +159,20 @@ else
 fi
 
 echo
-echo "==> hyper-setup command file content"
+echo "==> hyper-setup skill file content"
 if node -e '
   const fs = require("fs");
-  const text = fs.readFileSync("commands/hyper-setup.md", "utf8");
+  const text = fs.readFileSync("skills/hyper-setup/SKILL.md", "utf8");
   const passed =
+    text.includes("disable-model-invocation: true") &&
     text.includes("node \"\${CLAUDE_PLUGIN_ROOT}/scripts/setup-doctor.mjs\"") &&
     text.includes("Prerequisite probe could not complete:") &&
     text.includes("hyperclaude prerequisites are UNKNOWN");
   process.exit(passed ? 0 : 1);
 ' 2>/dev/null; then
-  ok "hyper-setup command file: probe invocation + fallback sentences present"
+  ok "hyper-setup skill file: invoke-only flag + probe invocation + fallback sentences present"
 else
-  miss "hyper-setup command file: missing expected content in commands/hyper-setup.md"
+  miss "hyper-setup skill file: missing expected content in skills/hyper-setup/SKILL.md"
 fi
 
 echo
@@ -247,7 +248,7 @@ for f in \
   hooks/hooks.json \
   hooks/session-start-reminder.mjs \
   hooks/stamp-artifact.mjs \
-  commands/hyper-setup.md \
+  skills/hyper-setup/SKILL.md \
   scripts/setup-doctor.mjs \
   scripts/memory/extract.mjs \
   skills/hyper-memory/SKILL.md

@@ -41,15 +41,17 @@ One gesture, end-to-end:
 ```
             User in Claude Code
                     │
-   ┌────────────────┼───────────────┐
-   │                │               │
-Commands          Skills ────────► Agents
-hyper-setup   gates + orchestr.   planner / implementer
-(no spawn)          │             verifier / documenter
-                    ▼             researcher / fixer
-              codex-bridge.mjs
-          (only Codex-spawning code;
-           always read-only sandbox)
+        ┌───────────┴────────────┐
+        │                        │
+      Skills ─────────────────► Agents
+ hyper-setup (invoke-only),    planner / implementer
+ gates, orchestrators,         verifier / documenter
+ autonomous loops, auto        researcher / fixer
+        │
+        ▼
+   codex-bridge.mjs
+  (only Codex-spawning code;
+   always read-only sandbox)
                     │
                     ▼
    .hyperclaude/{specs,research,plans,epics,
@@ -58,7 +60,7 @@ hyper-setup   gates + orchestr.   planner / implementer
 Hooks — SessionStart reminder, fires independently
 ```
 
-Four layers — **Commands** (explicit slash entry points), **Skills** (description-triggered gates, orchestrators, autonomous loops, and `hyper-auto`), **Agents** (Claude implementation arm), **Hooks** (SessionStart reminder). Every Codex spawn — fresh or `--resume`, with live web search enabled — runs in a read-only sandbox; Codex is critic, never editor. The bridge accepts two optional model-selection flags on all four modes: `--model <name>` (any non-empty model identifier, e.g. `openai/gpt-5`) and `--effort <low|medium|high|xhigh>` (reasoning effort; `none` and `minimal` are rejected); both default to null, inheriting `~/.codex/config.toml`. `code-review` additionally accepts `--background "<text>"`: a short, strictly descriptive change context (what the change is / what it touches / author intent) passed to the Codex critic to orient the review; it does not alter the review rubric. `--background` is optional and a no-op when omitted; it is mutually exclusive with `--resume` (resumed sessions already carry context in the Codex thread). The `hyper-code-review` skill composes and passes a background automatically; direct CLI callers may pass it explicitly. These are bridge-level flags; v1 is not exposed via slash commands. See [docs/architecture.md](docs/architecture.md) for layer details, bridge internals, and the sandbox flag matrix.
+Three layers — **Skills** (the invoke-only `hyper-setup` doctor plus description-triggered gates, orchestrators, autonomous loops, and `hyper-auto`), **Agents** (Claude implementation arm), **Hooks** (SessionStart reminder). Every Codex spawn — fresh or `--resume`, with live web search enabled — runs in a read-only sandbox; Codex is critic, never editor. The bridge accepts two optional model-selection flags on all four modes: `--model <name>` (any non-empty model identifier, e.g. `openai/gpt-5`) and `--effort <low|medium|high|xhigh>` (reasoning effort; `none` and `minimal` are rejected); both default to null, inheriting `~/.codex/config.toml`. `code-review` additionally accepts `--background "<text>"`: a short, strictly descriptive change context (what the change is / what it touches / author intent) passed to the Codex critic to orient the review; it does not alter the review rubric. `--background` is optional and a no-op when omitted; it is mutually exclusive with `--resume` (resumed sessions already carry context in the Codex thread). The `hyper-code-review` skill composes and passes a background automatically; direct CLI callers may pass it explicitly. These are bridge-level flags; v1 is not exposed via slash commands. See [docs/architecture.md](docs/architecture.md) for layer details, bridge internals, and the sandbox flag matrix.
 
 External dependencies: Claude Code plugin runtime, `codex-cli >= 0.130.0` with the global `--search` flag, Node 18+, and `git`. Nothing else (no npm bin, no tmux, no MCP servers).
 

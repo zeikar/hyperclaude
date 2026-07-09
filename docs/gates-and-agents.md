@@ -1,23 +1,23 @@
 # Gates and agents
 
-Reference for every skill, agent, and command in the plugin: what it does, when it fires, what it reads, what it writes.
+Reference for every skill and agent in the plugin: what it does, when it fires, what it reads, what it writes.
 
 For the underlying mechanics (sandbox, output paths, frontmatter), see [architecture.md](architecture.md). For the cycle that strings these together, see [workflow.md](workflow.md).
 
 ---
 
-## Commands (1)
+## Setup skill (1)
 
-Commands are explicitly-invoked slash commands (`/hyperclaude:<name>`), distinct from description-triggered skills. They are auto-discovered from `commands/*.md`; no manifest entry is required.
+`hyper-setup` is an **invoke-only** skill (`disable-model-invocation: true`) — a plain slash entry point, not a description-triggered gate. Claude never auto-runs it or preloads it into subagents; it fires only on an explicit `/hyperclaude:hyper-setup`. (It was the plugin's one `commands/*.md` entry until Claude Code merged plugin commands into skills.)
 
 ### `hyper-setup` — prerequisite doctor
 
 - **Slash:** `/hyperclaude:hyper-setup`
-- **Mechanics:** a command (not a skill/gate) that runs one local Node probe (`scripts/setup-doctor.mjs`) via inline bash.
+- **Mechanics:** an invoke-only skill (not a gate) that runs one local Node probe (`scripts/setup-doctor.mjs`) via inline bash (`` !`…` ``); `disable-model-invocation: true` keeps it explicit-invoke-only.
 - **Reads:** host environment (Node.js version, `codex` on PATH, `git` on PATH, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var).
 - **Writes:** nothing — report only, no `.hyperclaude/` artifact.
 - **Use when:** before first use to verify that Node 18+, codex-cli >= 0.130.0, and git are installed; also surfaces whether `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set (required by `hyper-plan-loop`, `hyper-implement-loop`, `hyper-docs-loop`, and `hyper-auto` which chains both implement and plan loops).
-- **Source:** [commands/hyper-setup.md](../commands/hyper-setup.md).
+- **Source:** [skills/hyper-setup/SKILL.md](../skills/hyper-setup/SKILL.md).
 
 ---
 
