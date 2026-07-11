@@ -24,6 +24,9 @@ So the authoritative source is the **GitHub Releases of `openai/codex`**, read v
   current stable.
 - `gh release view <tag> --repo openai/codex` — the per-release notes.
 
+Step 2's `get-releases.mjs` helper wraps both calls (list → filter to new stables →
+per-new-stable view), so you don't invoke `gh` by hand in the normal path.
+
 Fallback if `gh` is unavailable: `WebFetch https://github.com/openai/codex/releases`.
 
 **Track STABLE, note alphas.** The plugin runs against the installed stable codex, so
@@ -39,27 +42,42 @@ gitignored): a single line with the last-reviewed codex-cli STABLE version, e.g.
 
 ## Procedure
 
-### Step 1 — Read the stored baseline
-Read `.claude/skills/codex-changelog/.last-checked-version`. Trim → `STORED`. If the
-file is missing or empty, ask which stable version to baseline (or read the installed
-one via `codex --version`), then continue.
+### Step 1 — Baseline
+The diff baseline is `.claude/skills/codex-changelog/.last-checked-version` (one stable
+`X.Y.Z` line) — call it `STORED`. Step 2's helper reads it automatically; you don't Read
+it here. If it's missing/empty the helper exits 2 — then ask which stable version to
+baseline (or read the installed one via `codex --version`) and pass it as the argument.
 
-### Step 2 — List releases + find the latest stable
-`gh release list --repo openai/codex --limit 40`. Identify:
-- `LATEST_STABLE` = the newest non-prerelease tag's version (strip the `rust-v` prefix;
-  the row marked `Latest`).
-- Any newer alphas between `STORED` and now — for the awareness note only.
-If `gh` fails, WebFetch the releases page and read the same.
+### Step 2 — List releases + collect new stable notes
+Run the local helper — it lists `openai/codex` releases via `gh`, finds the latest
+stable, and prints the notes of every STABLE newer than the baseline plus a one-line
+alpha-awareness note (it version-compares tags, so skipped numbers are handled; the
+per-alpha firehose is collapsed to a count):
+
+```bash
+node .claude/skills/codex-changelog/get-releases.mjs        # reads .last-checked-version
+# or with a user-supplied baseline: node .claude/skills/codex-changelog/get-releases.mjs 0.142.5
+```
+
+Read the Bash output directly:
+- `LATEST_STABLE=<x.y.z>` — the newest stable → this is `LATEST_STABLE`.
+- `ALPHAS=<n> newer[ (latest rust-v…-alpha.NN)]` — the alpha-awareness line; surface it verbatim.
+- `NOTE: window …` — appears only if the 40-release window didn't reach `STORED`
+  (older stables may be missing; note it rather than assuming full coverage).
+- then, per new stable (newest first): `=== <tag> (<name>) ===` followed by its notes.
+
+If `gh` fails (exit 1), fall back to `WebFetch https://github.com/openai/codex/releases`
+and read the same stable notes.
 
 ### Step 3 — Up-to-date short-circuit
-If `LATEST_STABLE == STORED`, report "already current at `STORED`" (plus the
-alpha-awareness note if newer alphas exist) and STOP. Do not rewrite the state file.
+If the output is `(up to date — no new stable since <STORED>)` (i.e. `LATEST_STABLE ==
+STORED`, no newer stable), report "already current at `STORED`" — still surface the
+`ALPHAS=` line if newer alphas exist — and STOP. Do not rewrite the state file.
 
-### Step 4 — Collect the in-between stable notes + map to the bridge
-For each STABLE release with version `> STORED` and `<= LATEST_STABLE`, read its notes
-(`gh release view rust-v<x> --repo openai/codex`). Classify each relevant item into one
-of four buckets. **Report an item only if it lands on the bridge surface below**; never
-assert impact without checking the anchor file.
+### Step 4 — Map the collected stable notes to the bridge
+The helper already printed each new stable's notes (Step 2). Classify each relevant item
+into one of four buckets. **Report an item only if it lands on the bridge surface below**;
+never assert impact without checking the anchor file.
 
 Buckets:
 - **🔧 Actionable** — needs a change in this repo (bridge argv, sandbox handling, parser).
