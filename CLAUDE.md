@@ -94,6 +94,8 @@ All four modes use a fresh prompt template (`code-review` uses `templates/codex/
 
 Behavioral surface changes (CLI flags, frontmatter keys, output paths, mode names) should also propagate to `README.md` and `docs/workflow.md` if the change is user-visible.
 
+Docs edits — yours or any agent's — should be as terse as accuracy allows: prefer amending existing prose over appending new paragraphs. A `docs/decisions.md` entry is the decision plus its non-obvious why, typically one paragraph — not a forensic changelog.
+
 ## Artifacts and slug convention
 
 `.hyperclaude/` (gitignored by consumer convention) holds per-run artifacts. Naming: `<YYYYMMDD-HHMM>-<slug>.md` (UTC). The slug propagates as the trace key — `research → plan → plan-review` share one slug end-to-end (extracted from the plan filename). An optional `hyper-interview` spec (`.hyperclaude/specs/<ts>-<slug>.md`, Claude-only, no Codex — clarity not review) can sit in front of `research`: it mints the slug from the idea text the *same* deterministic way, so carrying the idea forward keeps the trio linked. `specs/` accumulates like `research/` (matched by slug, never archived). A research slug may now resolve to a Codex + Claude artifact PAIR (`<ts>-<slug>.md` + `<ts>-<slug>-claude.md`) that share the same frontmatter `slug:`; the slug remains the single trace key for `research → plan → plan-review`. `code-review` slug comes from the diff target (`vs-main`, `uncommitted`, `commit-<sha7>`); `docs-review` slug from the docs target basename. These are release-level, not feature-level — don't try to align them with the research/plan trio.

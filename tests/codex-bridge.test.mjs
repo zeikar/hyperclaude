@@ -2397,6 +2397,7 @@ test('loadResumeContext: docs-target mismatch rejected', async () => {
       mode: 'docs-review',
       cwd: process.cwd(),
       'docs-target': '/tmp/api.md',
+      'template-version': 2,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
@@ -2415,6 +2416,7 @@ test('loadResumeContext: diff-base null vs set mismatch rejected', async () => {
       mode: 'docs-review',
       cwd: process.cwd(),
       'docs-target': '/tmp/api.md',
+      'template-version': 2,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
       // no diff-base
@@ -2436,6 +2438,7 @@ test('loadResumeContext: diff-base set vs null mismatch rejected', async () => {
       cwd: process.cwd(),
       'docs-target': '/tmp/api.md',
       'diff-base': 'main',
+      'template-version': 2,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
@@ -2455,6 +2458,7 @@ test('loadResumeContext: diff-base equal strings pass', async () => {
       cwd: process.cwd(),
       'docs-target': '/tmp/api.md',
       'diff-base': 'main',
+      'template-version': 2,
       'codex-thread-id': 'tid',
       'codex-resume-status': 'fresh',
     });

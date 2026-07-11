@@ -746,7 +746,7 @@ test('mock codex: docs-review --docs-path spawns codex exec --sandbox read-only 
       const outputContent = readFileSync(outputPath, 'utf8');
       assert.ok(outputContent.startsWith('---\n'), 'output should start with YAML frontmatter');
       assert.ok(outputContent.includes('mode: docs-review'), 'frontmatter should contain mode: docs-review');
-      assert.ok(outputContent.includes('template-version: 1'), 'frontmatter should contain template-version: 1');
+      assert.ok(outputContent.includes('template-version: 2'), 'frontmatter should contain template-version: 2');
       assert.ok(outputContent.includes('docs-target:'), 'frontmatter should contain docs-target:');
       assert.ok(outputContent.includes('### Findings'), 'body should include fake codex output');
       assert.ok(outputContent.includes('codex-input-tokens: 7'), 'frontmatter has codex-input-tokens');
@@ -1194,6 +1194,7 @@ test('resume happy path: docs-review --resume <prev> spawns exec resume and writ
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
+        'template-version': 2,
         'codex-thread-id': 'thread-resume-1',
         'codex-resume-status': 'fresh',
       });
@@ -1347,6 +1348,7 @@ test('resume size-budget exceeded (200KB docs payload on resume) → ok:false, f
         slug: 'big',
         cwd: process.cwd(),
         'docs-target': docPath,
+        'template-version': 2,
         'codex-thread-id': 'thread-budget',
         'codex-resume-status': 'fresh',
       });
@@ -1397,6 +1399,7 @@ test('resume spawn fails (codex exits 7) → status resume-failed, failure body 
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
+        'template-version': 2,
         'codex-thread-id': 'thread-spawnfail',
         'codex-resume-status': 'fresh',
       });
@@ -1446,6 +1449,7 @@ test('resume auto honors --out: discovers prior under custom dir, not the defaul
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
+        'template-version': 2,
         'codex-thread-id': 'thread-from-custom-dir',
         'codex-resume-status': 'fresh',
       });
@@ -2087,6 +2091,114 @@ test('resume auto over dir whose newest code-review artifact is LEGACY → fresh
 });
 
 // ---------------------------------------------------------------------------
+// docs-review template-version resume gate — a prior artifact from an older
+// template version is not resumable (mirrors the code-review legacy gate).
+// ---------------------------------------------------------------------------
+
+test('resume explicit-path over OLD-VERSION docs-review artifact (template-version 1) → resume rejected, no new artifact', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-dr-oldtv-exp-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_DOCS_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-dr-oldtv-exp-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-api.md');
+      // valid target/cwd/thread/status but template-version predates the current template
+      writePriorArtifact(prior, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'template-version': 1,
+        'codex-thread-id': 'thread-dr-oldtv',
+        'codex-resume-status': 'fresh',
+      });
+
+      const beforeFiles = readdirSync(outDir).sort();
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 1, `expected exit 1, got ${result.status}; stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, false);
+      assert.match(json.error, /^resume rejected:/, `json.error should start with "resume rejected:", got: ${json.error}`);
+      assert.match(json.error, /not resumable/);
+      assert.equal(json.resumeStatus, 'fallback');
+
+      const afterFiles = readdirSync(outDir).sort();
+      assert.deepEqual(afterFiles, beforeFiles, 'outDir contents must be unchanged after gate rejection');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume auto over dir whose only docs-review artifact is OLD-VERSION → fresh fallback + stderr note + ok:true', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-dr-oldtv-auto-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_DOCS_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-dr-oldtv-auto-out-'));
+    try {
+      // Only artifact present carries an old template-version → gate rejects it,
+      // discovery finds no eligible candidate, auto falls back to fresh.
+      writePriorArtifact(path.join(outDir, '20260510-1015-api.md'), {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'template-version': 1,
+        'codex-thread-id': 'thread-dr-oldtv',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', 'auto', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'fallback', 'status should be fallback after auto skips old-version artifact');
+      assert.match(result.stderr, /hyperclaude: resume fallback —/, 'stderr should contain resume fallback warning');
+
+      const outputContent = readFileSync(json.path, 'utf8');
+      const fm = parseFrontmatter(outputContent);
+      assert.equal(fm['codex-resume-status'], 'fallback', 'frontmatter codex-resume-status should be fallback');
+      assert.equal(fm['template-version'], '2', 'fresh fallback must emit the current docs-review template-version');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Task 6: override-aware resume — a model/effort override mismatch makes a
 // prior artifact ineligible for resume (deferred from Task 5).
 // ---------------------------------------------------------------------------
@@ -2111,6 +2223,7 @@ test('resume model/effort mismatch → fresh-spawn fallback (auto, no matching c
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
+        'template-version': 2,
         'codex-thread-id': 'thread-resume-1',
         'codex-resume-status': 'fresh',
         'codex-model-requested': 'gpt-4',
@@ -2167,6 +2280,7 @@ test('resume auto skips mismatched newest artifact and resumes older matching on
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
+        'template-version': 2,
         'codex-thread-id': 'thread-newer-mismatch',
         'codex-resume-status': 'fresh',
         'codex-model-requested': 'gpt-4',
@@ -2179,6 +2293,7 @@ test('resume auto skips mismatched newest artifact and resumes older matching on
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
+        'template-version': 2,
         'codex-thread-id': 'thread-older-match',
         'codex-resume-status': 'fresh',
       });

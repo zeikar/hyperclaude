@@ -153,7 +153,7 @@ Default: top-level `.md` files in `docs/`. Variants:
 /hyperclaude:hyper-docs-review README.md --diff-base main      # with code-diff context
 ```
 
-Writes `.hyperclaude/docs-reviews/<timestamp>-<slug>.md`. Scope is strict: accuracy / drift / completeness / broken links / cross-doc inconsistencies. NOT prose or style — the documenter agent owns those.
+Writes `.hyperclaude/docs-reviews/<timestamp>-<slug>.md`. Scope is strict: accuracy / drift / completeness / broken links / cross-doc inconsistencies / redundancy (in-doc duplicated claims, reported Minor; deliberate cross-doc propagation exempt). NOT prose or style — the documenter agent owns those.
 
 Fix accuracy issues before merging or shipping.
 
@@ -189,7 +189,7 @@ Code review also supports resume:
 
 Resume reuses the prior Codex thread. The bridge sends a small follow-up — plan/docs modes say "the file has been revised; re-read it"; code-review embeds the exact git command (`{{TARGET_INSTRUCTION}}`) so the resumed `UserTurn` re-fetches the diff, since `codex exec resume` does not re-run the fresh prompt's git-collection step. In every mode Codex re-reads from disk via read-only sandbox. The original context + critique stay in conversation cache, so token cost drops dramatically.
 
-Validation: bridge re-checks same mode, same cwd, same plan-path / docs-target / diff-base (for code-review: same base ref, commit, or uncommitted state), prior thread-id present, prior `codex-resume-status` ∈ {fresh, resumed}. A change to the requested bridge `--model` or `--effort` override (compared against values recorded in the prior artifact's `codex-model-requested` / `codex-effort-requested` frontmatter keys) also makes the artifact ineligible — the comparison is of explicitly-requested bridge overrides only, NOT effective `~/.codex/config.toml` drift. Mismatch behavior:
+Validation: bridge re-checks same mode, same cwd, same plan-path / docs-target / diff-base (for code-review: same base ref, commit, or uncommitted state), prior thread-id present, prior `codex-resume-status` ∈ {fresh, resumed}. For code-review AND docs-review the prior artifact's `template-version` must also match the current fresh template's — an artifact from an older prompt version is not resumable. A change to the requested bridge `--model` or `--effort` override (compared against values recorded in the prior artifact's `codex-model-requested` / `codex-effort-requested` frontmatter keys) also makes the artifact ineligible — the comparison is of explicitly-requested bridge overrides only, NOT effective `~/.codex/config.toml` drift. Mismatch behavior:
 
 | Scenario | Result |
 |---|---|
@@ -197,6 +197,7 @@ Validation: bridge re-checks same mode, same cwd, same plan-path / docs-target /
 | `--resume auto` miss | falls back to fresh; artifact records `codex-resume-status: fallback` |
 | docs payload >200KB on resume | `ok:false`; user must narrow scope |
 | code-review target mismatch (base ref / commit / uncommitted) | `ok:false`, no fresh run |
+| code-review / docs-review `template-version` mismatch | explicit path → `ok:false` (`resume rejected`); `auto` → falls back to fresh |
 | `--model` / `--effort` override mismatch (explicit `--resume <path>`) | `ok:false`, no fresh run |
 | `--model` / `--effort` override mismatch (`--resume auto`): older matching artifact exists | resumes that older artifact |
 | `--model` / `--effort` override mismatch (`--resume auto`): no matching candidate | falls back to fresh; artifact records `codex-resume-status: fallback` |

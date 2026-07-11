@@ -150,10 +150,10 @@ Read the artifact body and judge by **meaning**, not regex. The `docs-review` te
 
 **Only `### Findings` is gating.** Bullets in `### Gaps` / `### Broken Or Suspect Links` / `### Cross-Doc Inconsistencies` are reported in the final summary (Step 9) but do NOT drive fix rounds — those sections frequently need human judgment (which gap is worth filling? is this link genuinely broken or just suspicious?) that the loop should not auto-resolve. The user runs another pass manually when ready.
 
-Within `### Findings`, classify by meaning: a finding **blocks** if it concerns **accuracy / drift / actively misleading claims that would cause a reader to do the wrong thing** (regardless of which severity word the template attached). Pure prose-polish nits do NOT block.
+Within `### Findings`, classify by meaning: a finding **blocks** if it concerns **accuracy / drift / actively misleading claims that would cause a reader to do the wrong thing** (regardless of which severity word the template attached). Pure prose-polish nits do NOT block. Redundancy-only findings (duplicated-but-consistent claims) do NOT block either — collapsing repeated content needs human judgment; report them in Step 9 like the non-gating sections.
 
 - Any blocking `### Findings` item → fix (Step 7).
-- No blocking `### Findings` (Findings absent, or Findings contains only style/nits, or verdict is approving) → exit loop (Step 8 teardown → Step 9). Non-blocking findings + the three non-gating sections are reported, never gating.
+- No blocking `### Findings` (Findings absent, or Findings contains only style/nits/redundancy, or verdict is approving) → exit loop (Step 8 teardown → Step 9). Non-blocking findings + the three non-gating sections are reported, never gating.
 
 **Conservative branch:** if the body cannot be confidently judged by meaning (unparseable, truncated, or no recognizable structure) → Step 8 teardown, then STOP with a named-loop report (**"hyper-docs-loop unparseable review, iter N"**) surfacing the artifact path for manual triage.
 

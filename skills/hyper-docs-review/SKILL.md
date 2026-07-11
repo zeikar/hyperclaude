@@ -1,11 +1,11 @@
 ---
 name: hyper-docs-review
-description: Use after documentation edits — typically after the documenter agent runs, or when the user invokes /hyperclaude:hyper-docs-review. Runs Codex for accuracy, drift, completeness, broken links, cross-doc inconsistencies — NOT prose or style. Distinct from /hyperclaude:hyper-code-review (code diffs) and /hyperclaude:hyper-plan-review (plans).
+description: Use after documentation edits — typically after the documenter agent runs, or when the user invokes /hyperclaude:hyper-docs-review. Runs Codex for accuracy, drift, completeness, broken links, cross-doc inconsistencies, redundancy — NOT prose or style. Distinct from /hyperclaude:hyper-code-review (code diffs) and /hyperclaude:hyper-plan-review (plans).
 ---
 
 # hyper-docs-review
 
-Documentation accuracy gate. Sends docs (single file or directory) to Codex for critique focused on: drift between docs and code, missing coverage, broken or suspect links, contradictions between docs.
+Documentation accuracy gate. Sends docs (single file or directory) to Codex for critique focused on: drift between docs and code, missing coverage, broken or suspect links, contradictions between docs, in-doc duplicated claims (redundancy).
 
 ## When to use
 
@@ -52,7 +52,7 @@ If the argument doesn't match the regex, ask the user to clarify and stop.
 ### Resume semantics
 
 - `--resume <path>` (explicit): if validation fails, bridge returns `ok:false`, no fresh run, stderr note. Surface the error verbatim.
-- `--resume` / `--resume auto`: if validation fails, bridge falls back to fresh run, writes artifact with `codex-resume-status: fallback`, stderr note.
+- `--resume` / `--resume auto`: if validation fails (including a prior artifact whose `template-version` doesn't match the current docs-review template), `auto` falls back to a fresh run with `codex-resume-status: fallback` + stderr note; an explicit path returns `ok:false` with `resume rejected`.
 - Budget exceeded (docs > 200KB after revision): bridge returns `ok:false` — NOT fallback. Tell user to narrow scope.
 
 ### Step 1 — Resolve target
@@ -96,7 +96,7 @@ Parse JSON. On `ok:true`, read the output file with the Read tool. On `ok:false`
 Docs-review files have YAML frontmatter:
 
 - `mode: docs-review`
-- `template-version: 1`
+- `template-version` (sourced from the docs-review template's frontmatter)
 - `slug` (derived from file basename or dir name)
 - `generated` (ISO timestamp)
 - `plugin-version`
@@ -107,7 +107,7 @@ Docs-review files have YAML frontmatter:
 
 Followed by sections: `### Findings`, `### Gaps`, `### Broken Or Suspect Links`, `### Cross-Doc Inconsistencies`, `### Verdict`.
 
-Each `### Findings` item includes severity (Blocker / Major / Minor), doc path, quoted stale claim, code evidence, and recommended edit.
+Each `### Findings` item includes severity (Blocker / Major / Minor), doc path, quoted stale claim, code evidence, and recommended edit. Redundancy findings replace the stale claim and code evidence with the duplicated claim (quoted once) and every location where it appears.
 
 ## Distinction
 
@@ -116,4 +116,4 @@ Each `### Findings` item includes severity (Blocker / Major / Minor), doc path, 
 - `/hyperclaude:hyper-code-review` — Codex critiques code diffs
 - `/hyperclaude:hyper-plan-review` — Codex critiques implementation plans
 
-Scope is STRICT: accuracy / drift / completeness / broken links / cross-doc inconsistencies. NOT style or prose quality — that's the documenter agent's domain.
+Scope is STRICT: accuracy / drift / completeness / broken links / cross-doc inconsistencies / redundancy (in-doc duplicated claims — reported Minor; deliberate cross-doc propagation exempt). NOT style or prose quality — that's the documenter agent's domain.

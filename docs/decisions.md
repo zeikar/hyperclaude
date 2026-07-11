@@ -290,6 +290,10 @@ Skills now express that directly via **`disable-model-invocation: true`** frontm
 
 **Dependency note:** the invoke-only guard now relies on a Claude Code that honors `disable-model-invocation`. Its introduction version is undocumented; the earliest changelog mention is a v2.1.126 *fix* (so the feature predates it), and v2.1.196 added a further guard against scheduled-task firing. On an older host that ignores the flag, `hyper-setup` would become auto-triggerable by its description — accepted, because the plugin is pre-adoption and tracks recent Claude Code (as a command it carried zero auto-trigger risk on any version; this is the one capability traded away by the merge).
 
+### 2026-07-12 — docs get an anti-bloat counter-pressure (documenter brevity rule; docs-review template v2 adds redundancy)
+
+Docs edits were append-heavy with nothing pushing back: the documenter's constraints limited *where* it edits but not how long additions run, and docs-review explicitly excluded prose — so unlike code (which gets Codex simplification pressure every loop), doc verbosity was never flagged anywhere. Fix, split by ownership so it ships to plugin consumers (agent + template, not repo CLAUDE.md): the documenter agent carries an authoring-time brevity constraint (amend existing sentences over appending paragraphs), and the docs-review template (v2) adds **redundancy** — unnecessary repetition within one document, explicitly excluding deliberate cross-doc propagation (which CLAUDE.md's mapping table mandates) — to its strict scope as a **Minor** finding with its own two-location evidence schema. Style stays excluded, and hyper-docs-loop explicitly classifies redundancy-only findings as non-blocking (reported, never auto-fixed — collapsing repeats needs human judgment), so loop convergence is untouched. Because a resumed thread keeps the prior prompt's semantics while the artifact is stamped with the current version, `docs-review --resume` now enforces the same template-version gate as code-review (v1 artifacts: auto → fresh fallback, explicit → rejected); plan-review/research still have no gate.
+
 ---
 
 ## Pointers (decisions documented elsewhere)

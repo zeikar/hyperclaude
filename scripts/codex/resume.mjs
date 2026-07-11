@@ -61,6 +61,21 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
       return { error: 'prior artifact plan-path differs from current' };
     }
   } else if (expectedMode === 'docs-review') {
+    // Template-version identity gate — same rule as code-review below. A
+    // resumed thread keeps running under the prior prompt's semantics while
+    // the new artifact is stamped with the CURRENT template version; when the
+    // versions differ that label would lie, so the mismatch is rejected
+    // (auto → fresh fallback, explicit → fatal) instead of mislabeled.
+    let expectedVersion;
+    try {
+      expectedVersion = (await readTemplateWithVersion('docs-review')).version;
+    } catch (err) {
+      return { error: `cannot read current docs-review template: ${err.message}` };
+    }
+    const tv = fm['template-version'];
+    if (tv === undefined || String(tv) !== String(expectedVersion)) {
+      return { error: 'prior docs-review artifact template-version differs from the current template; not resumable' };
+    }
     const prevTarget = fm['docs-target'];
     const curTarget = currentArgs.docsPath || currentArgs.docsDir;
     if (typeof prevTarget !== 'string' || path.resolve(prevTarget) !== path.resolve(curTarget)) {
@@ -72,10 +87,10 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
       return { error: 'prior artifact docs-target/diff-base differs from current' };
     }
   } else if (expectedMode === 'code-review') {
-    // code-review is the only mode whose --resume enforces a template-version
-    // match — the expected value is sourced from templates/codex/code-review.md
-    // frontmatter (no hardcoded constant). plan-review/docs-review/research
-    // intentionally have NO such gate.
+    // Template-version identity gate (same rule as docs-review above) — the
+    // expected value is sourced from templates/codex/code-review.md frontmatter
+    // (no hardcoded constant). plan-review/research intentionally have NO such
+    // gate.
     let expectedVersion;
     try {
       expectedVersion = (await readTemplateWithVersion('code-review')).version;
