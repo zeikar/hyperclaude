@@ -18,6 +18,28 @@ export function defaultModeDir(mode) {
   throw new Error(`unknown mode: ${mode}`);
 }
 
+// templateVersionGateError: shared --resume identity rule for every resumable
+// mode (plan-review / docs-review / code-review; research has no resume path).
+// A resumed thread keeps running under the prior prompt's semantics while the
+// new artifact is stamped with the CURRENT template version; when the versions
+// differ that label would lie, so the mismatch is rejected (auto → fresh
+// fallback, explicit → fatal) instead of mislabeled. The expected value is
+// sourced from the mode's fresh template frontmatter (no hardcoded constant).
+// Returns an error string, or null when the gate passes.
+async function templateVersionGateError(mode, fm) {
+  let expectedVersion;
+  try {
+    expectedVersion = (await readTemplateWithVersion(mode)).version;
+  } catch (err) {
+    return `cannot read current ${mode} template: ${err.message}`;
+  }
+  const tv = fm['template-version'];
+  if (tv === undefined || String(tv) !== String(expectedVersion)) {
+    return `prior ${mode} artifact template-version differs from the current template (or predates it); not resumable`;
+  }
+  return null;
+}
+
 // loadResumeContext: validates a prior artifact and extracts thread-id.
 // Returns either { threadId, frontmatter } or { error: <reason> }.
 //
@@ -27,7 +49,9 @@ export function defaultModeDir(mode) {
 //  3. cwd matches process.cwd() under path.resolve()
 //  4. codex-thread-id is truthy
 //  5. codex-resume-status is fresh or resumed (not fallback / resume-failed)
-//  6. mode-specific identity (plan-path for plan-review; docs-target+diff-base for docs-review)
+//  6. template-version matches the mode's current fresh template
+//  7. mode-specific identity (plan-path for plan-review; docs-target+diff-base
+//     for docs-review; base-ref/commit/uncommitted for code-review)
 export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   let text;
   try {
@@ -55,27 +79,16 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   if (status !== 'fresh' && status !== 'resumed') {
     return { error: `prior artifact has resume-status "${status ?? ''}"; only fresh/resumed eligible` };
   }
+  const gateError = await templateVersionGateError(expectedMode, fm);
+  if (gateError) {
+    return { error: gateError };
+  }
   if (expectedMode === 'plan-review') {
     const prevPlan = fm['plan-path'];
     if (typeof prevPlan !== 'string' || path.resolve(prevPlan) !== path.resolve(currentArgs.planPath)) {
       return { error: 'prior artifact plan-path differs from current' };
     }
   } else if (expectedMode === 'docs-review') {
-    // Template-version identity gate — same rule as code-review below. A
-    // resumed thread keeps running under the prior prompt's semantics while
-    // the new artifact is stamped with the CURRENT template version; when the
-    // versions differ that label would lie, so the mismatch is rejected
-    // (auto → fresh fallback, explicit → fatal) instead of mislabeled.
-    let expectedVersion;
-    try {
-      expectedVersion = (await readTemplateWithVersion('docs-review')).version;
-    } catch (err) {
-      return { error: `cannot read current docs-review template: ${err.message}` };
-    }
-    const tv = fm['template-version'];
-    if (tv === undefined || String(tv) !== String(expectedVersion)) {
-      return { error: 'prior docs-review artifact template-version differs from the current template; not resumable' };
-    }
     const prevTarget = fm['docs-target'];
     const curTarget = currentArgs.docsPath || currentArgs.docsDir;
     if (typeof prevTarget !== 'string' || path.resolve(prevTarget) !== path.resolve(curTarget)) {
@@ -87,20 +100,6 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
       return { error: 'prior artifact docs-target/diff-base differs from current' };
     }
   } else if (expectedMode === 'code-review') {
-    // Template-version identity gate (same rule as docs-review above) — the
-    // expected value is sourced from templates/codex/code-review.md frontmatter
-    // (no hardcoded constant). plan-review/research intentionally have NO such
-    // gate.
-    let expectedVersion;
-    try {
-      expectedVersion = (await readTemplateWithVersion('code-review')).version;
-    } catch (err) {
-      return { error: `cannot read current code-review template: ${err.message}` };
-    }
-    const tv = fm['template-version'];
-    if (tv === undefined || String(tv) !== String(expectedVersion)) {
-      return { error: 'prior code-review artifact predates the custom-prompt template (no/old template-version); not resumable' };
-    }
     // title is purely cosmetic — does NOT participate in identity (it does not
     // affect what Codex reviewed, only the display label in the output file).
     const hasPriorBaseRef = Object.prototype.hasOwnProperty.call(fm, 'base-ref');
@@ -131,7 +130,7 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   }
   // Mode-INDEPENDENT model/effort match (applies to plan-review/code-review/
   // docs-review; research has no resume path so never reaches here). This is a
-  // SEPARATE rule from the code-review template-version identity gate above —
+  // SEPARATE rule from the shared template-version identity gate above —
   // do NOT fold them together. When the requested overrides differ, the bridge
   // cannot prove the prior thread ran under the same effective model/effort:
   // the recorded values are the requested bridge overrides, not the resolved

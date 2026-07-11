@@ -1506,6 +1506,7 @@ test('resume happy path: plan-review --resume <prev> spawns exec resume', () => 
         slug: 'oauth',
         cwd: process.cwd(),
         'plan-path': planPath,
+        'template-version': 2,
         'codex-thread-id': 'thread-rev-resume',
         'codex-resume-status': 'fresh',
       });
@@ -2082,6 +2083,114 @@ test('resume auto over dir whose newest code-review artifact is LEGACY → fresh
       const outputContent = readFileSync(json.path, 'utf8');
       const fm = parseFrontmatter(outputContent);
       assert.equal(fm['codex-resume-status'], 'fallback', 'frontmatter codex-resume-status should be fallback');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// plan-review template-version resume gate — a prior artifact from an older
+// template version is not resumable (same shared gate as docs-review below).
+// ---------------------------------------------------------------------------
+
+test('resume explicit-path over OLD-VERSION plan-review artifact (template-version 1) → resume rejected, no new artifact', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-pr-oldtv-exp-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const planPath = path.join(tmpdir, '20260510-1015-oauth.md');
+    writeFileSync(planPath, '# Plan\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-pr-oldtv-exp-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1130-oauth.md');
+      // valid plan-path/cwd/thread/status but template-version predates the current template
+      writePriorArtifact(prior, {
+        mode: 'plan-review',
+        slug: 'oauth',
+        cwd: process.cwd(),
+        'plan-path': planPath,
+        'template-version': 1,
+        'codex-thread-id': 'thread-pr-oldtv',
+        'codex-resume-status': 'fresh',
+      });
+
+      const beforeFiles = readdirSync(outDir).sort();
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'plan-review', '--plan-path', planPath, '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 1, `expected exit 1, got ${result.status}; stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, false);
+      assert.match(json.error, /^resume rejected:/, `json.error should start with "resume rejected:", got: ${json.error}`);
+      assert.match(json.error, /not resumable/);
+      assert.equal(json.resumeStatus, 'fallback');
+
+      const afterFiles = readdirSync(outDir).sort();
+      assert.deepEqual(afterFiles, beforeFiles, 'outDir contents must be unchanged after gate rejection');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume auto over dir whose only plan-review artifact is OLD-VERSION → fresh fallback + stderr note + ok:true', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-pr-oldtv-auto-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const planPath = path.join(tmpdir, '20260510-1015-oauth.md');
+    writeFileSync(planPath, '# Plan\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-pr-oldtv-auto-out-'));
+    try {
+      // Only artifact present carries an old template-version → gate rejects it,
+      // discovery finds no eligible candidate, auto falls back to fresh.
+      writePriorArtifact(path.join(outDir, '20260510-1130-oauth.md'), {
+        mode: 'plan-review',
+        slug: 'oauth',
+        cwd: process.cwd(),
+        'plan-path': planPath,
+        'template-version': 1,
+        'codex-thread-id': 'thread-pr-oldtv',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'plan-review', '--plan-path', planPath, '--resume', 'auto', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'fallback', 'status should be fallback after auto skips old-version artifact');
+      assert.match(result.stderr, /hyperclaude: resume fallback —/, 'stderr should contain resume fallback warning');
+
+      const outputContent = readFileSync(json.path, 'utf8');
+      const fm = parseFrontmatter(outputContent);
+      assert.equal(fm['codex-resume-status'], 'fallback', 'frontmatter codex-resume-status should be fallback');
+      assert.equal(fm['template-version'], '2', 'fresh fallback must emit the current plan-review template-version');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }

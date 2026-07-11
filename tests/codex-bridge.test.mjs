@@ -2303,6 +2303,7 @@ test('loadResumeContext: plan-review identity success', async () => {
       mode: 'plan-review',
       cwd: process.cwd(),
       'plan-path': planPath,
+      'template-version': 2,
       'codex-thread-id': 'thread-abc',
       'codex-resume-status': 'fresh',
     });
@@ -2343,6 +2344,7 @@ test('loadResumeContext: cwd mismatch via path.resolve (trailing slash equivalen
       mode: 'plan-review',
       cwd: process.cwd() + '/',
       'plan-path': planPath,
+      'template-version': 2,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
@@ -2379,6 +2381,7 @@ test('loadResumeContext: plan-review plan-path mismatch rejected', async () => {
       mode: 'plan-review',
       cwd: process.cwd(),
       'plan-path': '/tmp/old-plan.md',
+      'template-version': 2,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
@@ -2544,6 +2547,7 @@ test('discoverResumeArtifact: returns newest-first; honors --out', async () => {
         mode: 'plan-review',
         cwd: process.cwd(),
         'plan-path': planPath,
+        'template-version': 2,
         'codex-thread-id': `thread-${path.basename(p)}`,
         'codex-resume-status': 'fresh',
       });
@@ -2635,6 +2639,7 @@ test('discoverResumeArtifact: skips ineligible artifacts (mode mismatch) and fin
       mode: 'plan-review',
       cwd: process.cwd(),
       'plan-path': planPath,
+      'template-version': 2,
       'codex-thread-id': 'tid-older',
       'codex-resume-status': 'fresh',
     });

@@ -63,7 +63,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 ### `hyper-plan-review` — Codex plan critique
 
 - **Slash:** `/hyperclaude:hyper-plan-review [path/to/plan.md]`
-  - `--resume` — resume the most recent matching prior review (auto-discovers newest artifact in `.hyperclaude/plan-reviews/` with same mode + cwd + plan-path; falls back to fresh run if none found, records `codex-resume-status: fallback`).
+  - `--resume` — resume the most recent matching prior review (auto-discovers newest artifact in `.hyperclaude/plan-reviews/` with same mode + cwd + plan-path + current `template-version`; falls back to fresh run if none found, records `codex-resume-status: fallback`).
   - `--resume <prev-artifact-path>` — resume from an explicit prior review; validation fail → `ok:false`, no fresh run.
 - **Mode:** `plan-review` (Codex `exec`, read-only sandbox).
 - **Auto-discovers:** the most recent file under `.hyperclaude/plans/` if no path is passed.

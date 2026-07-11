@@ -45,7 +45,7 @@ If the argument doesn't match the regex, ask the user to clarify and stop.
 ### Resume semantics
 
 - `--resume <path>` (explicit): if validation fails, bridge returns `ok:false`, no fresh run, stderr note. Surface the error verbatim.
-- `--resume` / `--resume auto`: if validation fails, bridge falls back to fresh run, writes artifact with `codex-resume-status: fallback`, stderr note.
+- `--resume` / `--resume auto`: if validation fails (including a prior artifact whose `template-version` doesn't match the current plan-review template), bridge falls back to fresh run, writes artifact with `codex-resume-status: fallback`, stderr note.
 - Budget exceeded (docs > 200KB after revision): bridge returns `ok:false` — NOT fallback. Tell user to narrow scope.
 
 ### Step 1 — Resolve the plan path
