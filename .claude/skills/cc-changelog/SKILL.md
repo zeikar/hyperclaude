@@ -22,21 +22,35 @@ the diff baseline; it advances only in Step 6.
 
 ## Procedure
 
-### Step 1 — Read the stored baseline
-Read `.claude/skills/cc-changelog/.last-checked-version`. Trim whitespace → `STORED`.
-If the file is missing or empty, ask the user which version to treat as the baseline
-(do not invent one), then continue.
+### Step 1 — Baseline
+The diff baseline is `.claude/skills/cc-changelog/.last-checked-version` (one `X.Y.Z`
+line) — call it `STORED`. Step 2's helper reads it automatically; you don't Read it here.
+If the file is missing/empty the helper exits 2 — then ask the user which version to
+treat as the baseline (do not invent one) and pass it as the script argument.
 
-### Step 2 — Fetch the latest changelog
-`WebFetch` `https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md`
-with a prompt that asks for: (a) the single latest version number (topmost `## X.Y.Z`),
-and (b) every entry whose version is strictly greater than `STORED`, with bullets
-verbatim. Note the changelog skips numbers (e.g. 2.1.182→2.1.183), so select by
-version-ordering ("> STORED"), never by increment. Call the latest `LATEST`.
+### Step 2 — Fetch and slice the changelog
+The full `CHANGELOG.md` is ~5k lines; do **not** pull it whole into context. Run the
+local helper — it fetches the changelog and prints to stdout *only* the entries strictly
+newer than the baseline (it version-compares, so skipped numbers like 2.1.191→2.1.193 are
+handled; no temp file, no cleanup):
+
+```bash
+node .claude/skills/cc-changelog/get-changelog.mjs        # reads .last-checked-version
+# or with a user-supplied baseline: node .claude/skills/cc-changelog/get-changelog.mjs 2.1.201
+```
+
+Read the Bash output directly (no `Read`, no temp file):
+- line 1 `LATEST=<x.y.z>` — the topmost changelog version → this is `LATEST`.
+- the rest — the sliced entries, verbatim, newest first (or `(up to date — …)` if none).
+
+If the fetch fails (exit 1), fall back to `WebFetch` on
+`https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md` asking for
+entries strictly greater than `STORED`.
 
 ### Step 3 — Up-to-date short-circuit
-If `LATEST == STORED` (or nothing is newer), report "already current at `STORED`,
-nothing new" and STOP. Do not rewrite the state file.
+If the output is `(up to date — nothing newer than <STORED>)` (i.e. `LATEST == STORED`,
+nothing newer), report "already current at `STORED`, nothing new" and STOP. Do not
+rewrite the state file.
 
 ### Step 4 — Map each entry to a hyperclaude surface
 For every entry newer than `STORED`, decide which surface (if any) it touches, then
