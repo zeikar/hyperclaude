@@ -92,7 +92,7 @@ Bridge surface checklist (what to read to confirm impact):
 | Spawn argv | `codex exec --sandbox read-only -` (stdin prompt) shape; flag renames/removals/additions | `scripts/codex-bridge.mjs`, `scripts/codex/args.mjs`, `scripts/codex/codex.mjs` |
 | Sandbox invariant | `--sandbox read-only` (fresh) + `-c sandbox_mode=read-only` (resume) semantics; whether resume inherits sandbox | `scripts/codex/*.mjs`, `CLAUDE.md` (Sandbox invariant) |
 | exec / resume | `codex exec` + `codex exec resume` behavior; thread/session semantics; the removed native `exec review` subcommand | `scripts/codex/resume.mjs`, `docs/decisions.md` |
-| Output parsing | stdout JSON/JSONL shape + fields the bridge parses (thread-id, token counts) | `scripts/codex/jsonl.mjs`, `scripts/codex/codex.mjs` |
+| Output parsing | stdout JSON/JSONL shape + fields the bridge parses (thread-id, token counts) | `scripts/codex/codex.mjs` (`parseCodexJsonl`) |
 | Config overrides | `-c key=value` behavior | `scripts/codex/args.mjs` |
 | Min version / prereqs | codex-cli minimum-version requirement | `CLAUDE.md`, `scripts/setup-doctor.mjs` |
 
