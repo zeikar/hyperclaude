@@ -19,16 +19,17 @@ jobs:
         with:
           node-version: 20
 
-      # Plugin unit tests + repo-local skill-helper tests (cc-/codex-changelog).
-      # All pure / --dry-run — no codex, gh, or network needed.
-      - name: Unit tests
+      # Plugin unit tests — same glob as the CLAUDE.md release gate.
+      # Pure / --dry-run: no codex, gh, or network needed.
+      - name: Unit tests (plugin)
+        run: node --test tests/*.mjs
+
+      # Repo-local skill-helper tests (cc-/codex-changelog), run as a SEPARATE
+      # invocation on purpose: mixing them into the plugin glob perturbs the
+      # parallel scheduler and trips a latent race in the mock-codex tests.
+      - name: Unit tests (skill helpers)
         run: >
           node --test
-          tests/codex-bridge.test.mjs
-          tests/codex-bridge-spawn.test.mjs
-          tests/codex-bridge-jsonl.test.mjs
-          tests/setup-doctor.test.mjs
-          tests/memory-extract.test.mjs
           .claude/skills/cc-changelog/get-changelog.test.mjs
           .claude/skills/codex-changelog/get-releases.test.mjs
 
