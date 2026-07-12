@@ -1,0 +1,38 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Plugin unit tests + repo-local skill-helper tests (cc-/codex-changelog).
+      # All pure / --dry-run — no codex, gh, or network needed.
+      - name: Unit tests
+        run: >
+          node --test
+          tests/codex-bridge.test.mjs
+          tests/codex-bridge-spawn.test.mjs
+          tests/codex-bridge-jsonl.test.mjs
+          tests/setup-doctor.test.mjs
+          tests/memory-extract.test.mjs
+          .claude/skills/cc-changelog/get-changelog.test.mjs
+          .claude/skills/codex-changelog/get-releases.test.mjs
+
+      # Acceptance smoke: dry-run bridge JSON, manifest, hooks, file structure.
+      # Codex/claude capability probes self-skip when those binaries are absent.
+      - name: Smoke test
+        run: bash scripts/test/smoke.sh
