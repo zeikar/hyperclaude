@@ -13,11 +13,11 @@ The plugin is meant to be installed into Claude Code (`/plugin install hyperclau
 Prerequisites: Node 18+, `codex-cli >= 0.130.0` on PATH, `git`. No `npm install` step — stdlib only.
 
 ```bash
-node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs tests/setup-doctor.test.mjs tests/memory-extract.test.mjs
-                                          # unit tests. NOTE: `node --test tests/*.mjs`
-                                          # works too; `node --test tests/` (dir form) does NOT — it
-                                          # interprets the path as a test name and fails.
-node --test tests/codex-bridge.test.mjs --test-name-pattern "<regex>"
+node --test tests/*.mjs                   # unit tests (shared fixtures live in tests/helpers/,
+                                          # outside the glob). NOTE: `node --test tests/` (dir
+                                          # form) does NOT work — it interprets the path as a
+                                          # test name and fails.
+node --test tests/codex-args.test.mjs --test-name-pattern "<regex>"
                                           # single test by name
 bash scripts/test/smoke.sh                # acceptance smoke: dry-runs, manifest, hook, codex probes
 node scripts/codex-bridge.mjs <mode> --dry-run [flags]
@@ -112,7 +112,7 @@ Plan files (Claude-authored) live in `.hyperclaude/plans/` and are the input to 
 
 When the user asks to release, run the whole flow end to end — don't stop after the commit.
 
-1. **Tests green — re-run immediately before committing**, not "earlier this session": `node --test tests/codex-bridge.test.mjs tests/codex-bridge-spawn.test.mjs tests/codex-bridge-jsonl.test.mjs tests/setup-doctor.test.mjs tests/memory-extract.test.mjs` and `bash scripts/test/smoke.sh`. Unit must report `fail 0`; smoke must report `failed: 0`. Either red → stop and fix first.
+1. **Tests green — re-run immediately before committing**, not "earlier this session": `node --test tests/*.mjs` and `bash scripts/test/smoke.sh`. Unit must report `fail 0`; smoke must report `failed: 0`. Either red → stop and fix first.
 2. **Bump `version`** in `.claude-plugin/plugin.json`. **Pre-adoption policy (no installed user base):** a breaking change **or a new feature** rides a **MINOR** bump, not a major — breaking (bridge subcommand renames, frontmatter key changes, artifact directory renames, layer/command/skill removals) and new features (a new skill/command/mode/flag) both count; only fix/docs/internal work is a patch. (We reached `1.0.0` as a *maturity marker* — the design has converged — not as a strict-semver stability contract. Revisit major-on-break once there's a real user base.) The bump rides in the release commit, not a separate one. When the bump changes the `vMAJOR.MINOR` shown in the status banner, also update it in `README.md` and `site/index.html` (search for `the design has converged`) so the user-visible docs match.
 3. **Commit + push to `main`.** Conventional-commit subject; breaking changes take a `!` (`feat!:` / `refactor!:`) and a `BREAKING CHANGE:` footer spelling out migration steps. Review `git status` and stage the release's files explicitly — don't blanket `git add -A`. (`.hyperclaude/` is gitignored so its artifacts never appear, but any *other* untracked file would be swept into the release commit.)
 4. **Tag:** `git tag -a vX.Y.Z -m "vX.Y.Z: <one-line>"` then `git push origin vX.Y.Z`.
