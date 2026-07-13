@@ -55,6 +55,7 @@ Relay both phases' Step 9 terminal facts so the user can audit the full chain. D
 - Residual non-blocking findings.
 - Any `resume-failed` / `fallback` rounds noted.
 - Branch / working-tree state + the implement-loop's own Next-step (this is the actionable user guidance for the composed flow's exit).
+- The optional `/hyperclaude:hyper-recap` recommendation bullet (relay it verbatim — it surfaces exactly once via this relay; do NOT emit an additional recap line).
 
 ## Anti-patterns
 

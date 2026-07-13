@@ -221,6 +221,7 @@ Report the **actual** git outcome (never assume success): the commit SHA + clean
 - Residual non-blocking findings (informational, never gating).
 - Any `resume-failed` / `fallback` rounds noted.
 - Branch / working-tree state: `hyper-implement` committed each task on the feature branch it created/used (`hyper/<slug>` when started from `main`/`master`); on clean convergence the lead committed the fixer's fix edits in one `fix(review):` commit on top (working tree now clean — or no fix edits to commit). Nothing was pushed. Next step: push the branch when ready.
+- Recommend `/hyperclaude:hyper-recap` as an optional follow-up for a human-readable write-up of this cycle — a recommendation only, never auto-run it here.
 
 ## Anti-patterns
 
