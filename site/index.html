@@ -255,7 +255,10 @@ Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex   
 /hyperclaude:hyper-plan-loop add OAuth login to the API   # plan → Codex review → revise, looped
 /hyperclaude:hyper-implement-loop &lt;plan path&gt;             # implement → Codex code-review → fix, looped
 /hyperclaude:hyper-docs-loop                              # docs → Codex review → fix, looped (default: docs/)
-/hyperclaude:hyper-auto add OAuth login to the API        # plan-loop → implement-loop, end-to-end</code></pre>
+/hyperclaude:hyper-auto add OAuth login to the API        # plan-loop → implement-loop, end-to-end
+
+# On-demand, outside the cycle:
+/hyperclaude:hyper-recap                                  # write a human-readable recap of the last completed cycle</code></pre>
             <button
               data-copy-target="code-cycle"
               class="copy-btn absolute top-2 right-2 px-2.5 py-1 text-xs font-medium rounded bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-1 focus-visible:ring-offset-gray-900"

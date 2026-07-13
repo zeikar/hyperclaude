@@ -103,7 +103,7 @@ Functional runtime surface stops at the directory above. Zero npm dependencies; 
    └──────────────────────────────────┘
               │
               ▼
-   .hyperclaude/{research,plans,epics,plan-reviews,code-reviews,docs-reviews}/
+   .hyperclaude/{research,plans,epics,plan-reviews,code-reviews,docs-reviews,recaps}/
 ```
 
 Direction:
@@ -267,12 +267,15 @@ Codex gates and Claude-authored plans write artifacts to `.hyperclaude/` in the 
 ├── plan-reviews/    Codex critiques of plans (plan-review mode)
 ├── code-reviews/    Codex code-review outputs (code-review mode)
 ├── docs-reviews/    Codex docs accuracy outputs (docs-review mode)
-└── memory/          hyper-memory candidates/ + promoted/ (see below; not part of the research→ship cycle)
+├── memory/          hyper-memory candidates/ + promoted/ (see below; not part of the research→ship cycle)
+└── recaps/          Claude-authored cycle recaps from hyper-recap (on-demand; accumulates, never archived)
 ```
 
 Naming is consistent across all subdirs: `<YYYYMMDD-HHMM>-<slug>.md`. The slug is the trace key — a `research` slug carries through to the `plan` written by Claude, then into the `plan-review` of that plan. The bridge's `extractSlugFromPlanFilename()` reuses the slug from a plan filename when invoking `plan-review`, so the trio shares a slug end-to-end.
 
 The `specs/` artifact is **Claude-authored** (from `hyper-interview`, like plans) — not a bridge output, so its frontmatter is the skill-defined set `mode: interview`, `idea`, `slug`, `generated`, `type: greenfield|brownfield`, plus the PostToolUse-hook-added `plugin-version`. It does NOT carry the bridge's `codex-*` / `template-version` keys. The `slug` is minted from the idea text with the same deterministic rule `research`/`plan` use, so carrying the idea forward keeps the trace linked.
+
+The `recaps/` artifact is likewise **Claude-authored** (from `hyper-recap`) — not a bridge output. Filename `<timestamp>[-<slug>].md`: timestamp-only with a bare empty `slug:` for an empty-slug / no-ASCII cycle, exactly like `specs/`. Frontmatter is the skill-defined set `mode: recap`, `slug`, `generated`, `context: live|artifacts-only`, `plan` (double-quoted path), plus the PostToolUse-hook-added `plugin-version`. It does NOT carry the bridge's `codex-*` / `template-version` keys.
 
 ### `memory/` — repo-local knowledge candidates
 

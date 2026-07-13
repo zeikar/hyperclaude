@@ -55,7 +55,7 @@ One gesture, end-to-end:
                     │
                     ▼
    .hyperclaude/{specs,research,plans,epics,
-                 plan-reviews,code-reviews,docs-reviews}/
+                 plan-reviews,code-reviews,docs-reviews,recaps}/
 
 Hooks — SessionStart reminder, fires independently
 ```
@@ -100,6 +100,7 @@ External dependencies: Claude Code plugin runtime, `codex-cli >= 0.130.0` with t
 
    # On-demand, outside the cycle:
    /hyperclaude:hyper-memory                                 # mine .hyperclaude/ artifacts for repo-local knowledge candidates
+   /hyperclaude:hyper-recap                                  # write a human-readable recap of the last completed cycle
    ```
 
 ## Documentation

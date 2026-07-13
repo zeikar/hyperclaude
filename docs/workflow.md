@@ -232,6 +232,14 @@ Driven by an explicit release request — when the user asks to release, run the
 
 Not part of the numbered research → ship cycle above — `hyper-memory` runs on demand, whenever a batch of work has accumulated in `.hyperclaude/` (several archived plans, plan-reviews, research artifacts) and it's worth mining for durable knowledge. Orchestration-only — no Codex. It scans `plans/done/`, `plan-reviews/` (ship-as-is verdicts), and `research/`, and writes one evidence-anchored candidate markdown file per deterministic copy-based span to `.hyperclaude/memory/candidates/`. Humans curate: promote (add a live `anchors:` repo path, then `mv` to `.hyperclaude/memory/promoted/`) or reject (`rm`). v1 is extraction + curation only; auto-injecting promoted knowledge into future sessions is the v2 north star, not implemented here. See [gates-and-agents.md](gates-and-agents.md) for the full mechanics.
 
+## On-demand: recap — human-readable cycle recap
+
+```
+/hyperclaude:hyper-recap [plan-path|slug]
+```
+
+On demand at cycle completion — `hyper-recap` closes a finished cycle with a human-readable recap, recommended by the implement-loop / `hyper-auto` reports but never auto-run. Claude-only — no Codex. It writes `.hyperclaude/recaps/<timestamp>[-<slug>].md` (timestamp-only for an empty-slug / no-ASCII cycle): `context: live` when generated in the same session that ran the cycle, `context: artifacts-only` in a fresh session with an explicit "Unrecoverable gaps" note for what can't be recovered. The recap unit is one completed detailed plan / milestone (archived under `.hyperclaude/plans/done/`). See [gates-and-agents.md](gates-and-agents.md) for the full mechanics.
+
 ---
 
 ## Slug propagation
