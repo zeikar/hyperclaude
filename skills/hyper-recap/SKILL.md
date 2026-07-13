@@ -1,0 +1,152 @@
+---
+name: hyper-recap
+description: Use at cycle completion to write a human-readable recap of what was built and why — "recap this cycle", "summarize what we built", "cycle recap", "write up what changed". Also when the user invokes /hyperclaude:hyper-recap. Claude-only — no Codex, no agent dispatch — runs after a plan is implemented and reviewed, and writes a recap to .hyperclaude/recaps/. Recaps ONE completed detailed plan / milestone archived under .hyperclaude/plans/done/.
+---
+
+# hyper-recap
+
+Cycle-completion recap. An AI-run cycle leaves the codebase changed but the human out of the loop: the request, the judgments taken, the alternatives rejected, and the critic rounds are all in the AI's head or scattered across gitignored artifacts. That is cognitive debt — without a write-up a human can't reconstruct *why* and *how* the AI built what it built. This skill collapses one completed cycle into a single human-readable recap under `.hyperclaude/recaps/`.
+
+**Claude-only — no Codex, no agent dispatch.** It joins the non-Codex-spawning set alongside `hyper-interview`, `hyper-memory`, and `hyper-setup`. It never calls the bridge and never dispatches an agent — it only reads `.hyperclaude/` artifacts + in-session context and writes one markdown file.
+
+The recap unit is **ONE completed detailed plan / milestone** (a plan archived under `.hyperclaude/plans/done/`). Epic-level rollup across milestones is a v1 non-goal. This is **NOT a PR draft** — it explains the cycle to a human, it does not propose or format changes for merge.
+
+## When to use
+
+- User typed `/hyperclaude:hyper-recap [path|slug]`.
+- A cycle just completed — the plan ran to completion (`implement` / `code-review` done) and was archived under `.hyperclaude/plans/done/` — and you want the why/how captured.
+
+## When to skip
+
+- **Mid-cycle.** v1 recaps ONLY completed cycles — there is no mid-cycle partial-recap mode. If the target plan is still active (not yet archived), stop and say so (see Target resolution's completion gate).
+- **No completed plan exists.** Zero `.hyperclaude/plans/done/*.md` → report "nothing to recap", write NOTHING, stop.
+
+## Invocation argument
+
+**Invocation argument:** $ARGUMENTS
+
+## Target resolution
+
+Every branch resolves to a COMPLETED plan under `.hyperclaude/plans/done/`. Classify `$ARGUMENTS`:
+
+- contains `/` OR ends in `.md` → **path** branch
+- a bare non-empty token → **slug** branch
+- empty → **no-arg** branch
+
+### Path branch
+
+First **validate** the supplied path is under `.hyperclaude/plans/` or `.hyperclaude/plans/done/`. Any other path → STOP `path must be under .hyperclaude/plans/ or plans/done/: <path>`. Never basename-match an external path against a done plan. Then key on the given path EXACTLY (no blind basename swap):
+
+- Explicit `.hyperclaude/plans/done/<...>` path → use it EXACTLY if it exists and is readable; else STOP `plan not found: <path>`. No basename relocation for a done path.
+- Explicit active `.hyperclaude/plans/<...>` path:
+  - If that EXACT file still exists → it is an un-archived plan → STOP `plan not yet completed — run it to completion first` (completion gate). Do NOT silently retarget a same-basename done plan.
+  - Only when the exact active path NO LONGER exists AND `.hyperclaude/plans/done/<basename>` exists → use the done copy (archival relocation).
+  - Neither exists → STOP `plan not found: <path>`.
+
+### Slug branch
+
+Scan `.hyperclaude/plans/done/*.md`, derive each file's slug via the **Target slug** rule below, and collect files whose derived slug equals the argument.
+
+- 0 matches → STOP `no completed plan for slug '<slug>'`.
+- 1 match → use it.
+- ≥2 matches → select the **newest by mtime** (the SAME `ls -1t` ordering the no-arg branch uses — one total ordering over every candidate, regardless of whether a filename carries a `<YYYYMMDD-HHMM>` prefix) AND report the ambiguity: list the matched candidates and which was chosen.
+
+### No-arg branch
+
+Newest `.hyperclaude/plans/done/*.md` by mtime:
+
+```bash
+ls -1t .hyperclaude/plans/done/*.md 2>/dev/null | head -1
+```
+
+Zero done plans → report "nothing to recap", write NOTHING, STOP.
+
+## Target slug
+
+Derive the target plan's slug `S` from the resolved plan FILENAME (basename without `.md`). This rule derives ONLY the target plan's own `S` and the recap filename — NEVER use it to match other artifacts (see discovery, which reads frontmatter). It replicates `extractSlugFromPlanFilename` (`scripts/codex/slug.mjs` lines 29–33) with explicit no-ASCII / empty handling:
+
+- basename matches `^\d{8}-\d{4}-(.+)$` → `S` = the captured suffix (the normal `<ts>-<slug>` case).
+- basename is a bare timestamp — matches `^\d{8}-\d{4}-?$` (timestamp-only or trailing-hyphen) → `S` = **EMPTY**. This is the repo's **no-ASCII** convention (specs/research use a bare empty `slug:` with a `<timestamp>.md` filename); the plain `extractSlugFromPlanFilename` fallback would wrongly yield the timestamp as `S`.
+- otherwise (a manually named `<slug>.md` with no timestamp prefix — `hyper-implement` can archive these) → `S` = the whole basename.
+
+**Empty-`S` behavior.** The recap filename is timestamp-only (`.hyperclaude/recaps/<timestamp>.md`, collision-suffixed `-2`/`-3` as usual — never a dangling `<timestamp>-.md`), and the frontmatter `slug:` is the bare empty key (`slug: ` — key, colon, single space, nothing after — matching `hyper-interview`'s no-ASCII fallback, NOT `slug: ""`). Research/spec slug-linkage is UNAVAILABLE for an empty-`S` cycle (an empty slug can't distinguish cycles) — acknowledge that gap in the recap. Plan-reviews still link exactly via the `plan-path` + `cwd` full-path rule.
+
+**Collision-ambiguous `S` behavior.** The plan-writer appends `-2`/`-3`… collision suffixes to plan FILENAMES, but linked research/spec artifacts keep their ORIGINAL frontmatter `slug:` — and plans persist NO canonical `slug:` field, so a filename-derived `S` ending in a number cannot be proven to be a real slug vs a collision suffix. Flag `S` as **collision-ambiguous** when it matches `-\d+$` (e.g. `foo-2` — could be `slug: foo` collided) OR is entirely digits `^\d+$` (e.g. `2` — an empty-slug collision `<ts>-2.md`). For a collision-ambiguous `S`: still use `S` verbatim for the recap FILENAME and frontmatter `slug:` (naming only, no correctness risk), but treat research/spec slug-linkage as UNAVAILABLE (same as empty `S`) and note it — do NOT silently match `slug: foo` or `slug: 2`. This conservatively accepts that a genuine slug ending in `-<digits>` also loses research/spec linkage; plan-reviews still link exactly via `plan-path` + `cwd`. (v1 declines a durable plan slug marker.)
+
+`recaps/` accumulates like `research/` and is NEVER archived.
+
+## Cycle artifact discovery
+
+Match by **FRONTMATTER, not filename**. Filename extraction is wrong for `<ts>-S-claude.md` (→ `S-claude`) and collision-suffixed `<ts>-S-2.md` (→ `S-2`).
+
+- **plan-reviews (exact membership).** Read each `.hyperclaude/plan-reviews/*.md` frontmatter `plan-path` AND `cwd` (both are recorded — see `scripts/codex/frontmatter.mjs`; `hyper-plan-review` records the caller's path verbatim, which may be relative or an external path). Resolve `plan-path` against that artifact's recorded `cwd` to a canonical absolute path, and include the review ONLY when it equals the target plan's canonical ACTIVE path (`<target-cwd>/.hyperclaude/plans/<basename>`) OR its DONE path (`<target-cwd>/.hyperclaude/plans/done/<basename>`). Basename equality alone is INSUFFICIENT — a review of an unrelated external plan with the same filename must not match.
+- **research + specs (slug-only, caveated).** Read each `.hyperclaude/research/*.md` and `.hyperclaude/specs/*.md` frontmatter `slug:`; include those equal to `S`. Because `S` may be non-unique across completed cycles, present these as "slug-matched (may include artifacts from other same-slug cycles)". If more than one `plans/done/*.md` shares slug `S`, surface that ambiguity explicitly. When `S` is EMPTY (no-ASCII) OR collision-ambiguous (per Target slug — matches `-\d+$` or `^\d+$`), **skip this slug match entirely** and note that research/spec linkage is unavailable — do NOT match on an empty slug (it would sweep in every no-ASCII cycle's artifacts) or on a collision-suffixed `S`.
+- **code-reviews (live-only).** Include ONLY paths supplied by the live loop's `reviewArtifacts[]` or otherwise referenced in-session — NEVER slug- or frontmatter-guessed (code-review artifacts use release-level slugs and carry no plan identity).
+
+## Context detection
+
+Mode is determined SOLELY by whether the originating conversation is available in-session. Per-field availability is handled separately — do NOT downgrade the whole mode because one field is missing.
+
+- **`context: live`** — the recap is generated in the SAME session that ran the cycle (user request verbatim + the AI's judgments recoverable). Enrich per-field where available: code review not run → mark that section "not run"; a task with no commit → "no commit"; a standalone review run with no `reviewArtifacts[]` → use any in-session-referenced code-review paths, else mark "unavailable". A missing `reviewArtifacts[]` or a missing commit does NOT force `artifacts-only`.
+- **`context: artifacts-only`** — a fresh session where the conversation is unavailable. Build a **plan-scoped partial recap** from the discovered artifacts (enriched by slug-matched research/specs only when the slug is usable), with an explicit **"Unrecoverable gaps"** note enumerating exactly what cannot be recovered: the verbatim request, the AI's judgment rationale, per-task commit SHAs, and code-review-round associations. `.jsonl` transcript mining is a non-goal. Do NOT fabricate any of these.
+
+## Recap content
+
+Required sections. Each field's source is explicit:
+
+- **Request summary** — verbatim quote when `context: live`. In `artifacts-only`, a summary derived SOLELY from the exact resolved plan (its H1 / intro / task list), explicitly flagged as NOT the verbatim request. Slug-matched specs/research are NEVER authoritative for the summary (they may belong to another same-slug cycle) — cite them only as caveated supplementary context.
+- **Key decisions + why, incl. rejected alternatives** — MUST be a **table**. Live from in-session judgments. In `artifacts-only`, populate a row's rationale/alternative ONLY when an artifact explicitly states it; otherwise mark the cell "unavailable" or clearly label it "inferred from the final plan" — never assert unrecorded rationale as fact (judgment rationale is declared unrecoverable). Slug-matched specs/research are caveated supplementary context only.
+- **What changed** — MUST distinguish actual vs planned.
+  - In `live`, derive the ACTUAL changed files from EVERY cycle commit available in-session — each per-task commit AND the implement-loop's final `fix(review): apply Codex code-review findings` convergence commit when present — via a machine-readable name listing: `git show --name-status --format= <sha>` (handles renames, never abbreviates paths — do NOT use `--stat`), with a **commit column**. Represent the convergence/review-fix commit as its own **"review fixes"** row when it does not map cleanly to a single task. If a FAILED convergence commit left fixes staged/unstaged, ALSO include those working-tree files (`git diff --name-status` + `git diff --cached --name-status`) as a row flagged **"uncommitted (convergence commit failed)"** so the final state is never missed.
+  - In `artifacts-only`, label this column **"planned file scope"** (from the plan's "Files to create/modify"), NOT "files changed", and mark the commit column "unavailable". Never present planned scope as evidence of actual change.
+- **Critic findings → resolutions** — MUST be a **table**. Plan-review rounds (exact, via the `plan-path` + `cwd` resolution above) in both modes; code-review rounds are live-only — sourced from `reviewArtifacts[]` OR any code-review artifact referenced in-session (a standalone `hyper-code-review` run counts), consistent with discovery. Findings themselves are persisted in the plan-review artifacts, but the intermediate plan revisions that resolved them are overwritten in place, so a finding's exact resolution is often NOT persisted: mark each resolution "unavailable / not persisted" unless a later plan-review round explicitly records it resolved, or clearly label it "inferred from the final plan". In `artifacts-only`, mark the code-review association unavailable.
+- **Open / deferred items** — from the plan + plan-reviews.
+
+Diagrams (mermaid / ASCII) only where they aid comprehension. Artifacts are linked BY PATH, never inlined.
+
+## Write mechanics
+
+```bash
+mkdir -p .hyperclaude/recaps
+date -u +%Y%m%d-%H%M
+```
+
+Base path `.hyperclaude/recaps/<timestamp>[-<slug>].md` — the `-<slug>` segment is present for a normal `S`, OMITTED entirely for an empty `S` (never emit a dangling `<timestamp>-.md`). If the path exists, append `-2`, `-3`, … until free.
+
+Write with the **Write** tool. Author NO `plugin-version` line — the PostToolUse stamp hook adds it post-write. Frontmatter keys, in this order:
+
+```
+---
+mode: recap
+slug: <slug>
+generated: <ISO-8601 timestamp>
+context: live|artifacts-only
+plan: "<source plan path>"
+---
+```
+
+- `slug:` value is `<slug>` for a normal `S`, or the bare empty key (`slug: ` — key, colon, single space, nothing after) for an empty `S`, NOT `slug: ""`.
+- `plan:` value MUST be double-quoted (JSON-style) so spaces / `#` / `:` / quote characters in the path cannot corrupt the YAML scalar, mirroring how the bridge JSON-quotes its path-valued frontmatter.
+
+## Anti-patterns
+
+- **Calling Codex / the bridge.** This skill is Claude-only.
+- **Dispatching any agent** (the `Agent` tool). No agent dispatch.
+- **Auto-running inside a loop.** Recap is invoked at cycle completion, not chained from an implement/review loop.
+- **Mining `.jsonl` transcripts** to recover an `artifacts-only` gap. A non-goal — mark the gap unrecoverable instead.
+- **Epic-level rollup.** The unit is ONE detailed plan / milestone.
+- **PR-draft framing.** This explains the cycle to a human; it is not a merge proposal.
+- **Inlining artifact bodies** instead of linking them by path.
+- **Filename-extracting research / plan-review / spec slugs** instead of reading frontmatter `slug:`.
+- **Presenting slug-only-matched research / specs as exact cycle membership** when `S` is non-unique.
+- **Slug-guessing a code-review artifact** into a recap (release-level slug, no plan identity).
+- **Recapping an un-archived active plan** (violates the completion gate).
+- **Basename-matching an external or active path** to a different done plan.
+- **Basename-only plan-review matching** without resolving `plan-path` against its recorded `cwd`.
+- **Presenting planned file scope as actual changes.**
+- **Dropping the implement-loop `fix(review):` convergence commit** (or a failed-convergence staged/unstaged working tree) from live "what changed".
+- **Using `git show --stat`** for exact file enumeration — use `--name-status`.
+- **Asserting unrecorded rationale / finding-resolution as fact** in `artifacts-only` — mark "unavailable" or "inferred".
+- **Using a slug-matched spec as the authoritative request summary.**
+- **Fabricating commit SHAs or code-review associations** in `artifacts-only` mode.
+- **Writing a recap when no completed plan exists.**
