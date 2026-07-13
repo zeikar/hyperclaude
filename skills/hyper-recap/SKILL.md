@@ -35,12 +35,12 @@ Every branch resolves to a COMPLETED plan under `.hyperclaude/plans/done/`. Clas
 
 ### Path branch
 
-First **validate** the supplied path is under `.hyperclaude/plans/` or `.hyperclaude/plans/done/`. Any other path → STOP `path must be under .hyperclaude/plans/ or plans/done/: <path>`. Never basename-match an external path against a done plan. Then key on the given path EXACTLY (no blind basename swap):
+First **validate** the supplied path via canonical-path comparison (never a lexical/string-prefix check): canonicalize the repository's `.hyperclaude/plans/` and `.hyperclaude/plans/done/` directories (resolve symlinks and collapse `.`/`..` traversal — `realpath`/`readlink -f` semantics). If the candidate's leaf EXISTS, canonicalize the whole candidate path and require its parent directory to be EXACTLY one of those two canonicalized directories (a direct child — reject traversal segments, nested subdirectories, and symlinks that resolve outside either directory). If the candidate's leaf does NOT exist, canonicalize only its PARENT directory (the leaf itself has nothing to resolve) and require that parent to be EXACTLY the canonicalized `.hyperclaude/plans/` directory — this missing-leaf case is allowed ONLY for the active-plan directory, matching the archival-relocation case below: the plan was archived out from under its active path, so it's the DONE sibling, not the missing active leaf, that gets canonicalized and containment-checked next. Any candidate that fails these checks → STOP `path must be under .hyperclaude/plans/ or plans/done/: <path>`. Never basename-match an external path against a done plan. Then key on the given path EXACTLY (no blind basename swap):
 
 - Explicit `.hyperclaude/plans/done/<...>` path → use it EXACTLY if it exists and is readable; else STOP `plan not found: <path>`. No basename relocation for a done path.
 - Explicit active `.hyperclaude/plans/<...>` path:
   - If that EXACT file still exists → it is an un-archived plan → STOP `plan not yet completed — run it to completion first` (completion gate). Do NOT silently retarget a same-basename done plan.
-  - Only when the exact active path NO LONGER exists AND `.hyperclaude/plans/done/<basename>` exists → use the done copy (archival relocation).
+  - Only when the exact active path NO LONGER exists AND `.hyperclaude/plans/done/<basename>` exists → use the done copy (archival relocation). This is the missing-leaf case validated above: the parent (`.hyperclaude/plans/`) canonicalized and passed containment while the leaf was absent; now canonicalize and containment-check the done sibling (`.hyperclaude/plans/done/<basename>`) before reading it.
   - Neither exists → STOP `plan not found: <path>`.
 
 ### Slug branch
@@ -87,7 +87,7 @@ Match by **FRONTMATTER, not filename**. Filename extraction is wrong for `<ts>-S
 
 Mode is determined SOLELY by whether the originating conversation is available in-session. Per-field availability is handled separately — do NOT downgrade the whole mode because one field is missing.
 
-- **`context: live`** — the recap is generated in the SAME session that ran the cycle (user request verbatim + the AI's judgments recoverable). Enrich per-field where available: code review not run → mark that section "not run"; a task with no commit → "no commit"; a standalone review run with no `reviewArtifacts[]` → use any in-session-referenced code-review paths, else mark "unavailable". A missing `reviewArtifacts[]` or a missing commit does NOT force `artifacts-only`.
+- **`context: live`** — the recap is generated in the SAME session that ran the cycle (user request verbatim available). The AI's judgments and rejected alternatives are recoverable ONLY to the extent they are actually evidenced in the visible lead conversation or a written artifact — delegated planner/fixer subagent reasoning that was never surfaced back to the lead is NOT automatically recoverable just because the mode is `live` (see Recap content's Key decisions row for the same evidence requirement). Enrich per-field where available: code review not run → mark that section "not run"; a task with no commit → "no commit"; a standalone review run with no `reviewArtifacts[]` → use any in-session-referenced code-review paths, else mark "unavailable". A missing `reviewArtifacts[]` or a missing commit does NOT force `artifacts-only`.
 - **`context: artifacts-only`** — a fresh session where the conversation is unavailable. Build a **plan-scoped partial recap** from the discovered artifacts (enriched by slug-matched research/specs only when the slug is usable), with an explicit **"Unrecoverable gaps"** note enumerating exactly what cannot be recovered: the verbatim request, the AI's judgment rationale, per-task commit SHAs, and code-review-round associations. `.jsonl` transcript mining is a non-goal. Do NOT fabricate any of these.
 
 ## Recap content
@@ -95,7 +95,7 @@ Mode is determined SOLELY by whether the originating conversation is available i
 Required sections. Each field's source is explicit:
 
 - **Request summary** — verbatim quote when `context: live`. In `artifacts-only`, a summary derived SOLELY from the exact resolved plan (its H1 / intro / task list), explicitly flagged as NOT the verbatim request. Slug-matched specs/research are NEVER authoritative for the summary (they may belong to another same-slug cycle) — cite them only as caveated supplementary context.
-- **Key decisions + why, incl. rejected alternatives** — MUST be a **table**. Live from in-session judgments. In `artifacts-only`, populate a row's rationale/alternative ONLY when an artifact explicitly states it; otherwise mark the cell "unavailable" or clearly label it "inferred from the final plan" — never assert unrecorded rationale as fact (judgment rationale is declared unrecoverable). Slug-matched specs/research are caveated supplementary context only.
+- **Key decisions + why, incl. rejected alternatives** — MUST be a **table**. In BOTH modes, populate a row's rationale/alternative ONLY when it is explicitly evidenced — by the visible in-session conversation (`live`) or by an artifact that explicitly states it (either mode); otherwise mark the cell "unavailable" or clearly label it "inferred from the final plan" — never assert unrecorded rationale as fact, in either mode. Slug-matched specs/research are caveated supplementary context only.
 - **What changed** — MUST distinguish actual vs planned.
   - In `live`, derive the ACTUAL changed files from EVERY cycle commit available in-session — each per-task commit AND the implement-loop's final `fix(review): apply Codex code-review findings` convergence commit when present — via a machine-readable name listing: `git show --name-status --format= <sha>` (handles renames, never abbreviates paths — do NOT use `--stat`), with a **commit column**. Represent the convergence/review-fix commit as its own **"review fixes"** row when it does not map cleanly to a single task. If a FAILED convergence commit left fixes staged/unstaged, ALSO include those working-tree files (`git diff --name-status` + `git diff --cached --name-status`) as a row flagged **"uncommitted (convergence commit failed)"** so the final state is never missed.
   - In `artifacts-only`, label this column **"planned file scope"** (from the plan's "Files to create/modify"), NOT "files changed", and mark the commit column "unavailable". Never present planned scope as evidence of actual change.
@@ -125,8 +125,8 @@ plan: "<source plan path>"
 ---
 ```
 
-- `slug:` value is `<slug>` for a normal `S`, or the bare empty key (`slug: ` — key, colon, single space, nothing after) for an empty `S`, NOT `slug: ""`.
-- `plan:` value MUST be double-quoted (JSON-style) so spaces / `#` / `:` / quote characters in the path cannot corrupt the YAML scalar, mirroring how the bridge JSON-quotes its path-valued frontmatter.
+- `slug:` value: for a normal nonempty `S`, JSON-serialize it (`JSON.stringify(S)`-equivalent — double-quoted with `"` / `\` / control characters escaped) — a manually named plan's whole-basename slug (e.g. `release: v2` from `release: v2.md`) or one containing `#`, quotes, or backslashes would otherwise corrupt the YAML scalar. For an empty `S`, use the bare empty key (`slug: ` — key, colon, single space, nothing after), NOT `slug: ""`.
+- `plan:` value MUST be JSON-serialized (`JSON.stringify()`-equivalent — not raw string interpolation into a quoted literal) so spaces / `#` / `:` / quote characters in the path cannot corrupt the YAML scalar, mirroring how the bridge JSON-quotes its path-valued frontmatter.
 
 ## Anti-patterns
 
@@ -146,7 +146,7 @@ plan: "<source plan path>"
 - **Presenting planned file scope as actual changes.**
 - **Dropping the implement-loop `fix(review):` convergence commit** (or a failed-convergence staged/unstaged working tree) from live "what changed".
 - **Using `git show --stat`** for exact file enumeration — use `--name-status`.
-- **Asserting unrecorded rationale / finding-resolution as fact** in `artifacts-only` — mark "unavailable" or "inferred".
+- **Asserting unrecorded rationale / finding-resolution as fact** in EITHER mode — mark "unavailable" or "inferred" unless explicitly evidenced by the session or an artifact.
 - **Using a slug-matched spec as the authoritative request summary.**
 - **Fabricating commit SHAs or code-review associations** in `artifacts-only` mode.
 - **Writing a recap when no completed plan exists.**
