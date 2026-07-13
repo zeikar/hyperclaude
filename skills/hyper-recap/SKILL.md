@@ -1,6 +1,6 @@
 ---
 name: hyper-recap
-description: Use at cycle completion to write a human-readable recap of what was built and why — "recap this cycle", "summarize what we built", "cycle recap", "write up what changed". Also when the user invokes /hyperclaude:hyper-recap. Claude-only — no Codex, no agent dispatch — runs after a plan is implemented and reviewed, and writes a recap to .hyperclaude/recaps/. Recaps ONE completed detailed plan / milestone archived under .hyperclaude/plans/done/.
+description: Use at cycle completion to write a human-readable recap of what was built and why — "recap this cycle", "summarize what we built", "cycle recap", "write up what changed this cycle". Also when the user invokes /hyperclaude:hyper-recap. Claude-only — no Codex, no agent dispatch — runs after a plan is implemented and reviewed, and writes a recap to .hyperclaude/recaps/. Recaps ONE completed detailed plan / milestone archived under .hyperclaude/plans/done/. Distinct from /hyperclaude:hyper-memory (durable knowledge extraction, not a one-cycle narrative).
 ---
 
 # hyper-recap
@@ -14,7 +14,7 @@ The recap unit is **ONE completed detailed plan / milestone** (a plan archived u
 ## When to use
 
 - User typed `/hyperclaude:hyper-recap [path|slug]`.
-- A cycle just completed — the plan ran to completion (`implement` / `code-review` done) and was archived under `.hyperclaude/plans/done/` — and you want the why/how captured.
+- A cycle just completed — the plan ran to completion (`implement` / `code-review` done) and was archived under `.hyperclaude/plans/done/` — and the why/how should be captured.
 
 ## When to skip
 
@@ -35,7 +35,14 @@ Every branch resolves to a COMPLETED plan under `.hyperclaude/plans/done/`. Clas
 
 ### Path branch
 
-First **validate** the supplied path via canonical-path comparison (never a lexical/string-prefix check): canonicalize the repository's `.hyperclaude/plans/` and `.hyperclaude/plans/done/` directories (resolve symlinks and collapse `.`/`..` traversal — `realpath`/`readlink -f` semantics). If the candidate's leaf EXISTS, canonicalize the whole candidate path and require its parent directory to be EXACTLY one of those two canonicalized directories (a direct child — reject traversal segments, nested subdirectories, and symlinks that resolve outside either directory). If the candidate's leaf does NOT exist, canonicalize only its PARENT directory (the leaf itself has nothing to resolve) and require that parent to be EXACTLY the canonicalized `.hyperclaude/plans/` directory — this missing-leaf case is allowed ONLY for the active-plan directory, matching the archival-relocation case below: the plan was archived out from under its active path, so it's the DONE sibling, not the missing active leaf, that gets canonicalized and containment-checked next. Any candidate that fails these checks → STOP `path must be under .hyperclaude/plans/ or plans/done/: <path>`. Never basename-match an external path against a done plan. Then key on the given path EXACTLY (no blind basename swap):
+First **validate** the supplied path via canonical-path comparison — never a lexical/string-prefix check:
+
+1. Canonicalize the repository's `.hyperclaude/plans/` and `.hyperclaude/plans/done/` directories (resolve symlinks and collapse `.`/`..` traversal — `realpath`/`readlink -f` semantics).
+2. **Candidate's leaf EXISTS** → canonicalize the whole candidate path and require its parent directory to be EXACTLY one of those two canonicalized directories (a direct child — reject traversal segments, nested subdirectories, and symlinks that resolve outside either directory).
+3. **Candidate's leaf does NOT exist** → canonicalize only its PARENT directory (the leaf itself has nothing to resolve) and require that parent to be EXACTLY the canonicalized `.hyperclaude/plans/` directory. This missing-leaf case is allowed ONLY for the active-plan directory, matching the archival-relocation case below: the plan was archived out from under its active path, so it's the DONE sibling, not the missing active leaf, that gets canonicalized and containment-checked next.
+4. Any candidate that fails these checks → STOP `path must be under .hyperclaude/plans/ or plans/done/: <path>`. Never basename-match an external path against a done plan.
+
+Then key on the given path EXACTLY (no blind basename swap):
 
 - Explicit `.hyperclaude/plans/done/<...>` path → use it EXACTLY if it exists and is readable; else STOP `plan not found: <path>`. No basename relocation for a done path.
 - Explicit active `.hyperclaude/plans/<...>` path:
