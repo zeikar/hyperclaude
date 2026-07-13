@@ -251,7 +251,8 @@ for f in \
   skills/hyper-setup/SKILL.md \
   scripts/setup-doctor.mjs \
   scripts/memory/extract.mjs \
-  skills/hyper-memory/SKILL.md
+  skills/hyper-memory/SKILL.md \
+  skills/hyper-recap/SKILL.md
 do
   if [ -f "$f" ]; then ok "$f"; else miss "$f missing"; fi
 done
@@ -1084,6 +1085,26 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
        /hyperclaude:hyper-code-review --resume
      Verify a second artifact appears with codex-resume-status: resumed
      and codex-resumed-from populated.
+
+  5b. With a completed cycle present (a plans/done/ entry), run:
+       /hyperclaude:hyper-recap
+     Verify it recaps the newest plans/done/ plan and writes
+     .hyperclaude/recaps/<timestamp>[-<slug>].md with `mode: recap`, a
+     `context: live|artifacts-only` marker, a double-quoted `plan:`
+     value, and a hook-stamped `plugin-version` line.
+     Then, with plans/done/ temporarily emptied (move entries aside),
+     run again: verify it reports "nothing to recap" and writes
+     nothing.
+     Then create a timestamp-only done-plan fixture
+     (.hyperclaude/plans/done/<YYYYMMDD-HHMM>.md) and run
+     /hyperclaude:hyper-recap: verify a timestamp-only recap filename
+     (no dangling `-`), a bare empty `slug: `, and skipped
+     research/spec linkage.
+     Then create a collision-suffixed fixture
+     (<timestamp>-<slug>-2.md) and run again: verify research/spec
+     linkage is marked unavailable, not matched to the un-suffixed
+     slug.
+     Confirm NO Codex spawn and NO agent dispatch throughout.
 
   6. Run:
        /hyperclaude:hyper-docs-sync uncommitted
