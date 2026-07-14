@@ -119,6 +119,14 @@ else
 fi
 
 echo
+echo "==> Bridge code-review --review-brief + --resume (deliberately allowed, unlike --background)"
+if out=$(node scripts/codex-bridge.mjs code-review --review-brief "user asked for X" --resume auto --dry-run 2>&1); then
+  ok "codex-bridge code-review --review-brief + --resume exits zero (allowed alongside --resume)"
+else
+  miss "codex-bridge code-review --review-brief + --resume should exit zero but failed: $out"
+fi
+
+echo
 echo "==> Bridge code-review unknown-flag rejection"
 if out=$(node scripts/codex-bridge.mjs code-review --bogus-flag --dry-run 2>&1); then
   miss "codex-bridge code-review --bogus-flag should exit non-zero but exited 0: $out"
