@@ -91,4 +91,4 @@ When you revise the plan, **always overwrite the same plan file in place**. Do n
 
 ## Output contract
 
-Review files have frontmatter (mode: plan-review, task: plan path, slug, generated, plugin-version, codex-version, template-version, plan-path, `review-brief` (present only when a brief was supplied), plus `codex-input-tokens`, `codex-cached-input-tokens`, `codex-output-tokens`, `codex-reasoning-output-tokens` each emitted independently when Codex reported that token field in usage; omitted when Codex did not emit usage) followed by Issues / Improvements / Verdict sections.
+Review files have frontmatter (mode: plan-review, task: plan path, slug, generated, plugin-version, codex-version, template-version, plan-path, `review-brief` (present when a brief was supplied, or carried forward from a successfully-resolved resume), plus `codex-input-tokens`, `codex-cached-input-tokens`, `codex-output-tokens`, `codex-reasoning-output-tokens` each emitted independently when Codex reported that token field in usage; omitted when Codex did not emit usage) followed by Issues / Improvements / Verdict sections.

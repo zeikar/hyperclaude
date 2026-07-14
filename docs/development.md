@@ -144,10 +144,10 @@ Conventions:
 
 Codex prompts live in [templates/codex/](../templates/codex/) — `research.md`, `plan-review.md`, `plan-review-resumed.md`, `docs-review.md`, `docs-review-resumed.md`, `code-review.md`, `code-review-resumed.md`. Variables are `{{UPPERCASE_KEY}}` (e.g. `{{TASK}}`, `{{PLAN}}`, `{{DOCS}}`, `{{DIFF}}`, `{{TARGET_INSTRUCTION}}`). Unknown placeholders are left literal.
 
-- `plan-review-resumed.md` — continuation prompt used when `--resume` is passed to `plan-review`; substitutes `{{PLAN_PATH}}`.
+- `plan-review-resumed.md` — continuation prompt used when `--resume` is passed to `plan-review`; substitutes `{{PLAN_PATH}}` and `{{REVIEW_BRIEF}}`.
 - `docs-review-resumed.md` — continuation prompt used when `--resume` is passed to `docs-review`; substitutes `{{DOCS_TARGET}}`, `{{FILE_LIST_BLOCK}}` (rendered via `renderFileListBlock`), and `{{DIFF_BASE_BLOCK}}` (rendered via `renderDiffBaseBlock`).
 - `code-review.md` — fresh `code-review` prompt. Substitutes `{{TARGET_INSTRUCTION}}` (the per-target git-command block), `{{REVIEW_BACKGROUND}}` (optional caller-supplied context injected under a `### Change context` heading when `--background` is passed; empty string otherwise), and `{{REVIEW_BRIEF}}` (optional caller-composed brief of the user's requirements / approved decisions injected under a `### Review brief` DATA heading when `--review-brief` is passed; empty otherwise — the same slot appears on `plan-review.md` and both `*-resumed.md` review prompts). Codex runs those git commands itself under the read-only sandbox to collect the diff — there is no native diff capture; the bridge spawns `codex --search exec --sandbox read-only -` with this rendered prompt, exactly like the other fresh modes.
-- `code-review-resumed.md` — continuation prompt used when `--resume` is passed to `code-review`; substitutes `{{TARGET_INSTRUCTION}}` (the exact git command to re-fetch the diff, since `codex exec resume` does not re-trigger diff capture).
+- `code-review-resumed.md` — continuation prompt used when `--resume` is passed to `code-review`; substitutes `{{TARGET_INSTRUCTION}}` (the exact git command to re-fetch the diff, since `codex exec resume` does not re-trigger diff capture) and `{{REVIEW_BRIEF}}`.
 
 Adding bridge flags (`--model`, `--effort`) that do NOT change a template's prompt body does NOT require a `template-version` bump — the template text is unchanged and resume comparisons remain valid.
 
