@@ -442,6 +442,14 @@ async function main(argv) {
       }
     }
 
+    // Review brief: the flag overrides what the prior artifact carried; absent a
+    // flag the carried brief is re-sent so a multi-round review keeps seeing the
+    // user's requirements. Both the resumed and the fresh branch consume the same
+    // effectiveBrief, so a supplied brief survives an 'auto' resume fallback.
+    const carried = resumeContext ? resumeContext.frontmatter['review-brief'] ?? null : null;
+    const effectiveBrief = (args.reviewBrief ?? carried)?.trim() || null;
+    const reviewBriefBlock = renderReviewBriefBlock(effectiveBrief);
+
     const gitHead = getGitHead();
 
     // Preflight the review target BEFORE spawning Codex. Runs for BOTH the
@@ -490,7 +498,10 @@ async function main(argv) {
         }) + '\n');
         process.exit(1);
       }
-      const prompt = loadTemplate(resumeTemplateText, { TARGET_INSTRUCTION: targetInstruction });
+      const prompt = loadTemplate(resumeTemplateText, {
+        TARGET_INSTRUCTION: targetInstruction,
+        REVIEW_BRIEF: reviewBriefBlock,
+      });
       result = await runCodexResume(resumeContext.threadId, prompt, args.timeout, selectionArgs);
     } else {
       // Compute the REVIEW_BACKGROUND substitution inline (single-use; no helper).
@@ -507,7 +518,11 @@ async function main(argv) {
           '```\n' +
           '\n';
       }
-      const prompt = loadTemplate(freshBody, { TARGET_INSTRUCTION: targetInstruction, REVIEW_BACKGROUND: reviewBackground });
+      const prompt = loadTemplate(freshBody, {
+        TARGET_INSTRUCTION: targetInstruction,
+        REVIEW_BRIEF: reviewBriefBlock,
+        REVIEW_BACKGROUND: reviewBackground,
+      });
       const argv = ['exec', ...selectionArgs, '--sandbox', 'read-only', '-'];
       result = await runCodexExec(argv, prompt, args.timeout);
     }
@@ -530,6 +545,8 @@ async function main(argv) {
       baseRef: args.baseRef,
       commit: args.commit,
       title: args.title,
+      // Re-record the effective brief so the NEXT round's carry-forward works.
+      reviewBrief: effectiveBrief ?? undefined,
       cwd: process.cwd(),
       codexThreadId: result.threadId,
       codexUsage: result.parseDiagnostics?.usage,
@@ -618,6 +635,13 @@ async function main(argv) {
     }
   }
 
+  // Review brief: same rule as the code-review path above. No mode guard needed —
+  // research can never carry a brief (the args allow-list rejects --review-brief
+  // for it), so both locals settle to null and the block renders empty.
+  const carried = resumeContext ? resumeContext.frontmatter['review-brief'] ?? null : null;
+  const effectiveBrief = (args.reviewBrief ?? carried)?.trim() || null;
+  const reviewBriefBlock = renderReviewBriefBlock(effectiveBrief);
+
   let plan = '';
   if (args.mode === 'plan-review') {
     try {
@@ -663,11 +687,15 @@ async function main(argv) {
 
   let prompt;
   if (args.mode === 'plan-review' && resumeContext) {
-    prompt = loadTemplate(templateText, { PLAN_PATH: args.planPath });
+    prompt = loadTemplate(templateText, {
+      PLAN_PATH: args.planPath,
+      REVIEW_BRIEF: reviewBriefBlock,
+    });
   } else {
     prompt = loadTemplate(templateText, {
       TASK: args.task ?? '',
       PLAN: plan,
+      REVIEW_BRIEF: reviewBriefBlock,
     });
   }
 
@@ -696,6 +724,8 @@ async function main(argv) {
     codexVersion: v.version,
     templateVersion,
     planPath: args.mode === 'plan-review' ? args.planPath : undefined,
+    // Re-record the effective brief so the NEXT round's carry-forward works.
+    reviewBrief: effectiveBrief ?? undefined,
     cwd: process.cwd(),
     gitHead: getGitHead(),
     codexThreadId: result.threadId,

@@ -273,6 +273,127 @@ test('mock codex: code-review --background fence-collision guard neutralizes tri
   }
 });
 
+// ---------------------------------------------------------------------------
+// --review-brief: caller-composed requirements carried into the review prompt.
+// ---------------------------------------------------------------------------
+
+test('mock codex: plan-review --review-brief injects Review brief block into stdin prompt and records it in frontmatter', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-pr-brief-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const planPath = path.join(tmpdir, '20260714-1015-oauth.md');
+    writeFileSync(planPath, '# Plan\n\nTask 1: add the flag.\n');
+    const brief = 'user asked for a --review-brief flag; approved carrying it across resume rounds';
+
+    const result = spawnSync(
+      process.execPath,
+      [BRIDGE, 'plan-review', '--plan-path', planPath, '--review-brief', brief, '--out', tmpdir],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+      }
+    );
+
+    assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.ok, true);
+
+    const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
+    assert.ok(stdinLog.includes('### Review brief (caller-composed'), 'stdin must include the Review brief block header');
+    assert.ok(stdinLog.includes(brief), 'stdin must include the brief text');
+    assert.ok(!/\{\{[A-Z_]+\}\}/.test(stdinLog), 'no unreplaced {{...}} placeholders');
+
+    const outputContent = readFileSync(json.path, 'utf8');
+    assert.ok(
+      outputContent.includes(`review-brief: ${JSON.stringify(brief)}`),
+      'frontmatter must record the effective review-brief (this is what the next round carries forward)'
+    );
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('mock codex: code-review --review-brief + --background inject BOTH blocks into stdin prompt', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-brief-bg-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const brief = 'user requested the new --review-brief flag and approved the template bump';
+    const background = 'wired the flag through the bridge into both prompt paths';
+
+    const result = spawnSync(
+      process.execPath,
+      [BRIDGE, 'code-review', '--out', tmpdir, '--review-brief', brief, '--background', background],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+      }
+    );
+
+    assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.ok, true);
+
+    const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
+    assert.ok(stdinLog.includes('### Review brief (caller-composed'), 'stdin must include the Review brief block header');
+    assert.ok(stdinLog.includes(brief), 'stdin must include the brief text');
+    assert.ok(stdinLog.includes('### Change context (author-supplied DATA'), 'stdin must include the Change context block header');
+    assert.ok(stdinLog.includes(background), 'stdin must include the background text');
+    // Requirements first, builder context second.
+    assert.ok(
+      stdinLog.indexOf('### Review brief (caller-composed') < stdinLog.indexOf('### Change context (author-supplied DATA'),
+      'the Review brief block must precede the Change context block'
+    );
+    assert.ok(!/\{\{[A-Z_]+\}\}/.test(stdinLog), 'no unreplaced {{...}} placeholders');
+
+    const outputContent = readFileSync(json.path, 'utf8');
+    assert.ok(outputContent.includes(`review-brief: ${JSON.stringify(brief)}`), 'frontmatter must record the review-brief');
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('mock codex: code-review without --review-brief has no Review brief block and no review-brief frontmatter line', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-nobrief-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const result = spawnSync(
+      process.execPath,
+      [BRIDGE, 'code-review', '--out', tmpdir],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+      }
+    );
+
+    assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.ok, true);
+
+    // Static prose mentions `### Review brief` in backticks; the rendered block's
+    // heading line carries the "(caller-composed" suffix, so match on that.
+    const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
+    assert.ok(
+      !stdinLog.includes('### Review brief (caller-composed'),
+      'stdin must NOT include the Review brief block when --review-brief is omitted'
+    );
+    assert.ok(!/\{\{[A-Z_]+\}\}/.test(stdinLog), 'no unreplaced {{...}} placeholders');
+
+    const outputContent = readFileSync(json.path, 'utf8');
+    assert.ok(!outputContent.includes('review-brief:'), 'frontmatter must have no review-brief line when the flag is omitted');
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
 test('mock codex: code-review --uncommitted spawns codex exec --sandbox read-only - with the uncommitted prompt on stdin', () => {
   const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-cr-uncommitted-'));
   try {

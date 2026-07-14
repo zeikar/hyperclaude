@@ -472,7 +472,7 @@ test('resume happy path: plan-review --resume <prev> spawns exec resume', () => 
         slug: 'oauth',
         cwd: process.cwd(),
         'plan-path': planPath,
-        'template-version': 2,
+        'template-version': 3,
         'codex-thread-id': 'thread-rev-resume',
         'codex-resume-status': 'fresh',
       });
@@ -533,7 +533,7 @@ test('resume happy path: code-review --resume <prev> spawns exec resume and writ
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 3,
+        'template-version': 4,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-1',
@@ -597,7 +597,7 @@ test('resume explicit-path mismatch (base-ref differs) → ok:false, no new arti
       const prior = path.join(outDir, '20260510-1015-vs-feature-x.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 3,
+        'template-version': 4,
         cwd: process.cwd(),
         'base-ref': 'feature-x',
         'codex-thread-id': 'thread-cr-x',
@@ -681,7 +681,7 @@ test('resume spawn fails (codex exits 7) → code-review status resume-failed, f
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 3,
+        'template-version': 4,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-fail',
@@ -748,7 +748,7 @@ test('fresh code-review still works without --resume: resumeStatus fresh in JSON
       const fm = parseFrontmatter(outputContent);
       assert.equal(fm['codex-resume-status'], 'fresh', 'frontmatter codex-resume-status should be fresh');
       // Fresh path reads the live templates/codex/code-review.md and emits its version.
-      assert.equal(fm['template-version'], '3', 'fresh code-review must emit the current code-review template-version');
+      assert.equal(fm['template-version'], '4', 'fresh code-review must emit the current code-review template-version');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
@@ -769,7 +769,7 @@ test('resume preserves thread id when thread.started is omitted from codex outpu
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 3,
+        'template-version': 4,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-1',
@@ -845,6 +845,165 @@ test('resume explicit-path over LEGACY code-review artifact (no template-version
 
       const afterFiles = readdirSync(outDir).sort();
       assert.deepEqual(afterFiles, beforeFiles, 'outDir contents must be unchanged after gate rejection');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// --review-brief across resume: carry-forward, override, fallback survival.
+// The brief deliberately does NOT participate in resume identity (see
+// scripts/codex/resume.mjs) — a changed brief must not break continuity.
+// ---------------------------------------------------------------------------
+
+test('resume carry-forward: prior plan-review artifact review-brief is re-sent and re-recorded when the flag is omitted', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-pr-brief-carry-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const planPath = path.join(tmpdir, '20260510-1015-oauth.md');
+    writeFileSync(planPath, '# Plan v2\n\nUpdated plan body.\n');
+    const brief = 'user asked for device-code OAuth only; approved skipping PKCE for now';
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-pr-brief-carry-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1130-oauth.md');
+      writePriorArtifact(prior, {
+        mode: 'plan-review',
+        slug: 'oauth',
+        cwd: process.cwd(),
+        'plan-path': planPath,
+        'template-version': 3,
+        'review-brief': brief,
+        'codex-thread-id': 'thread-pr-brief',
+        'codex-resume-status': 'fresh',
+      });
+
+      // NO --review-brief on this run: the brief must come from the prior artifact.
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'plan-review', '--plan-path', planPath, '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'resumed');
+
+      const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
+      assert.ok(stdinLog.includes('### Review brief (caller-composed'), 'resumed prompt must carry the Review brief block');
+      assert.ok(stdinLog.includes(brief), 'resumed prompt must carry the prior artifact brief text');
+      assert.doesNotMatch(stdinLog, /\{\{[A-Z_]+\}\}/, 'no leftover {{...}} placeholders');
+
+      const fm = parseFrontmatter(readFileSync(json.path, 'utf8'));
+      assert.equal(fm['review-brief'], brief, 'new artifact must re-record the carried brief (keeps the NEXT round working)');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume override: --review-brief beats the prior code-review artifact brief, and does NOT break resume identity', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-brief-override-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const briefA = 'ROUND-ONE-BRIEF: user asked for the parser only';
+    const briefB = 'ROUND-TWO-BRIEF: user also approved the template bump';
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-brief-override-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-vs-main.md');
+      writePriorArtifact(prior, {
+        mode: 'code-review',
+        'template-version': 4,
+        cwd: process.cwd(),
+        'base-ref': 'main',
+        'review-brief': briefA,
+        'codex-thread-id': 'thread-cr-brief',
+        'codex-resume-status': 'fresh',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'code-review', '--base', 'main', '--resume', prior, '--review-brief', briefB, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      // A changed brief must not make the prior artifact ineligible.
+      assert.equal(json.resumeStatus, 'resumed', 'a changed brief must NOT break resume identity');
+
+      const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
+      assert.ok(stdinLog.includes(briefB), 'resumed prompt must carry the flag-supplied brief');
+      assert.ok(!stdinLog.includes(briefA), 'resumed prompt must NOT carry the superseded prior brief');
+
+      const fm = parseFrontmatter(readFileSync(json.path, 'utf8'));
+      assert.equal(fm['review-brief'], briefB, 'new artifact must record the overriding brief');
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume fallback survival: --review-brief still reaches the FRESH prompt when --resume auto misses', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-brief-fallback-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const brief = 'user asked for the fallback path to keep the brief';
+
+    // Empty out dir → no resume candidate → auto falls back to a fresh spawn.
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-cr-brief-fallback-out-'));
+    try {
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'code-review', '--base', 'main', '--resume', 'auto', '--review-brief', brief, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'fallback', 'auto miss must fall back to fresh');
+
+      // Fresh spawn (no `resume` token) that STILL carries the brief — unlike
+      // --background, which is rejected outright alongside --resume.
+      const argv = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8').split('\n').filter((l) => l.length > 0);
+      assert.ok(!argv.includes('resume'), 'argv must not contain "resume" on fresh-spawn fallback');
+
+      const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
+      assert.ok(stdinLog.includes('### Review brief (caller-composed'), 'the FRESH fallback prompt must still carry the Review brief block');
+      assert.ok(stdinLog.includes(brief), 'the FRESH fallback prompt must still carry the brief text');
+      assert.doesNotMatch(stdinLog, /\{\{[A-Z_]+\}\}/, 'no leftover {{...}} placeholders');
+
+      const fm = parseFrontmatter(readFileSync(json.path, 'utf8'));
+      assert.equal(fm['review-brief'], brief, 'the fallback artifact must record the brief');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
@@ -1156,7 +1315,7 @@ test('resume auto over dir whose only plan-review artifact is OLD-VERSION → fr
       const outputContent = readFileSync(json.path, 'utf8');
       const fm = parseFrontmatter(outputContent);
       assert.equal(fm['codex-resume-status'], 'fallback', 'frontmatter codex-resume-status should be fallback');
-      assert.equal(fm['template-version'], '2', 'fresh fallback must emit the current plan-review template-version');
+      assert.equal(fm['template-version'], '3', 'fresh fallback must emit the current plan-review template-version');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
