@@ -527,6 +527,140 @@ test('renderDocsReviewFrontmatter: docs-target and diff-base migrated to fmStrin
   assert.match(fm, /diff-base: "origin\/develop"/);
 });
 
+// ── Task 3: review-brief ─────────────────────────────────────────────────────
+
+test('renderFrontmatter: review-brief present when truthy, absent when omitted', () => {
+  const base = {
+    mode: 'plan-review',
+    task: 'test',
+    slug: 'test',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  };
+  const fmWithout = renderFrontmatter(base);
+  assert.doesNotMatch(fmWithout, /review-brief:/);
+
+  const fmWith = renderFrontmatter({ ...base, reviewBrief: 'Add OAuth login' });
+  assert.match(fmWith, /review-brief: "Add OAuth login"/);
+});
+
+test('renderFrontmatter: review-brief emitted immediately after plan-path', () => {
+  const fm = renderFrontmatter({
+    mode: 'plan-review',
+    task: 'test',
+    slug: 'test',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    planPath: '/tmp/plan.md',
+    reviewBrief: 'Add OAuth login',
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  const lines = fm.split('\n');
+  const ppIdx = lines.findIndex((l) => l.startsWith('plan-path:'));
+  assert.ok(ppIdx >= 0, 'plan-path line must be present');
+  assert.equal(lines[ppIdx + 1], 'review-brief: "Add OAuth login"', 'review-brief must be the line immediately after plan-path');
+});
+
+test('renderFrontmatter: review-brief round-trips byte-identically through parseFrontmatter', () => {
+  const brief = 'Scope: add "OAuth" login\nonly for the /api/v1 routes';
+  const fm = renderFrontmatter({
+    mode: 'plan-review',
+    task: 'test',
+    slug: 'test',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    reviewBrief: brief,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  const parsed = parseFrontmatter(fm);
+  assert.equal(parsed['review-brief'], brief);
+});
+
+test('renderCodeReviewFrontmatter: review-brief present when truthy, absent when omitted', () => {
+  const base = {
+    slug: 'vs-main',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    gitHead: 'unknown',
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    title: null,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  };
+  const fmWithout = renderCodeReviewFrontmatter(base);
+  assert.doesNotMatch(fmWithout, /review-brief:/);
+
+  const fmWith = renderCodeReviewFrontmatter({ ...base, reviewBrief: 'Add OAuth login' });
+  assert.match(fmWith, /review-brief: "Add OAuth login"/);
+});
+
+test('renderCodeReviewFrontmatter: review-brief emitted immediately after title, before cwd', () => {
+  const fm = renderCodeReviewFrontmatter({
+    slug: 'vs-main',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    gitHead: 'unknown',
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    title: 'My PR title',
+    reviewBrief: 'Add OAuth login',
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  const lines = fm.split('\n');
+  const titleIdx = lines.findIndex((l) => l.startsWith('title:'));
+  assert.ok(titleIdx >= 0, 'title line must be present');
+  assert.equal(lines[titleIdx + 1], 'review-brief: "Add OAuth login"', 'review-brief must be the line immediately after title');
+  assert.equal(lines[titleIdx + 2], 'cwd: "/tmp"', 'cwd must be the line immediately after review-brief');
+});
+
+test('renderCodeReviewFrontmatter: review-brief round-trips byte-identically through parseFrontmatter', () => {
+  const brief = 'Scope: add "OAuth" login\nonly for the /api/v1 routes';
+  const fm = renderCodeReviewFrontmatter({
+    slug: 'vs-main',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    gitHead: 'unknown',
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    title: null,
+    reviewBrief: brief,
+    cwd: '/tmp',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  const parsed = parseFrontmatter(fm);
+  assert.equal(parsed['review-brief'], brief);
+});
+
 // ── fmString ──────────────────────────────────────────────────────────────────
 
 test('fmString: simple value JSON-stringifies', () => {

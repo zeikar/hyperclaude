@@ -20,7 +20,7 @@ function pushCodexUsage(lines, usage) {
 
 export function renderFrontmatter({
   mode, task, slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion,
-  planPath, cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
+  planPath, reviewBrief, cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
   codexModelRequested, codexEffortRequested, codexUsage,
 }) {
   const lines = ['---'];
@@ -36,6 +36,9 @@ export function renderFrontmatter({
   lines.push(`codex-version: ${codexVersion}`);
   lines.push(`template-version: ${templateVersion}`);
   if (planPath) lines.push(fmString('plan-path', planPath));
+  // fmString JSON-stringifies, so a multi-line brief stays a single scalar
+  // line that the JSON-quoted read branch in parseFrontmatter round-trips.
+  if (reviewBrief) lines.push(fmString('review-brief', reviewBrief));
   lines.push(fmString('cwd', cwd));
   lines.push(fmString('git-head', gitHead));
   if (codexModelRequested) lines.push(fmString('codex-model-requested', codexModelRequested));
@@ -51,7 +54,7 @@ export function renderFrontmatter({
 
 export function renderCodeReviewFrontmatter({
   slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion, gitHead, reviewTarget, baseRef, commit, title,
-  cwd, codexThreadId, codexResumeStatus, codexResumedFrom,
+  reviewBrief, cwd, codexThreadId, codexResumeStatus, codexResumedFrom,
   codexModelRequested, codexEffortRequested, codexUsage,
 }) {
   const lines = ['---'];
@@ -67,6 +70,9 @@ export function renderCodeReviewFrontmatter({
   if (reviewTarget === 'base') lines.push(fmString('base-ref', baseRef));
   if (reviewTarget === 'commit') lines.push(fmString('commit', commit));
   if (title) lines.push(fmString('title', title));
+  // fmString JSON-stringifies, so a multi-line brief stays a single scalar
+  // line that the JSON-quoted read branch in parseFrontmatter round-trips.
+  if (reviewBrief) lines.push(fmString('review-brief', reviewBrief));
   lines.push(fmString('cwd', cwd));
   if (codexModelRequested) lines.push(fmString('codex-model-requested', codexModelRequested));
   if (codexEffortRequested) lines.push(fmString('codex-effort-requested', codexEffortRequested));
