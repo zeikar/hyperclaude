@@ -268,7 +268,7 @@ Codex gates and Claude-authored plans write artifacts to `.hyperclaude/` in the 
 ├── code-reviews/    Codex code-review outputs (code-review mode)
 ├── docs-reviews/    Codex docs accuracy outputs (docs-review mode)
 ├── memory/          hyper-memory candidates/ + promoted/ (see below; not part of the research→ship cycle)
-└── recaps/          Claude-authored cycle recaps from hyper-recap (on-demand; accumulates, never archived)
+└── recaps/          Claude-authored cycle recaps from hyper-recap (on-demand or as hyper-auto's terminal step; accumulates, never archived)
 ```
 
 Naming is consistent across all subdirs: `<YYYYMMDD-HHMM>-<slug>.md`. The slug is the trace key — a `research` slug carries through to the `plan` written by Claude, then into the `plan-review` of that plan. The bridge's `extractSlugFromPlanFilename()` reuses the slug from a plan filename when invoking `plan-review`, so the trio shares a slug end-to-end.

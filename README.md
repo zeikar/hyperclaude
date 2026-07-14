@@ -34,7 +34,7 @@ One gesture, end-to-end:
 /hyperclaude:hyper-auto add OAuth login to the API
 ```
 
-`hyper-auto` chains `hyper-plan-loop → hyper-implement-loop`. Claude plans, Codex critiques the plan until no blockers remain, Claude implements, Codex code-reviews until no blocking findings remain (style/nits are reported, never gating) — all hands-off. It's not a new layer, just composition over the two loops, so the same gates and artifacts apply. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (inherited from the underlying loops).
+`hyper-auto` chains `hyper-plan-loop → hyper-implement-loop`. Claude plans, Codex critiques the plan until no blockers remain, Claude implements, Codex code-reviews until no blocking findings remain (style/nits are reported, never gating) — all hands-off. A clean composed exit closes with an auto-run `hyper-recap` write-up (Claude-only, no Codex). It's not a new layer, just composition over the two loops, so the same gates and artifacts apply. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (inherited from the underlying loops).
 
 ## Architecture
 
@@ -100,7 +100,7 @@ External dependencies: Claude Code plugin runtime, `codex-cli >= 0.130.0` with t
 
    # On-demand, outside the cycle:
    /hyperclaude:hyper-memory                                 # mine .hyperclaude/ artifacts for repo-local knowledge candidates
-   /hyperclaude:hyper-recap                                  # write a human-readable recap of the last completed cycle
+   /hyperclaude:hyper-recap                                  # write a human-readable recap of the last completed cycle (also auto-run by hyper-auto on a clean exit)
    ```
 
 ## Documentation
