@@ -1091,10 +1091,12 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      Verify it recaps the newest plans/done/ plan and writes
      .hyperclaude/recaps/<timestamp>[-<slug>].md with `mode: recap`, a
      `context: live|artifacts-only` marker, a double-quoted `plan:`
-     value, and a hook-stamped `plugin-version` line.
+     value, and a hook-stamped `plugin-version` line, and that the run
+     REPORTS the exact written `.hyperclaude/recaps/<...>.md` path
+     (collision suffix included).
      Then, with plans/done/ temporarily emptied (move entries aside),
-     run again: verify it reports "nothing to recap" and writes
-     nothing.
+     run again: verify it reports "nothing to recap" (stating the
+     reason and claiming NO path) and writes nothing.
      Then create a timestamp-only done-plan fixture
      (.hyperclaude/plans/done/<YYYYMMDD-HHMM>.md) and run
      /hyperclaude:hyper-recap: verify a timestamp-only recap filename
@@ -1214,6 +1216,17 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      clean-exit "Next step: /hyperclaude:hyper-implement <plan path>"
      recommendation is suppressed (implement already ran in Step 3) so
      the surfaced next-step is the implement-loop's own guidance.
+     On a clean composed exit (plan-loop clean AND implement-loop
+     Step-9 `fix(review):` convergence commit succeeded/skipped with a
+     clean tree), verify hyper-auto invokes /hyperclaude:hyper-recap
+     with the canonical plan path (NOT no-arg) BEFORE its final report,
+     that the report carries the actual written recap path, and that
+     the implement-loop's recap-recommendation bullet is no longer
+     relayed. On a FAILED Step-9 convergence commit, verify NO recap
+     file is written, the report makes no recap-path claim, it emits
+     the explicit `auto-recap skipped (<reason>)` line, and it does NOT
+     relay the standalone recommendation. On either loop's cap/failure,
+     verify no recap runs.
      If agent teams are unavailable: verify the inherited graceful
      fallback fires before any inner loop spawns a team.
 

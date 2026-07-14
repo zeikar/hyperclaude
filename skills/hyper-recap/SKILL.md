@@ -15,6 +15,7 @@ The recap unit is **ONE completed detailed plan / milestone** (a plan archived u
 
 - User typed `/hyperclaude:hyper-recap [path|slug]`.
 - A cycle just completed — the plan ran to completion (`implement` / `code-review` done) and was archived under `.hyperclaude/plans/done/` — and the why/how should be captured.
+- hyper-auto invokes this skill automatically as its terminal step on a clean composed exit (the sole auto-run path; standalone it stays on-demand).
 
 ## When to skip
 
@@ -110,7 +111,7 @@ Mode is determined SOLELY by whether the originating conversation is available i
 - **Critic verdicts** — a per-phase one-liner: rounds consumed, the finding ARC in a clause (what themes forced changes), the final verdict, and the artifact paths. Add a findings table ONLY for findings that materially changed the design. Plan-review rounds (exact, via the `plan-path` + `cwd` resolution above) in both modes; code-review rounds are live-only — sourced from `reviewArtifacts[]` OR any code-review artifact referenced in-session (a standalone `hyper-code-review` run counts), consistent with discovery. A finding's exact resolution is often NOT persisted (intermediate plan revisions are overwritten in place): mark it "unavailable / not persisted" unless a later plan-review round explicitly records it resolved, or clearly label it "inferred from the final plan". In `artifacts-only`, mark the code-review association unavailable.
 - **Open / deferred items** — from the plan + plan-reviews.
 
-Diagrams (mermaid / ASCII) only where they aid comprehension. Artifacts are linked BY PATH, never inlined.
+**Diagrams.** Include one ONLY for STRUCTURE that prose/tables can't show cheaply (the cycle arc, decision forks, artifact linkage); default a single mermaid `flowchart LR` of ≤10 nodes. Node labels are evidence-grounded and semantic — a REAL artifact path or commit SHA where the node IS an artifact/commit, and the actual phase/decision name drawn from THIS cycle where the node is a phase or fork (never invented or decorative names). Render EITHER the mermaid diagram OR, for terminal-only readers, an ASCII fallback that REPLACES it (not both); never decorative; at most 1 diagram per recap by default. Artifacts are linked BY PATH, never inlined.
 
 ## Write mechanics
 
@@ -136,11 +137,13 @@ plan: "<source plan path>"
 - `slug:` value: for a normal nonempty `S`, JSON-serialize it (`JSON.stringify(S)`-equivalent — double-quoted with `"` / `\` / control characters escaped) — a manually named plan's whole-basename slug (e.g. `release: v2` from `release: v2.md`) or one containing `#`, quotes, or backslashes would otherwise corrupt the YAML scalar. For an empty `S`, use the bare empty key (`slug: ` — key, colon, single space, nothing after), NOT `slug: ""`.
 - `plan:` value MUST be JSON-serialized (`JSON.stringify()`-equivalent — not raw string interpolation into a quoted literal) so spaces / `#` / `:` / quote characters in the path cannot corrupt the YAML scalar, mirroring how the bridge JSON-quotes its path-valued frontmatter.
 
+**Terminal reporting contract.** After a successful Write, report the EXACT written recap path (the resolved `.hyperclaude/recaps/<...>.md`, collision suffix included). On ANY non-success terminal — target resolution, artifact reads, `mkdir`, timestamp generation, the Write itself, or any other I/O — report the failure reason and NO path (never claim a path that was not written). This is the defined outcome hyper-auto's terminal step consumes; a standalone run likewise states where it wrote or why it could not.
+
 ## Anti-patterns
 
 - **Calling Codex / the bridge.** This skill is Claude-only.
 - **Dispatching any agent** (the `Agent` tool). No agent dispatch.
-- **Auto-running inside a loop.** Recap is invoked at cycle completion, not chained from an implement/review loop.
+- **Auto-running inside a loop.** Recap is invoked at cycle completion, not chained from an implement/review loop — with ONE carve-out: hyper-auto's terminal step MAY auto-run it after BOTH inner loops complete cleanly. Never mid-loop, never chained directly from hyper-implement-loop or hyper-plan-loop.
 - **Mining `.jsonl` transcripts** to recover an `artifacts-only` gap. A non-goal — mark the gap unrecoverable instead.
 - **Epic-level rollup.** The unit is ONE detailed plan / milestone.
 - **PR-draft framing.** This explains the cycle to a human; it is not a merge proposal.

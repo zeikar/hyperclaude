@@ -35,11 +35,26 @@ Implementing on a plan with unresolved blocking findings wastes the implement-lo
 
 Invoke `/hyperclaude:hyper-implement-loop <plan-path-from-Step-1>` with the canonical plan path captured from plan-loop's report. Let it run to terminal state.
 
-### Step 4 — Report
+### Step 4 — Auto-recap, then compose the report
 
-Relay both phases' Step 9 terminal facts so the user can audit the full chain. Do not paraphrase or invent fields — but apply ONE composed-flow exception:
+On a **clean composed exit** (guard below), FIRST run the terminal recap, THEN emit the composed report so the report can quote the actual written recap path. On any non-clean terminal the recap is skipped entirely.
 
-- **Suppress `hyper-plan-loop`'s "Next step: /hyperclaude:hyper-implement <plan path>" recommendation.** That line fires on a clean plan-loop exit; under `hyper-auto`, Step 3 has already executed the implement phase, so relaying it verbatim would tell the user to re-implement an already-implemented plan. Drop that bullet from the relayed plan-loop report.
+**Clean-exit guard.** Auto-recap fires ONLY when ALL of these hold:
+- plan-loop exited clean (Step 2's clean-exit branch — not cap/failure), AND
+- implement-loop reached its Step 9 review-convergence report (not a Step 8 cap/failure STOP), AND
+- that Step 9's `fix(review):` convergence commit reported SUCCESS (commit SHA + clean tree) OR SKIP (nothing staged, clean tree).
+
+Non-clean terminals NEVER auto-run recap, and the deleted recap-recommendation bullet is NEVER re-introduced:
+- (a) plan-loop cap/failure STOPs at Step 2 — no implement phase ran, no recap.
+- (b) implement-loop cap/failure Step 8 STOP surfaces the loop's own Step 8 report (which carries no Step-9 recap bullet) — no recap.
+- (c) a Step 9 whose `fix(review):` convergence commit FAILED (dirty tree / not-ready-to-push) surfaces the loop's Step 9 report with the recap-recommendation bullet STILL suppressed; hyper-auto REPLACES it with an explicit `auto-recap skipped — convergence commit failed, tree not clean; run /hyperclaude:hyper-recap <plan-path> manually after resolving` line — never the standalone recommendation.
+
+**Terminal recap (clean exit only).** Invoke `/hyperclaude:hyper-recap <canonical-plan-path>` with the SAME plan path captured in Step 2 and passed to Step 3 (the active `.hyperclaude/plans/<basename>` path). `hyper-implement` archived that path to `plans/done/` on completion, and hyper-recap's path branch relocates the now-missing active path to its `done/` sibling — binding the recap to THIS exact cycle. Claude-only: no Codex, no agent dispatch, live context. NEVER invoke it no-arg (no-arg picks newest-by-mtime and can target the wrong cycle). This runs before the composed report.
+
+**Composed report.** Relay both phases' Step 9 terminal facts so the user can audit the full chain. Do not paraphrase or invent fields — but apply TWO composed-flow exceptions:
+
+1. **Suppress `hyper-plan-loop`'s "Next step: /hyperclaude:hyper-implement <plan path>" recommendation.** That line fires on a clean plan-loop exit; under `hyper-auto`, Step 3 has already executed the implement phase, so relaying it verbatim would tell the user to re-implement an already-implemented plan. Drop that bullet from the relayed plan-loop report.
+2. **Suppress the implement-loop's `/hyperclaude:hyper-recap` recommendation bullet.** Under `hyper-auto` the recap is auto-run here (the terminal action above), so the report surfaces the ACTUAL recap path instead of a recommendation (mirrors the plan-loop Next-step suppression).
 
 **Plan-loop bullets to relay** (Step 9 of `hyper-plan-loop`, minus the suppressed Next-step):
 - The plan path.
@@ -55,7 +70,10 @@ Relay both phases' Step 9 terminal facts so the user can audit the full chain. D
 - Residual non-blocking findings.
 - Any `resume-failed` / `fallback` rounds noted.
 - Branch / working-tree state + the implement-loop's own Next-step (this is the actionable user guidance for the composed flow's exit).
-- The optional `/hyperclaude:hyper-recap` recommendation bullet (relay it verbatim — it surfaces exactly once via this relay; do NOT emit an additional recap line).
+
+The composed report ALWAYS ends with a hyper-auto recap-outcome line — never claiming an unwritten path:
+- **Clean exit** → consume hyper-recap's terminal outcome: the exact written recap path on success, or its reported failure reason and NO path on any non-success terminal.
+- **Step-9 failed-convergence exit** → the `auto-recap skipped (<reason>)` line from guard case (c).
 
 ## Anti-patterns
 
@@ -63,3 +81,4 @@ Relay both phases' Step 9 terminal facts so the user can audit the full chain. D
 - Calling this skill when a plan already exists. Use `hyper-implement-loop` directly; running plan-loop on a plan-shaped task description duplicates work.
 - Hiding the intermediate plan-loop failure under a generic "auto failed" message — always surface the underlying terminal state so the user can diagnose.
 - Modifying the plan between Step 1 and Step 3. The implement-loop receives the canonical plan-loop output as-is; out-of-band edits break the audit trail.
+- Auto-running the terminal recap on any non-clean composed exit; re-introducing the standalone recap-recommendation bullet on a failed-convergence exit instead of the `auto-recap skipped (<reason>)` line; or invoking `hyper-recap` no-arg instead of with the captured canonical plan path.
