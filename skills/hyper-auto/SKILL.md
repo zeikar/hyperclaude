@@ -71,7 +71,7 @@ Non-clean terminals NEVER auto-run recap, and the deleted recap-recommendation b
 - Any `resume-failed` / `fallback` rounds noted.
 - Branch / working-tree state + the implement-loop's own Next-step (this is the actionable user guidance for the composed flow's exit).
 
-The composed report ALWAYS ends with a hyper-auto recap-outcome line — never claiming an unwritten path:
+This "ALWAYS" scopes to the two Step-9-reaching exits only — Step 2 and Step 8 STOPs never reach the composed report; they surface the underlying loop report verbatim (Step 2, guard case (b)) and carry no recap-outcome line. For those two exits, the composed report ALWAYS ends with a hyper-auto recap-outcome line — never claiming an unwritten path:
 - **Clean exit** → consume hyper-recap's terminal outcome: the exact written recap path on success, or its reported failure reason and NO path on any non-success terminal.
 - **Step-9 failed-convergence exit** → the `auto-recap skipped (<reason>)` line from guard case (c).
 
