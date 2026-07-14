@@ -25,6 +25,7 @@ test('parseArgs: research mode', () => {
     commit: null,
     title: null,
     background: null,
+    reviewBrief: null,
     docsPath: null,
     docsDir: null,
     diffBase: null,
@@ -993,6 +994,75 @@ test('parseArgs: code-review --background + --resume explicit-path is rejected',
     () => parseArgs(['code-review', '--background', 'x', '--resume', '/tmp/prior.md']),
     /only supported when --resume is omitted/
   );
+});
+
+// ── --review-brief parser tests ───────────────────────────────────────────────
+
+test('parseArgs: plan-review accepts --review-brief and returns it', () => {
+  const a = parseArgs(['plan-review', '--plan-path', '/tmp/p.md', '--review-brief', 'user asked for X']);
+  assert.equal(a.reviewBrief, 'user asked for X');
+});
+
+test('parseArgs: code-review accepts --review-brief and returns it', () => {
+  const a = parseArgs(['code-review', '--review-brief', 'user asked for X']);
+  assert.equal(a.reviewBrief, 'user asked for X');
+});
+
+test('parseArgs: --review-brief accepts bullet-form value starting with "- "', () => {
+  const a = parseArgs(['code-review', '--review-brief', '- user asked for X\n- and Y']);
+  assert.equal(a.reviewBrief, '- user asked for X\n- and Y');
+});
+
+test('parseArgs: --review-brief rejects empty string', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--review-brief', '']),
+    /--review-brief must be a non-empty string/
+  );
+});
+
+test('parseArgs: --review-brief rejects whitespace-only string', () => {
+  assert.throws(
+    () => parseArgs(['code-review', '--review-brief', '   ']),
+    /--review-brief must be a non-empty string/
+  );
+});
+
+test('parseArgs: research rejects --review-brief', () => {
+  assert.throws(
+    () => parseArgs(['research', '--task', 'x', '--review-brief', 'user asked for X']),
+    /unknown flag for mode research: --review-brief/
+  );
+});
+
+test('parseArgs: docs-review rejects --review-brief', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', 'docs/api.md', '--review-brief', 'user asked for X']),
+    /unknown flag for mode docs-review: --review-brief/
+  );
+});
+
+test('parseArgs: --review-brief + --resume auto accepted (plan-review)', () => {
+  const a = parseArgs(['plan-review', '--plan-path', '/tmp/p.md', '--review-brief', 'user asked for X', '--resume', 'auto']);
+  assert.equal(a.reviewBrief, 'user asked for X');
+  assert.equal(a.resumeFrom, 'auto');
+});
+
+test('parseArgs: --review-brief + --resume auto accepted (code-review)', () => {
+  const a = parseArgs(['code-review', '--review-brief', 'user asked for X', '--resume', 'auto']);
+  assert.equal(a.reviewBrief, 'user asked for X');
+  assert.equal(a.resumeFrom, 'auto');
+});
+
+test('parseArgs: --review-brief + --resume <path> accepted', () => {
+  const a = parseArgs(['plan-review', '--plan-path', '/tmp/p.md', '--review-brief', 'user asked for X', '--resume', '/tmp/prior.md']);
+  assert.equal(a.reviewBrief, 'user asked for X');
+  assert.equal(a.resumeFrom, '/tmp/prior.md');
+});
+
+test('parseArgs: --review-brief + --background accepted together on fresh code-review', () => {
+  const a = parseArgs(['code-review', '--review-brief', 'user asked for X', '--background', 'did Y']);
+  assert.equal(a.reviewBrief, 'user asked for X');
+  assert.equal(a.background, 'did Y');
 });
 
 test('parseArgs: --resume rejects empty string', () => {
