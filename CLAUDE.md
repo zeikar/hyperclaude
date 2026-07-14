@@ -69,7 +69,7 @@ If you add a new spawn path, re-check both argv shapes. New flags must be added 
 - **Agents** (`agents/<name>.md`) — sub-Claude personas with restricted `tools:` lists. Used by skills, never the other way around.
 - **Hooks** (`hooks/*.mjs`, registered in `hooks/hooks.json`) — two: (1) a SessionStart reminder that injects a workflow-router template — `templates/hooks/session-start-reminder.md` by default, or the loop-first `session-start-reminder-loop.md` when `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (so the `*-loop`/`hyper-auto` skills become the default recommendation only when agent-teams is actually available) — plus an optional `.hyperclaude/` snapshot footer; (2) a PostToolUse(`Write`) stamp hook (`hooks/stamp-artifact.mjs`) that injects a `plugin-version` line into every Claude-written `.hyperclaude/**/*.md` artifact lacking one — deterministic provenance for plans/epics/research-claude that does NOT depend on the model authoring the line (bridge artifacts already carry it and are written via fs, so the hook skips them). Both are pure orchestration — they never spawn codex.
 - **Templates** (`templates/codex/*.md`, `templates/hooks/*.md`) — prompt bodies loaded at runtime with `{{UPPERCASE_KEY}}` substitution.
-- **Shared protocol references** (`references/loop-protocol.md`) — plugin-wide reference content loaded by skills' Step 0 alongside their loop-specific `failure-protocol.md`. Used by `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop`.
+- **Shared protocol references** (`references/loop-protocol.md`) — plugin-wide reference content loaded by skills' Step 0 alongside their loop-specific `failure-protocol.md`. Used by `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop`. A second shared reference, `references/review-brief.md`, carries the `--review-brief` composition rules (source/omission/bound/shell-safety) pointed at by `hyper-plan-review`, `hyper-code-review`, `hyper-plan-loop`, and `hyper-implement-loop` at their brief-compose step (not Step 0).
 
 All four modes use a fresh prompt template (`code-review` uses `templates/codex/code-review.md`) and bump `template-version` when changing them; the resumed variants (`*-resumed.md`) are unversioned in frontmatter.
 
@@ -85,6 +85,7 @@ All four modes use a fresh prompt template (`code-review` uses `templates/codex/
 | `skills/<any>/SKILL.md` | `docs/gates-and-agents.md`, `docs/workflow.md` |
 | `agents/<any>.md` | `docs/gates-and-agents.md` |
 | `references/loop-protocol.md` | `docs/architecture.md`, `docs/gates-and-agents.md`, `docs/decisions.md` |
+| `references/review-brief.md` | `docs/gates-and-agents.md`, `docs/architecture.md` |
 | `hooks/*.mjs`, `templates/hooks/*.md` | `docs/architecture.md` (SessionStart hook section) |
 | `templates/codex/*.md` (incl. `code-review.md`) | `docs/architecture.md`, `docs/development.md` (template-version section); a code-review prompt/spawn change also touches `docs/decisions.md`, `docs/workflow.md`, `docs/gates-and-agents.md`, `README.md`, and `skills/hyper-implement-loop/*` (the loop parses the code-review contract) |
 | `scripts/test/smoke.sh`, `tests/*.mjs` (incl. `tests/memory-extract.test.mjs`) | `docs/development.md` |

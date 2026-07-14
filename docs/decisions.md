@@ -46,6 +46,12 @@ Research is a single-pass gate. No natural resumed prompt exists without re-uplo
 
 Coverage is uneven by intent: `ENOENT`/`EISDIR` are friendly-mapped only for the docs path/dir; task/plan-file reads use a generic `cannot read X` message; per-file `--docs-dir` reads propagate raw. Adding mappings for codes that haven't bitten anyone is YAGNI.
 
+### `--review-brief` third source: policy quoted from a tracked file
+
+**Trigger:** dogfooding shows a real case where the user's conversation is genuinely insufficient and a tracked policy file is the only authority for an approved requirement.
+
+A third admissible brief source — project policy quoted from a tracked file (e.g. `CLAUDE.md`) — was considered and deliberately CUT; the brief carries only what the user said in conversation. **Why:** it kept the caller surface small, and admitting tracked-file policy would drag in a pre-change-revision requirement — a builder could otherwise edit a policy file in the same change and cite its own freshly-added line as scope-authoritative — which in turn needs a per-target preimage rule to prove the quoted policy predated the change. Not worth that machinery absent a real need.
+
 ---
 
 ## Design decisions
@@ -121,7 +127,7 @@ Sub-decisions: **(a)** web search stays enabled (`--search` as in every mode); t
 
 **(c) Mutual exclusion with `--resume`.** The args parser rejects `--background` combined with ANY `--resume` value, including `--resume auto` — error: `"--background is only supported when --resume is omitted"`. **Why:** resumed sessions already carry the change context in the Codex thread; a silently-ignored flag would be worse than a hard error. Accepted limitation: a `--resume auto` run that falls back to a fresh spawn will NOT carry `--background` — this is intentional and safe, because `--background`'s value is highest on the first fresh review.
 
-**(d) Rendering is inline; no new helper.** The `--background` slot is rendered directly inside the fresh code-review spawn path. No single-use helper was introduced. The resume path is untouched.
+**(d) Rendering is inline.** The `--background` slot is rendered directly inside the fresh code-review spawn path; the resume path is untouched. Its fence-collision guard was later extracted into a shared `escapeCodeFence` helper now used by both this channel and `--review-brief`; the brief additionally carries its own `renderReviewBriefBlock` renderer — unlike `--background`, which lands on one fresh path, the brief renders on four prompt paths (fresh + resumed, both review modes), so a shared block renderer earns its keep.
 
 **Template-version progression:** code-review prompt went 1 (initial) → 2 (over-engineering lens, see entry above) → 3 (this `--background` slot). The output contract (`### Findings` / `### Verdict` sections and severity vocabulary) is UNCHANGED, so loop parsing and the resume gate are unaffected.
 
@@ -297,6 +303,19 @@ Docs edits were append-heavy with nothing pushing back: the documenter's constra
 ### 2026-07-14 — hyper-auto auto-runs hyper-recap as its terminal step (interview-decision reversal)
 
 The original `hyper-recap` interview decided recap is NEVER auto-run; this reverses that for the `hyper-auto` composed-clean-exit case ONLY — never mid-loop, never directly from `hyper-plan-loop` (which never surfaces recap) or `hyper-implement-loop` (which keeps its recommendation-only line). Evidence: a 2026-07-14 real dogfood exercised both `context: live` and `context: artifacts-only` modes at work, and the user requested automation because the Step-9 recommendation line alone did not suffice. Non-obvious why: the terminal recap costs no additional Codex call and reuses already-available in-session context (still consumes Claude time/tokens — not free), and that context is richest exactly at the composed terminal moment, right after both inner loops finish; standalone loops keep the recommendation-only line because they are not always a full cycle's end. The reversal is deliberate and settled — do not re-open.
+
+### 2026-07-15 — `--review-brief`: caller-composed scope context for both review modes (plan-review v3, code-review v4)
+
+The plan-review prompt asks Codex to judge whether every task traces to a stated requirement, but the bridge never shows it the conversation where the user stated those requirements. On the v1.7.0 recap-diagram work Codex flagged the user's own approved ask (add a diagram to the recap) as scope creep — fresh, then AGAIN on the resumed round — because the requirement lived only in the chat it couldn't see. `--review-brief` closes that blind spot: a caller-composed summary of what the user asked for, rendered into a `{{REVIEW_BRIEF}}` DATA slot on all four review prompts. Contract:
+
+- **Both review modes, both prompt kinds** — plan-review (v2→3) and code-review (v3→4) each gained the slot; the two `*-resumed.md` prompts carry it too (they stay frontmatter-less, inheriting the fresh version).
+- **Persist + auto-carry** — written as the `review-brief:` frontmatter scalar and re-read on `--resume` as `carried`, so a caller cannot silently forget it mid-loop; `effectiveBrief = (flag ?? carried)?.trim() || null`.
+- **Allowed with `--resume`, flag-overrides-carried** — deliberately NOT rejected alongside `--resume` (the reverse of `--background` sub-decision (c)): the brief must reach the critic on resumed rounds. A re-supplied flag overrides the carried value — needed for (1) surviving a `--resume auto` → fresh fallback and (2) folding in a decision the user approves mid-loop.
+- **Bounded normative authority** — the block may narrow what counts as scope creep ("this was requested") but each template's guardrail paragraph independently forbids it from waiving correctness / security / data-loss findings; it is DATA, never instructions.
+- **Caller-composed provenance** — Claude writes it, NEVER labelled user-authored; its only admissible sources are what the user stated verbatim / clearly-cited or explicitly approved in conversation. No admissible source → omit the flag (never synthesize).
+- **Not a resume-identity field** — `scripts/codex/resume.mjs` is untouched; a changed brief does not break resume continuity.
+
+Rules live in `references/review-brief.md`; the four caller skills (`hyper-plan-review`, `hyper-code-review`, `hyper-plan-loop`, `hyper-implement-loop`) point at it rather than restating.
 
 ---
 

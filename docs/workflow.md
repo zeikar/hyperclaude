@@ -116,6 +116,8 @@ Default: branch diff vs `main`. Variants:
 
 The bridge accepts an optional `--background "<text>"` flag: a short, strictly descriptive change context (what changed, what it touches, author intent) passed to the Codex critic to orient the review — it does NOT alter the review rubric, preserving builder/critic independence. The `hyper-code-review` skill composes and passes this background automatically on a fresh, non-resume review; direct bridge CLI callers (`node scripts/codex-bridge.mjs code-review ... --background "..."`) may pass it explicitly. Omitting it is a no-op. `--background` is mutually exclusive with `--resume` and is rejected if any `--resume` value is present (resumed sessions already carry the change context in the Codex thread); `--resume auto` that falls back to a fresh run proceeds without `--background`.
 
+A separate channel, `--review-brief "<text>"`, is accepted on BOTH review modes (`plan-review` and `code-review`): a caller-composed summary of the user's stated requirements and approved decisions, so Codex stops flagging the user's own approved asks as scope creep. Unlike `--background` it is ALLOWED with `--resume` (see §7), and — a deliberate contrast — a SUPPLIED brief survives a `--resume auto` → fresh fallback. It is DATA, not a waiver: the prompt guardrail keeps it from suppressing correctness/security/data-loss findings, and its source is limited to what the user said in conversation. Composition rules: [references/review-brief.md](../references/review-brief.md).
+
 Writes `.hyperclaude/code-reviews/<timestamp>-<slug>.md`. Read findings; fix what matters before shipping.
 
 This is the post-implement gate. The two reviews inside `hyper-implement` catch per-task drift; this one catches cross-task issues.
@@ -214,6 +216,8 @@ Status taxonomy recorded in `codex-resume-status` frontmatter:
 `research` does NOT support `--resume` (deferred; see decisions.md).
 
 `--background` is rejected with any `--resume` value (including `--resume auto`). A `--resume auto` invocation that falls back to a fresh spawn will NOT carry `--background` — intentional and safe: background's value is on the first fresh review; resume rounds already hold the context in the Codex thread.
+
+`--review-brief` (plan-review and code-review), by deliberate contrast, IS allowed with any `--resume` value — the brief must reach the critic on resumed rounds too. When SUPPLIED it survives a `--resume auto` → fresh fallback; on a successfully-resolved resume the prior artifact's brief auto-carries, and a supplied flag overrides that carried value. Honest limitation: if the flag is OMITTED and an `auto` resume falls back to fresh, that round carries no brief — carry-forward fires only on a resume that actually resolves.
 
 ## 8. Ship — tag and push
 

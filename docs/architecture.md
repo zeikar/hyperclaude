@@ -37,7 +37,7 @@ hyperclaude/
 │   ├── hyper-tdd/               helper — TDD discipline
 │   └── hyper-debug/             helper — debugging discipline
 ├── agents/                      sub-Claude personas (planner, implementer, verifier, documenter, researcher, fixer)
-├── references/                  plugin-wide reference content not owned by any single skill (currently: loop-protocol.md — Step-0 base for hyper-plan-loop, hyper-implement-loop, and hyper-docs-loop; carries §A–§E for the agent-teams contract/state-machine PLUS the shared §F loop skeleton — Step 0/2/4a/8 boilerplate + degrade-condition pointers — that each SKILL binds by pointing at the named §F sub-blocks; the §A-DEGRADE section is the removable degraded-host override — see decisions.md 2026-06-21)
+├── references/                  plugin-wide reference content not owned by any single skill. loop-protocol.md — Step-0 base for hyper-plan-loop, hyper-implement-loop, and hyper-docs-loop; carries §A–§E for the agent-teams contract/state-machine PLUS the shared §F loop skeleton — Step 0/2/4a/8 boilerplate + degrade-condition pointers — that each SKILL binds by pointing at the named §F sub-blocks; the §A-DEGRADE section is the removable degraded-host override — see decisions.md 2026-06-21. review-brief.md — shared `--review-brief` composition rules (source/omission/bound/shell-safety), pointed at by hyper-plan-review, hyper-code-review, hyper-plan-loop, and hyper-implement-loop
 ├── hooks/                       event-bound hook scripts
 │   ├── hooks.json               hook manifest (registered SessionStart + PostToolUse hooks)
 │   ├── session-start-reminder.mjs  SessionStart reminder (injects workflow-router template)
@@ -158,8 +158,8 @@ node scripts/codex-bridge.mjs <mode> [flags]
 | Mode          | Required flags                                             | Optional flags                                                                       |
 |---------------|------------------------------------------------------------|--------------------------------------------------------------------------------------|
 | `research`    | `--task <text>` OR `--task-file <path>`                    | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--slug`, `--out`, `--timeout`, `--dry-run` |
-| `plan-review` | `--plan-path <path>`                                       | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--slug`, `--out`, `--timeout`, `--dry-run` |
-| `code-review` | none — defaults to `--base main`                           | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`; one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--resume <path\|auto>`, `--background <text>` (fresh only — rejected with `--resume`), `--title`, `--out`, `--timeout`, `--dry-run` |
+| `plan-review` | `--plan-path <path>`                                       | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--review-brief <text>` (allowed with `--resume`), `--slug`, `--out`, `--timeout`, `--dry-run` |
+| `code-review` | none — defaults to `--base main`                           | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`; one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--resume <path\|auto>`, `--background <text>` (fresh only — rejected with `--resume`), `--review-brief <text>` (allowed with `--resume`), `--title`, `--out`, `--timeout`, `--dry-run` |
 | `docs-review` | `--docs-path <file>` OR `--docs-dir <dir>`                 | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--diff-base <ref>`, `--out`, `--timeout`, `--dry-run` |
 
 Defaults:
@@ -175,6 +175,8 @@ When either flag is passed the selection tokens are inserted into the semantic a
 
 `--background <text>` (code-review fresh only): an optional free-text field describing what changed and why. The bridge renders it into the `{{REVIEW_BACKGROUND}}` slot of the fresh `code-review` prompt template (v3). When absent the slot renders as an empty string (no-op). When present the bridge injects a fenced `### Change context` block marked as untrusted DATA (with a fence-collision guard) plus a static template instruction to treat it as data, not instructions. Rejected with an error if `--resume` is also passed.
 
+`--review-brief <text>` (`plan-review` and `code-review`): an optional caller-composed summary of the user's stated requirements and approved decisions, so Codex stops flagging the user's own approved asks as scope creep. It renders (via `renderReviewBriefBlock()`, sharing the `--background` `escapeCodeFence` guard) into the `{{REVIEW_BRIEF}}` slot present on ALL FOUR review prompts — fresh AND resumed, for both modes — as a fenced `### Review brief` block marked DATA-not-instructions. It carries bounded authority: it may say "this was requested, don't flag it," but each template's guardrail paragraph independently forbids it from waiving correctness/security/data-loss findings. The brief is persisted as the `review-brief:` frontmatter scalar and auto-carried on `--resume` (read back as the prior artifact's brief); a supplied flag OVERRIDES the carried value. Unlike `--background` it is deliberately ALLOWED with `--resume`, and a SUPPLIED brief survives a `--resume auto` → fresh fallback. One honest gap: if the flag is OMITTED on a resumed round whose `auto` resolution falls back to fresh, that round carries no brief (a skipped candidate artifact never contributes its brief to a fresh spawn). It is caller-composed — written by Claude, never labelled user-authored; source rules live in [references/review-brief.md](../references/review-brief.md).
+
 ### Output contract
 
 Every non-dry-run successful run writes a single markdown file with YAML frontmatter. (`--dry-run` skips the write and prints `{"ok":true,"dryRun":true,"mode":"…","slug":"…","outputPath":"…","timestamp":"…"}` instead.)
@@ -188,7 +190,7 @@ slug: <kebab-case>
 generated: <ISO-8601 timestamp>
 plugin-version: <hyperclaude version of the loaded copy that ran, or "unknown">
 codex-version: <semver from `codex --version`>
-template-version: <N>                  # from the fresh template's own frontmatter — research: 1, plan-review/docs-review: 2, code-review: 3
+template-version: <N>                  # from the fresh template's own frontmatter — research: 1, docs-review: 2, plan-review: 3, code-review: 4
 task: |-                               # research / plan-review only — block scalar
   <task text or plan path>
 cwd: "<absolute path>"                 # always
@@ -204,6 +206,7 @@ codex-output-tokens: <N>              # same per-field gate
 codex-reasoning-output-tokens: <N>    # same per-field gate; no total key (source has no total_tokens); in practice all four appear together when codex-cli >= 0.130.0 emits usage
 base-ref / commit / title              # code-review (mode-dependent; uncommitted has none)
 plan-path: "<path>"                    # plan-review only
+review-brief: "<text>"                 # plan-review / code-review, when a brief was supplied or carried
 docs-target: "<path>"                  # docs-review
 diff-base: "<ref>"                     # docs-review (when --diff-base passed)
 ---
