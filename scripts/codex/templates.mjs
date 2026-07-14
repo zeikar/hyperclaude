@@ -80,3 +80,30 @@ export function renderDiffBaseBlock(diffBase) {
   if (!diffBase) return '';
   return `Also re-check \`git diff ${diffBase}...HEAD\`.\n`;
 }
+
+// escapeCodeFence: neutralize any triple-backtick-or-longer run so caller-supplied
+// text placed inside a ```text fence cannot prematurely close it and break out
+// into raw markdown (fence break-out prevention).
+export function escapeCodeFence(text) {
+  return text.replace(/`{3,}/g, (m) => m.slice(0, -1) + ' `');
+}
+
+// renderReviewBriefBlock: for null/empty/whitespace-only input returns ''.
+// Otherwise renders a fenced block carrying the caller-composed summary of what
+// the user asked for, so Codex stops flagging the user's own approved
+// requirements as scope creep. The heading deliberately says "caller-composed"
+// (not "user-authored") — the text is relayed by the calling skill, not typed
+// verbatim by the user, and the label must not misrepresent its provenance.
+export function renderReviewBriefBlock(brief) {
+  if (!brief || !brief.trim()) return '';
+  const trimmed = brief.trim();
+  const escaped = escapeCodeFence(trimmed);
+  return (
+    '### Review brief (caller-composed: the user\'s stated requirements and approved decisions)\n' +
+    '\n' +
+    '```text\n' +
+    escaped + '\n' +
+    '```\n' +
+    '\n'
+  );
+}
