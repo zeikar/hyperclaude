@@ -35,6 +35,7 @@ The lead must retain the following run-state across turns and never conflate the
 [DEGRADE] - `teammate_id` — the opaque `agent_id` captured at Step 3 spawn (§A-DEGRADE D0; never parsed); the FALLBACK handle for the first degraded send. Degrade-only — unused on the live-mailbox main path.
 [DEGRADE] - `resolved_handle` — the degraded handle (`teammate_name` or `teammate_id`) that won the first degraded send; `null` until D1 resolves it. Degrade-only — unused on the live-mailbox main path.
 - `awaiting_reply`, `request_id_counter`, `expected_request_id`, `solicit_sent_at`, `review_iteration` — these are the cross-loop state-machine fields. Lifecycle and semantics (mint protocol, MESSAGE ACCEPTED / POST-ACCEPTANCE VALIDATION ACCEPTED acceptance stages, Phase 1 / Phase 2 routing, stale-recovery) are defined in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E (single source of truth); this loop binds to them by name.
+- `review_brief_file` — the scratchpad path holding the composed review brief (Step 1), or `null` when no admissible source exists. Retained across turns; distinct from the shell variable `BRIEF_FILE` assigned from it in each Step 5/7 bridge Bash call.
 
 Mint protocol, lifecycle, and phase classification: see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E. The `references/failure-protocol.md` (sibling) carries the plan-loop binding declarations (reply-token shape `WROTE: <id> <path>`, exact-path accept regex, file/structure post-acceptance validation).
 
@@ -66,6 +67,8 @@ Reuse the stock `hyper-plan` logic — see `skills/hyper-plan/SKILL.md` Steps 1�
    ```
 
    Base path: `.hyperclaude/plans/<timestamp>-<slug>.md`. If it exists, append `-2`, `-3`, … until free.
+
+4. **Compose the review brief (or record `null`).** Compose per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`. The admissible source here is `$ARGUMENTS` (the user's own task text) and decisions the user explicitly approved in this conversation — **never** the planner's plan output (Step 7 revises the plan every round; re-deriving the brief from it would let the planner bless its own scope additions). Record the resulting scratchpad path as `review_brief_file`, or `null` if no admissible source exists.
 
 ### Step 2 — Confirm agent-teams availability
 
@@ -148,10 +151,10 @@ See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F4 for unsolicited-mes
 
 **Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **10 total reviews** (iter 1 fresh + at most **9 resumed revise rounds**). See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E for the `review_iteration`-vs-`request_id_counter` independence rule.
 
-Invoke via the Bash tool with `timeout: 600000`:
+Invoke via the Bash tool with `timeout: 600000`. If `review_brief_file` is non-null, assign it to `BRIEF_FILE` per the shell-safety recipe in `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md` and append `--review-brief "$(cat "$BRIEF_FILE")"`; omit both when `review_brief_file` is `null`:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<resolved path>"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<resolved path>" [--review-brief "$(cat "$BRIEF_FILE")"]
 ```
 
 Parse the single-line JSON. On `ok:true`, read the artifact at `path` with the Read tool.
@@ -198,10 +201,10 @@ Do NOT re-send the task or research — the planner still holds that context.
 node -e 'try{process.stdout.write(/^##\s*Task\s/m.test(require("fs").readFileSync(process.argv[1],"utf8"))?"ok":"bad")}catch{process.stdout.write("bad")}' "<resolved plan path>"
 ```
 
-`bad` → §3 corrective + terminal handling. On `ok`, increment the iteration counter and re-invoke the bridge via the Bash tool with `timeout: 600000`:
+`bad` → §3 corrective + terminal handling. On `ok`, increment the iteration counter and re-invoke the bridge via the Bash tool with `timeout: 600000`. Same `review_brief_file`-gated `BRIEF_FILE` assignment + `--review-brief` token as Step 5 — per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s two re-supply reasons (fallback survival on an `auto`→fresh fallback, and mid-loop updates), re-pass it on every round; never regenerate `review_brief_file` from the planner's just-revised plan (that would let the planner bless its own scope additions) — only a NEW user decision may update it:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<same path>" --resume auto
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<same path>" --resume auto [--review-brief "$(cat "$BRIEF_FILE")"]
 ```
 
 `--plan-path` is REQUIRED on every iteration including resumes (`plan-review --resume auto` alone is invalid). Always pass `--resume auto` from iteration 2 onward. Re-parse per Step 5's JSON rules, then loop back to Step 6.
@@ -241,3 +244,4 @@ Cross-loop invariants (reviewer-as-agent, re-spawning, skipping shutdown): see `
 [DEGRADE] - Hardcoding `to: teammate_id` as the primary handle for lead→planner sends instead of routing via the §A send-resolution procedure. `teammate_id` is the FALLBACK (degrade-only); the PRIMARY is bare `teammate_name`. All lead→planner sends (revise, corrective, AND teardown `shutdown_request`) must go through the §A procedure — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A and §D anti-pattern 3.
 - Treating non-blocking findings as revise targets. Step 6 classifies by **meaning** — style nits, vague "consider X" suggestions, and pure prose-polish do NOT block, regardless of what severity label Codex attached. Only plan-level correctness / wrong paths / broken ordering / unverifiable steps / missing required behavior gate the loop.
 - Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.
+- Restating `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s rules inside this SKILL.md (see shared anti-pattern #8) instead of pointing at it; fabricating `review_brief_file` from the planner's plan prose; or letting a brief ask Codex to suppress correctness / security / data-loss findings.

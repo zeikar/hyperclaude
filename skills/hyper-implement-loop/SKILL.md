@@ -37,6 +37,8 @@ The lead must also retain the following handle-resolution run-state across turns
 
 Loop-local run state (e.g. `reviewArtifacts[]`, `review_iteration`) is named where it appears in Steps 5/7.
 
+- `review_brief_file` — the scratchpad path holding the composed review brief (Step 1), or `null` when no admissible source exists. Retained across turns; distinct from the shell variable `BRIEF_FILE` assigned from it in each Step 5/7 bridge Bash call.
+
 ## How to invoke
 
 **Invocation argument:** $ARGUMENTS
@@ -62,6 +64,8 @@ Reuse the stock `hyper-implement` plan-path resolution — see `skills/hyper-imp
 3. If nothing found, tell the user "No plan file found" and STOP.
 
 **No feature slug.** The code-review slug in this skill is release-level (`vs-main`), not feature-level — it derives from the diff target, not the plan filename. The final report will reference the code-review artifact path(s) only; do not derive or track a feature slug here.
+
+**Compose the review brief (or record `null`).** Compose per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`. The admissible source here is the user's own request text and decisions the user explicitly approved in this conversation — the resolved plan is **not** a source (it is planner-authored, not user-authored). Record the resulting scratchpad path as `review_brief_file`, or `null` if no admissible source exists — in which case the flag is omitted on every round.
 
 ### Step 2 — Confirm agent-teams availability
 
@@ -135,10 +139,10 @@ See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F4 for unsolicited-mes
 
 **Why `--base main` is the right target across rounds:** the bridge's `--base` target reviews the *effective worktree vs main* — committed-since-main PLUS the uncommitted overlay — so the fixer's uncommitted fix-round edits are always in scope on every resumed `--base main` review. This is exactly why Step 7 keeps `--base main` (never `--commit <sha>`) and why no per-round commit is needed for the next review to see the fix.
 
-Invoke via the Bash tool with `timeout: 600000`:
+Invoke via the Bash tool with `timeout: 600000`. If `review_brief_file` is non-null, assign it to `BRIEF_FILE` per the shell-safety recipe in `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md` and append `--review-brief "$(cat "$BRIEF_FILE")"`; omit both when `review_brief_file` is `null`:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" code-review --base main
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" code-review --base main [--review-brief "$(cat "$BRIEF_FILE")"]
 ```
 
 **JSON parsing (strict):** the bridge contract is exactly ONE JSON object on stdout. Parse stdout as a single JSON object; if any extra non-whitespace appears before or after it, treat as a parse failure and surface the raw output verbatim — no best-effort scraping.
@@ -177,10 +181,10 @@ Do NOT re-send the plan or task — the fixer still holds that context.
 
 **Fix-validation pipeline** (per `references/failure-protocol.md` §3): (1) **id-classification routing** (parse the `request-id: <int>` prefix; route per shared §E Phase 1 / Phase 2 — older = stale-recovery, future = teardown, missing/malformed = corrective) → (2) **anchored structured-schema reply gate** (on matching id only — schema requirements per `references/failure-protocol.md` §1) → (3) **semantic finding-map check** (every cited blocking finding maps to `status: fixed` OR `status: not-applicable` with a non-empty `notes:` reason). **No git-state / no-op gate.** Each stage has its OWN one-redo budget — a §1 schema-gate failure escalates (after its one corrective) to **"hyper-implement-loop reply-contract failure"**; a §3 semantic-finding-map failure escalates (after its own one corrective redo, which re-enters the full pipeline from §1) to **"hyper-implement-loop fixer format, iter N"**. Follow `references/failure-protocol.md` §1 and §3 verbatim.
 
-On pass, increment the iteration counter and re-invoke via the Bash tool with `timeout: 600000`:
+On pass, increment the iteration counter and re-invoke via the Bash tool with `timeout: 600000`. Same `review_brief_file`-gated `BRIEF_FILE` assignment + `--review-brief` token as Step 5 — per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s two re-supply reasons (fallback survival on an `auto`→fresh fallback, and mid-loop updates), re-pass it on every round:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" code-review --base main --resume auto
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" code-review --base main --resume auto [--review-brief "$(cat "$BRIEF_FILE")"]
 ```
 
 Always pass `--resume auto` from iteration 2 onward; `--base main` is REQUIRED on every iteration; `--commit <sha>` is FORBIDDEN. Re-parse per Step 5's strict-JSON rule, append the artifact path to `reviewArtifacts[]`, then loop back to Step 6.
@@ -234,3 +238,4 @@ Cross-loop invariants (reviewer-as-agent, re-spawning, skipping shutdown, §E-in
 - Inlining the shared §E pseudo-code into this SKILL.md instead of pointing at `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E. SKILL.md is the always-loaded surface — duplicating §E bloats every trigger and risks the two copies drifting.
 - Letting the fixer omit the `request-id: <id>` first-line prefix on any post-spawn reply; treating any non-`request-id:` reply (or one with a wrong id) as success. The prefix is the loop's id-classification step; without it, the anchored gate fails.
 - Editing `agents/fixer.md` to encode the `request-id: <id>` requirement. The prefix is loop-specific and lives ONLY in this SKILL.md's Step 4 spawn-prompt contract. The fixer stays a general-purpose, loop-agnostic agent.
+- Restating `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s rules inside this SKILL.md (see shared anti-pattern #8) instead of pointing at it; fabricating `review_brief_file` from plan prose; or letting a brief ask Codex to suppress correctness / security / data-loss findings. Also: composing `--background` in this loop — the review brief is this loop's context channel, `--background` is never composed here.
