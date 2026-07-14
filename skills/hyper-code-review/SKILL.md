@@ -48,25 +48,29 @@ Parse `$ARGUMENTS` with the grammar above. Construct an argv array (NOT a single
 | `--resume` present (Group 2) | Append `['--resume', <Group 3 or 'auto'>]` to above |
 | Anything else | Tell the user the contract above, ask them to clarify, **STOP**. Do NOT fall through to `--base <argument>` — this is shell-injection-prone and produces bad slug filenames. |
 
-### Step 2 — Compose neutral background (fresh runs only)
+### Step 2 — Compose the review brief and/or background
 
-**Skip entirely if resuming** (Group 2 matched): do NOT compose or pass `--background` — the bridge rejects it alongside any `--resume` (mutually exclusive), and the prior context already lives in the Codex thread.
+Two distinct, independently-gated channels — do not conflate them:
 
-Otherwise, optionally write 1–3 sentences of **neutral, descriptive** background — what changed, what it touches, author intent. Skip it for a trivial change (just omit `--background`).
+- **Review brief** — compose per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`, assigning the scratchpad path to `BRIEF_FILE` per its shell-safety recipe; with no admissible source, omit the flag. Passed when a source exists, **fresh AND resumed alike**.
 
-**Guardrail:** describe only. Never state what to flag, pre-judge or rank findings, or assign severities — background orients Codex on scope, it must not steer conclusions (builder/critic independence).
+- **Background (fresh runs only).** **Skip entirely if resuming** (Group 2 matched): do NOT compose or pass `--background` — the bridge rejects it alongside any `--resume` (mutually exclusive), and the prior context already lives in the Codex thread.
 
-**Pass it shell-safely** (free prose may contain quotes / `$()` / backticks): `Write` the summary to a file in the session scratchpad — outside the repo, not via `echo`, no hardcoded literal path — assign its path to `BACKGROUND_FILE`, then pass `--background "$(cat "$BACKGROUND_FILE")"`. The inner quotes protect the path; the outer `"$(...)"` makes the contents one argv token. Never inline the prose into the command string.
+  Otherwise, optionally write 1–3 sentences of **neutral, descriptive** background — what changed, what it touches, author intent. Skip it for a trivial change (just omit `--background`).
+
+  **Guardrail:** describe only. Never state what to flag, pre-judge or rank findings, or assign severities — background orients Codex on scope, it must not steer conclusions (builder/critic independence).
+
+  **Pass it shell-safely** (free prose may contain quotes / `$()` / backticks): `Write` the summary to a file in the session scratchpad — outside the repo, not via `echo`, no hardcoded literal path — assign its path to `BACKGROUND_FILE`, then pass `--background "$(cat "$BACKGROUND_FILE")"`. The inner quotes protect the path; the outer `"$(...)"` makes the contents one argv token. Never inline the prose into the command string.
 
 ### Step 3 — Run the bridge
 
 Use the Bash tool with `timeout: 600000`. Pass each argument as a separate token — never interpolate user-supplied substrings into a single quoted string.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" code-review <flags from table above> [--resume <Group 3 or 'auto'>] [--background "$(cat "$BACKGROUND_FILE")"]
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" code-review <flags from table above> [--resume <Group 3 or 'auto'>] [--review-brief "$(cat "$BRIEF_FILE")"] [--background "$(cat "$BACKGROUND_FILE")"]
 ```
 
-Flag selection follows the dispatch table. If `--resume` was matched (Group 2), append `--resume <value>` where `<value>` is Group 3 if present, otherwise `auto`. See [references/argv-grammar.md](references/argv-grammar.md) for a per-pattern cookbook of fully expanded commands. The optional `--background "$(cat "$BACKGROUND_FILE")"` token is appended only on a fresh (non-resume) run, following the temp-file recipe in Step 2.
+Flag selection follows the dispatch table. If `--resume` was matched (Group 2), append `--resume <value>` where `<value>` is Group 3 if present, otherwise `auto`. See [references/argv-grammar.md](references/argv-grammar.md) for a per-pattern cookbook of fully expanded commands. The optional `--review-brief "$(cat "$BRIEF_FILE")"` token is appended whenever a source exists — fresh or resumed. The optional `--background "$(cat "$BACKGROUND_FILE")"` token is appended only on a fresh (non-resume) run, following the temp-file recipe in Step 2.
 
 ### Step 4 — Surface the review
 
@@ -82,7 +86,7 @@ The bridge prints a single JSON line to stdout:
 - On `{"ok":true,"path":"...","slug":"...","threadId":"...","resumeStatus":"..."}` — read the review file with the Read tool and present the findings.
 - On `{"ok":false,"error":"...","path":"...","resumeStatus":"...","threadId":"..."}` — surface the error verbatim to the user; do not pretend a review happened. When `resumeStatus` is `resume-failed`, note that the prior context could not be used.
 
-Code-review files have YAML frontmatter (`mode: code-review`, `slug`, `generated`, `plugin-version`, `codex-version`, `template-version`, `git-head`, `cwd`, `codex-thread-id` (when available), `codex-resume-status` (one of `fresh | resumed | fallback | resume-failed`), `codex-resumed-from` (path when resumed successfully), `codex-input-tokens`, `codex-cached-input-tokens`, `codex-output-tokens`, `codex-reasoning-output-tokens` (each emitted independently when Codex reported that token field in usage; omitted when Codex did not emit usage), plus either `base-ref` or `commit`, and an optional `title`) followed by a Codex review body (`### Findings` with Blocker/Major/Minor + `### Verdict`). Do not modify the file.
+Code-review files have YAML frontmatter (`mode: code-review`, `slug`, `generated`, `plugin-version`, `codex-version`, `template-version`, `git-head`, `cwd`, `codex-thread-id` (when available), `codex-resume-status` (one of `fresh | resumed | fallback | resume-failed`), `codex-resumed-from` (path when resumed successfully), `review-brief` (present only when a brief was supplied), `codex-input-tokens`, `codex-cached-input-tokens`, `codex-output-tokens`, `codex-reasoning-output-tokens` (each emitted independently when Codex reported that token field in usage; omitted when Codex did not emit usage), plus either `base-ref` or `commit`, and an optional `title`) followed by a Codex review body (`### Findings` with Blocker/Major/Minor + `### Verdict`). Do not modify the file.
 
 **Legacy-artifact resume:** code-review `--resume` requires the prior artifact to carry a `template-version` matching the current code-review prompt. A legacy artifact from the old native `codex exec review` path lacks it and is not resumable: `--resume auto` falls back to a fresh run (`codex-resume-status: fallback`, stderr note); an explicit `--resume <legacy-path>` returns `{"ok":false,...}` with a `resume rejected` error — surface it verbatim and do not pretend a review happened.
 

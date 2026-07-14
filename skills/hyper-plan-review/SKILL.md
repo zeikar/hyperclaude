@@ -63,17 +63,23 @@ In priority order:
 
 3. **Nothing found.** Tell the user: "No plan file found. Write your plan to `.hyperclaude/plans/<slug>.md`, or pass an explicit path: `/hyperclaude:hyper-plan-review path/to/plan.md`." Stop.
 
-### Step 2 — Run the bridge
+### Step 2 — Compose the review brief (or omit it)
+
+Compose per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`, assigning the scratchpad path to `BRIEF_FILE` per its shell-safety recipe; with no admissible source, omit the flag.
+
+Concrete omission case for this skill: a fresh session with no conversation history that auto-discovers a plan (Step 1.2) has no (a)/(b) source at all — omit the flag, or ask the user for their requirements and use their reply. **Never mine the plan file's prose** — it is Claude-authored; quoting it would let the planner bless its own additions.
+
+### Step 3 — Run the bridge
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<resolved path>"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<resolved path>" [--review-brief "$(cat "$BRIEF_FILE")"]
 ```
 
-If `--resume` was matched (Group 2 truthy), append `--resume <value>` to the argv passed to the bridge, where `<value>` is Group 3 if present, otherwise `auto`.
+If `--resume` was matched (Group 2 truthy), append `--resume <value>` to the argv passed to the bridge, where `<value>` is Group 3 if present, otherwise `auto`. The `--review-brief "$(cat "$BRIEF_FILE")"` token is OPTIONAL — present when a source exists (fresh and `--resume` alike), omitted otherwise.
 
 Use the Bash tool with `timeout: 600000`.
 
-### Step 3 — Surface the review
+### Step 4 — Surface the review
 
 Parse the JSON. On success, read the review file with the Read tool. Integrate the review:
 
@@ -85,4 +91,4 @@ When you revise the plan, **always overwrite the same plan file in place**. Do n
 
 ## Output contract
 
-Review files have frontmatter (mode: plan-review, task: plan path, slug, generated, plugin-version, codex-version, template-version, plan-path, plus `codex-input-tokens`, `codex-cached-input-tokens`, `codex-output-tokens`, `codex-reasoning-output-tokens` each emitted independently when Codex reported that token field in usage; omitted when Codex did not emit usage) followed by Issues / Improvements / Verdict sections.
+Review files have frontmatter (mode: plan-review, task: plan path, slug, generated, plugin-version, codex-version, template-version, plan-path, `review-brief` (present only when a brief was supplied), plus `codex-input-tokens`, `codex-cached-input-tokens`, `codex-output-tokens`, `codex-reasoning-output-tokens` each emitted independently when Codex reported that token field in usage; omitted when Codex did not emit usage) followed by Issues / Improvements / Verdict sections.
