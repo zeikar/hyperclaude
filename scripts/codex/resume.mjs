@@ -91,9 +91,8 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   } else if (expectedMode === 'docs-review') {
     // prevList: normalize the on-disk docs-target — an array (new --docs-path
     // list form), a legacy scalar string (wrapped to a 1-element array), or
-    // anything else (rejected below). curList: currentArgs.docsPaths is the
-    // canonical field; currentArgs.docsPath is a transitional fallback for the
-    // still-current scalar arg (removed once the field flips to an array).
+    // anything else (rejected below). curList: currentArgs.docsPaths (the
+    // canonical parsed field) else docsDir.
     const rawTarget = fm['docs-target'];
     const prevList = Array.isArray(rawTarget)
       ? rawTarget
@@ -108,7 +107,7 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
     }
     const curList = currentArgs.docsPaths?.length
       ? currentArgs.docsPaths
-      : (currentArgs.docsPath ? [currentArgs.docsPath] : (currentArgs.docsDir ? [currentArgs.docsDir] : []));
+      : (currentArgs.docsDir ? [currentArgs.docsDir] : []);
     const prevSet = new Set(prevList.map((p) => path.resolve(p)));
     const curSet = new Set(curList.map((p) => path.resolve(p)));
     const setsMatch = prevSet.size === curSet.size && [...prevSet].every((p) => curSet.has(p));

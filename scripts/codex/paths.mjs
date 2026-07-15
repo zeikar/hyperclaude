@@ -47,8 +47,17 @@ export function buildInvocation({ args, now = new Date() }) {
     }
     dir = args.out ?? '.hyperclaude/code-reviews';
   } else if (args.mode === 'docs-review') {
-    if (args.docsPath) {
-      slug = slugify(path.basename(args.docsPath, path.extname(args.docsPath))) ?? 'docs';
+    if (args.docsPaths.length > 0) {
+      const first = args.docsPaths[0];
+      const firstSlug = slugify(path.basename(first, path.extname(first))) ?? 'docs';
+      // The multi-file list slug is a human-readable LABEL, not a unique key:
+      // different file sets sharing a first-file basename can collide on it.
+      // That's fine — resume auto-discovery re-validates via loadResumeContext's
+      // set-equality identity gate, and pickAvailablePath appends -2/-3 so no
+      // artifact is ever overwritten. See docs/decisions.md.
+      slug = args.docsPaths.length === 1
+        ? firstSlug
+        : `${firstSlug}-plus-${args.docsPaths.length - 1}`;
     } else {
       const lastSegment = args.docsDir.split('/').filter(Boolean).slice(-1)[0];
       slug = slugify(lastSegment) ?? 'docs';

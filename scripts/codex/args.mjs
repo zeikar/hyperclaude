@@ -2,6 +2,8 @@
 // One parseArgs() handles all four modes; mode is the first positional, and
 // the rest is mode-dispatched flag handling with strict allow-listing.
 
+import path from 'node:path';
+
 const ALLOWED_FLAGS_PER_MODE = {
   research:      new Set(['--task', '--task-file', '--slug', '--out', '--dry-run', '--timeout', '--model', '--effort']),
   'plan-review': new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout', '--resume', '--model', '--effort', '--review-brief']),
@@ -32,13 +34,16 @@ export function parseArgs(argv) {
     title: null,
     background: null,
     reviewBrief: null,
-    docsPath: null,
+    docsPaths: [],
     docsDir: null,
     diffBase: null,
     resumeFrom: null,
     model: null,
     effort: null,
   };
+  // Tracks resolved --docs-path values so a repeated flag dedups; first-seen
+  // spelling wins (the original v is what's kept in out.docsPaths).
+  const docsPathsResolved = new Set();
   for (let i = 0; i < rest.length; i++) {
     const flag = rest[i];
     const next = () => {
@@ -109,11 +114,15 @@ export function parseArgs(argv) {
         if (out.docsDir !== null) throw new Error('--docs-path and --docs-dir are mutually exclusive');
         const v = next();
         if (!v || v.startsWith('-')) throw new Error(`--docs-path must be a non-empty path with no leading dash, got: "${v}"`);
-        out.docsPath = v;
+        const resolved = path.resolve(v);
+        if (!docsPathsResolved.has(resolved)) {
+          docsPathsResolved.add(resolved);
+          out.docsPaths.push(v);
+        }
         break;
       }
       case '--docs-dir': {
-        if (out.docsPath !== null) throw new Error('--docs-path and --docs-dir are mutually exclusive');
+        if (out.docsPaths.length > 0) throw new Error('--docs-path and --docs-dir are mutually exclusive');
         const v = next();
         if (!v || v.startsWith('-')) throw new Error(`--docs-dir must be a non-empty path with no leading dash, got: "${v}"`);
         out.docsDir = v;
@@ -161,7 +170,7 @@ export function parseArgs(argv) {
   if (mode === 'research' && out.task && out.taskFile) throw new Error('--task and --task-file are mutually exclusive');
   if (mode === 'research' && !out.task && !out.taskFile) throw new Error('--task or --task-file is required for research');
   if (mode === 'plan-review' && !out.planPath) throw new Error('--plan-path is required for plan-review');
-  if (mode === 'docs-review' && !out.docsPath && !out.docsDir) throw new Error('--docs-path or --docs-dir is required for docs-review');
+  if (mode === 'docs-review' && out.docsPaths.length === 0 && !out.docsDir) throw new Error('--docs-path or --docs-dir is required for docs-review');
   if (!Number.isFinite(out.timeout) || out.timeout <= 0) {
     throw new Error(`--timeout must be a positive finite number, got: ${out.timeout}`);
   }

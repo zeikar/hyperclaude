@@ -783,12 +783,14 @@ test('mock codex: docs-review --docs-dir sends all .md files with file markers i
 
         const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
 
-        // Both file markers must appear in alphabetical order
-        const posA = stdinLog.indexOf('## File: a.md');
-        const posB = stdinLog.indexOf('## File: b.md');
-        assert.ok(posA >= 0, 'stdin.log should contain "## File: a.md"');
-        assert.ok(posB >= 0, 'stdin.log should contain "## File: b.md"');
-        assert.ok(posA < posB, '"## File: a.md" must appear before "## File: b.md"');
+        // Both file markers must appear (full paths) in alphabetical order.
+        const markerA = `## File: ${path.join(docsDir, 'a.md')}`;
+        const markerB = `## File: ${path.join(docsDir, 'b.md')}`;
+        const posA = stdinLog.indexOf(markerA);
+        const posB = stdinLog.indexOf(markerB);
+        assert.ok(posA >= 0, `stdin.log should contain "${markerA}"`);
+        assert.ok(posB >= 0, `stdin.log should contain "${markerB}"`);
+        assert.ok(posA < posB, `"${markerA}" must appear before "${markerB}"`);
 
         // Content of both files must be present
         assert.ok(stdinLog.includes('Content of alpha.'), 'stdin.log should contain alpha content');
@@ -993,6 +995,106 @@ test('mock codex: docs-review 200KB guard rejects oversized payload', () => {
       json.error && /exceeds 200KB/.test(json.error),
       `json.error should match /exceeds 200KB/, got: ${json.error}`
     );
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('mock codex: docs-review two --docs-path sends both files with full-path markers in stdin', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-dr-multi-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_DOCS_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docA = path.join(tmpdir, 'first.md');
+    const docB = path.join(tmpdir, 'second.md');
+    writeFileSync(docA, '# First\n\nContent of first.\n');
+    writeFileSync(docB, '# Second\n\nContent of second.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-dr-multi-out-'));
+    try {
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docA, '--docs-path', docB, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+
+      const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
+      assert.ok(
+        stdinLog.includes(`## File: ${docA}`),
+        `stdin.log should contain full-path marker for first file, got: ${stdinLog.slice(0, 300)}`
+      );
+      assert.ok(
+        stdinLog.includes(`## File: ${docB}`),
+        'stdin.log should contain full-path marker for second file'
+      );
+      assert.ok(stdinLog.includes('Content of first.'), 'stdin.log should contain first file content');
+      assert.ok(stdinLog.includes('Content of second.'), 'stdin.log should contain second file content');
+
+      // A --docs-path list records docs-target as the JSON array of both paths.
+      const outputContent = readFileSync(json.path, 'utf8');
+      assert.ok(
+        outputContent.includes(`docs-target: ${JSON.stringify([docA, docB])}`),
+        `frontmatter docs-target should be the JSON array of both paths, got: ${outputContent.slice(0, 400)}`
+      );
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('mock codex: docs-review two --docs-path aggregate over 200KB rejected (no spawn)', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-dr-guard2-'));
+  try {
+    // Mock codex on PATH so any spawn would leave argv.log; the aggregate guard
+    // (Step 2) must fire before the spawn (Step 8).
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_DOCS_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    // Two files, each ~101KB → aggregate exceeds the 200KB cap even though
+    // neither file alone would.
+    const half = Buffer.alloc(101 * 1024, 'a').toString();
+    const docA = path.join(tmpdir, 'a.md');
+    const docB = path.join(tmpdir, 'b.md');
+    writeFileSync(docA, half);
+    writeFileSync(docB, half);
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-dr-guard2-out-'));
+    try {
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docA, '--docs-path', docB, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+        }
+      );
+
+      assert.equal(result.status, 1, `expected exit 1, got ${result.status}; stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, false);
+      assert.ok(
+        json.error && /exceeds 200KB/.test(json.error),
+        `json.error should match /exceeds 200KB/, got: ${json.error}`
+      );
+      assert.ok(
+        !existsSync(path.join(tmpdir, 'argv.log')),
+        'codex must not be spawned when the aggregate guard fires'
+      );
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
   }

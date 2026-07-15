@@ -150,7 +150,7 @@ test('loadResumeContext: docs-target mismatch rejected', async () => {
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
-    const ctx = await loadResumeContext(prior, 'docs-review', { docsPath: '/tmp/other.md' });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPaths: ['/tmp/other.md'] });
     assert.match(ctx.error, /docs-target\/diff-base differs from current/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -171,7 +171,7 @@ test('loadResumeContext: diff-base null vs set mismatch rejected', async () => {
       // no diff-base
     });
     // Current has diff-base set.
-    const ctx = await loadResumeContext(prior, 'docs-review', { docsPath: '/tmp/api.md', diffBase: 'main' });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPaths: ['/tmp/api.md'], diffBase: 'main' });
     assert.match(ctx.error, /docs-target\/diff-base differs from current/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -191,7 +191,7 @@ test('loadResumeContext: diff-base set vs null mismatch rejected', async () => {
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
-    const ctx = await loadResumeContext(prior, 'docs-review', { docsPath: '/tmp/api.md' });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPaths: ['/tmp/api.md'] });
     assert.match(ctx.error, /docs-target\/diff-base differs from current/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -211,7 +211,7 @@ test('loadResumeContext: diff-base equal strings pass', async () => {
       'codex-thread-id': 'tid',
       'codex-resume-status': 'fresh',
     });
-    const ctx = await loadResumeContext(prior, 'docs-review', { docsPath: '/tmp/api.md', diffBase: 'main' });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPaths: ['/tmp/api.md'], diffBase: 'main' });
     assert.equal(ctx.error, undefined);
     assert.equal(ctx.threadId, 'tid');
   } finally {

@@ -26,7 +26,7 @@ test('parseArgs: research mode', () => {
     title: null,
     background: null,
     reviewBrief: null,
-    docsPath: null,
+    docsPaths: [],
     docsDir: null,
     diffBase: null,
     resumeFrom: null,
@@ -594,7 +594,7 @@ test('buildInvocation: code-review --commit abc1234f567890 → slug commit-abc12
 test('parseArgs: docs-review mode accepted with --docs-path', () => {
   const a = parseArgs(['docs-review', '--docs-path', 'docs/api.md']);
   assert.equal(a.mode, 'docs-review');
-  assert.equal(a.docsPath, 'docs/api.md');
+  assert.deepEqual(a.docsPaths, ['docs/api.md']);
   assert.equal(a.docsDir, null);
   assert.equal(a.diffBase, null);
 });
@@ -602,8 +602,32 @@ test('parseArgs: docs-review mode accepted with --docs-path', () => {
 test('parseArgs: docs-review mode accepted with --docs-dir', () => {
   const a = parseArgs(['docs-review', '--docs-dir', 'docs/']);
   assert.equal(a.docsDir, 'docs/');
-  assert.equal(a.docsPath, null);
+  assert.deepEqual(a.docsPaths, []);
   assert.equal(a.diffBase, null);
+});
+
+test('parseArgs: docs-review repeated --docs-path appends in order', () => {
+  const a = parseArgs(['docs-review', '--docs-path', 'a.md', '--docs-path', 'b.md']);
+  assert.deepEqual(a.docsPaths, ['a.md', 'b.md']);
+});
+
+test('parseArgs: docs-review duplicate --docs-path deduped (first spelling wins)', () => {
+  const a = parseArgs(['docs-review', '--docs-path', 'a.md', '--docs-path', 'a.md', '--docs-path', 'b.md']);
+  assert.deepEqual(a.docsPaths, ['a.md', 'b.md']);
+});
+
+test('parseArgs: docs-review --docs-dir then --docs-path mutually exclusive (reverse order)', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-dir', 'docs/', '--docs-path', 'docs/api.md']),
+    /mutually exclusive/
+  );
+});
+
+test('parseArgs: docs-review repeated --docs-path still rejects an unknown docs flag (allow-list intact)', () => {
+  assert.throws(
+    () => parseArgs(['docs-review', '--docs-path', 'a.md', '--docs-path', 'b.md', '--base', 'main']),
+    /unknown flag for mode docs-review: --base/
+  );
 });
 
 test('parseArgs: docs-review --diff-base sets diffBase', () => {
@@ -760,7 +784,7 @@ test('buildInvocation: docs-review --docs-path docs/api.md → slug api, dir .hy
       baseRef: null,
       commit: null,
       title: null,
-      docsPath: 'docs/api.md',
+      docsPaths: ['docs/api.md'],
       docsDir: null,
       diffBase: null,
     },
@@ -784,7 +808,7 @@ test('buildInvocation: docs-review --docs-path README.md → slug readme', () =>
       baseRef: null,
       commit: null,
       title: null,
-      docsPath: 'README.md',
+      docsPaths: ['README.md'],
       docsDir: null,
       diffBase: null,
     },
@@ -807,7 +831,7 @@ test('buildInvocation: docs-review --docs-path "API Reference.md" → slug api-r
       baseRef: null,
       commit: null,
       title: null,
-      docsPath: 'API Reference.md',
+      docsPaths: ['API Reference.md'],
       docsDir: null,
       diffBase: null,
     },
@@ -830,7 +854,7 @@ test('buildInvocation: docs-review --docs-dir docs/reference/ → slug reference
       baseRef: null,
       commit: null,
       title: null,
-      docsPath: null,
+      docsPaths: [],
       docsDir: 'docs/reference/',
       diffBase: null,
     },
@@ -853,7 +877,7 @@ test('buildInvocation: docs-review --docs-dir docs/ → slug docs', () => {
       baseRef: null,
       commit: null,
       title: null,
-      docsPath: null,
+      docsPaths: [],
       docsDir: 'docs/',
       diffBase: null,
     },
@@ -876,7 +900,7 @@ test('buildInvocation: docs-review --docs-path path/to/some-guide.md → slug so
       baseRef: null,
       commit: null,
       title: null,
-      docsPath: 'path/to/some-guide.md',
+      docsPaths: ['path/to/some-guide.md'],
       docsDir: null,
       diffBase: null,
     },
@@ -899,13 +923,56 @@ test('buildInvocation: docs-review slug fallback to docs when slugify returns nu
       baseRef: null,
       commit: null,
       title: null,
-      docsPath: '한글만.md',
+      docsPaths: ['한글만.md'],
       docsDir: null,
       diffBase: null,
     },
     now: new Date('2026-05-10T10:15:00.000Z'),
   });
   assert.equal(inv.slug, 'docs');
+});
+
+function docsInvArgs(docsPaths) {
+  return {
+    mode: 'docs-review',
+    task: null,
+    slug: null,
+    out: null,
+    dryRun: true,
+    timeout: 600,
+    planPath: null,
+    reviewTarget: null,
+    baseRef: null,
+    commit: null,
+    title: null,
+    docsPaths,
+    docsDir: null,
+    diffBase: null,
+  };
+}
+
+test('buildInvocation: docs-review two --docs-path → slug <first>-plus-1', () => {
+  const inv = buildInvocation({
+    args: docsInvArgs(['README.md', 'docs/workflow.md']),
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'readme-plus-1');
+});
+
+test('buildInvocation: docs-review three --docs-path → slug <first>-plus-2', () => {
+  const inv = buildInvocation({
+    args: docsInvArgs(['README.md', 'docs/workflow.md', 'docs/architecture.md']),
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'readme-plus-2');
+});
+
+test('buildInvocation: docs-review multi with non-sluggable first basename → docs-plus-<n-1>', () => {
+  const inv = buildInvocation({
+    args: docsInvArgs(['한글만.md', 'x.md']),
+    now: new Date('2026-05-10T10:15:00.000Z'),
+  });
+  assert.equal(inv.slug, 'docs-plus-1');
 });
 // ── Task 4: parseArgs --resume ───────────────────────────────────────────────
 

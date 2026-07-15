@@ -66,6 +66,21 @@ else
 fi
 
 echo
+echo "==> Bridge docs-review repeated --docs-path dry-run"
+if out=$(node scripts/codex-bridge.mjs docs-review --docs-path README.md --docs-path docs/architecture.md --dry-run 2>&1); then
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    process.exit(j.ok && j.dryRun && j.slug === "readme-plus-1" ? 0 : 1);
+  '; then
+    ok "codex-bridge docs-review repeated --docs-path --dry-run produces expected JSON"
+  else
+    miss "codex-bridge docs-review repeated --docs-path --dry-run JSON shape unexpected: $out"
+  fi
+else
+  miss "codex-bridge docs-review repeated --docs-path --dry-run failed: $out"
+fi
+
+echo
 echo "==> Bridge docs-review --docs-dir dry-run"
 if out=$(node scripts/codex-bridge.mjs docs-review --docs-dir docs/ --dry-run 2>&1); then
   if printf '%s' "$out" | node -e '

@@ -177,26 +177,30 @@ async function main(argv) {
     // emit so the resume prompt can re-list what was reviewed.
     let docsContent;
     let aggregatedFiles = [];
-    if (args.docsPath) {
-      try {
-        // Prefix with file marker so Codex can attribute findings to the path
-        // (mirrors the per-file marker in --docs-dir mode; the docs-review template
-        // requires findings to cite "<doc path>:<line-or-section>").
-        const raw = await readFile(args.docsPath, 'utf8');
-        docsContent = `## File: ${args.docsPath}\n\n${raw}`;
-        aggregatedFiles = [args.docsPath];
-      } catch (err) {
-        let errMsg;
-        if (err.code === 'ENOENT') {
-          errMsg = `docs file not found: ${args.docsPath}`;
-        } else if (err.code === 'EISDIR') {
-          errMsg = `--docs-path is a directory, use --docs-dir: ${args.docsPath}`;
-        } else {
-          errMsg = `cannot read docs file: ${args.docsPath} (${err.code})`;
+    if (args.docsPaths.length > 0) {
+      // Prefix each file with a full-path marker so Codex can attribute findings
+      // to the path (mirrors the per-file marker in --docs-dir mode; the
+      // docs-review template requires findings to cite "<doc path>:<line-or-section>").
+      const parts = [];
+      for (const docsPath of args.docsPaths) {
+        try {
+          const raw = await readFile(docsPath, 'utf8');
+          parts.push(`## File: ${docsPath}\n\n${raw}`);
+        } catch (err) {
+          let errMsg;
+          if (err.code === 'ENOENT') {
+            errMsg = `docs file not found: ${docsPath}`;
+          } else if (err.code === 'EISDIR') {
+            errMsg = `--docs-path is a directory, use --docs-dir: ${docsPath}`;
+          } else {
+            errMsg = `cannot read docs file: ${docsPath} (${err.code})`;
+          }
+          process.stdout.write(JSON.stringify({ ok: false, error: errMsg }) + '\n');
+          process.exit(1);
         }
-        process.stdout.write(JSON.stringify({ ok: false, error: errMsg }) + '\n');
-        process.exit(1);
       }
+      docsContent = parts.join('\n\n');
+      aggregatedFiles = [...args.docsPaths];
     } else {
       // args.docsDir
       let entries;
@@ -224,7 +228,8 @@ async function main(argv) {
       for (const name of mdFiles) {
         const filePath = path.join(args.docsDir, name);
         const text = await readFile(filePath, 'utf8');
-        parts.push(`## File: ${name}\n\n${text}`);
+        // Full-path marker (matches aggregatedFiles and the --docs-path branch).
+        parts.push(`## File: ${filePath}\n\n${text}`);
       }
       docsContent = parts.join('\n\n');
       // Resume prompt asks Codex to re-read these files from disk, so the list
@@ -235,7 +240,7 @@ async function main(argv) {
     // Step 2: 200KB docs guard.
     const docsBytes = Buffer.byteLength(docsContent, 'utf8');
     if (docsBytes > 204800) {
-      const baseMsg = 'docs payload exceeds 200KB; narrow scope with --docs-path or a smaller directory';
+      const baseMsg = 'docs payload exceeds 200KB; narrow scope with fewer --docs-path files or a smaller directory';
       process.stdout.write(JSON.stringify({
         ok: false,
         error: args.resumeFrom ? `resume rejected: ${baseMsg}` : baseMsg,
@@ -331,7 +336,7 @@ async function main(argv) {
     let prompt;
     if (resumeContext) {
       prompt = loadTemplate(templateText, {
-        DOCS_TARGET: args.docsPath || args.docsDir,
+        DOCS_TARGET: args.docsPaths.length ? args.docsPaths.join(', ') : args.docsDir,
         FILE_LIST_BLOCK: renderFileListBlock(aggregatedFiles),
         DIFF_BASE_BLOCK: renderDiffBaseBlock(args.diffBase),
       });
@@ -365,7 +370,7 @@ async function main(argv) {
       pluginVersion: PLUGIN_VERSION,
       codexVersion: v.version,
       templateVersion,
-      docsTarget: args.docsPath ?? args.docsDir,
+      docsTarget: args.docsPaths.length ? args.docsPaths : args.docsDir,
       diffBase: args.diffBase,
       cwd: process.cwd(),
       gitHead: getGitHead(),
@@ -376,7 +381,15 @@ async function main(argv) {
       codexModelRequested: args.model,
       codexEffortRequested: args.effort,
     });
-    const heading = `# Docs review: ${path.basename(args.docsPath ?? args.docsDir)}`;
+    let headingTarget;
+    if (args.docsPaths.length === 1) {
+      headingTarget = path.basename(args.docsPaths[0]);
+    } else if (args.docsPaths.length > 1) {
+      headingTarget = `${args.docsPaths.length} files`;
+    } else {
+      headingTarget = path.basename(args.docsDir);
+    }
+    const heading = `# Docs review: ${headingTarget}`;
     const body = result.body;
 
     // Step 12: write file.
