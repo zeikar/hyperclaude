@@ -44,8 +44,8 @@ If the argument doesn't match the regex, ask the user to clarify and stop.
 
 ### Resume semantics
 
-- `--resume <path>` (explicit): if validation fails, bridge returns `ok:false`, no fresh run, stderr note. Surface the error verbatim.
-- `--resume` / `--resume auto`: if validation fails (including a prior artifact whose `template-version` doesn't match the current plan-review template), bridge falls back to fresh run, writes artifact with `codex-resume-status: fallback`, stderr note.
+See `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` for the shared `--resume` semantics (explicit vs `auto` fallback, the `template-version` precondition). Plan-review's identity check keys on the plan path.
+
 - Budget exceeded (docs > 200KB after revision): bridge returns `ok:false` — NOT fallback. Tell user to narrow scope.
 
 ### Step 1 — Resolve the plan path
@@ -81,7 +81,7 @@ Use the Bash tool with `timeout: 600000`.
 
 ### Step 4 — Surface the review
 
-Parse the JSON. On success, read the review file with the Read tool. Integrate the review:
+Parse the bridge's single stdout JSON envelope per `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` (envelope shape + strict-parse rule). On success, read the review file with the Read tool. Integrate the review:
 
 - **Blockers / Majors** — fix the plan before proceeding.
 - **Minors / Improvements** — optionally fold in.

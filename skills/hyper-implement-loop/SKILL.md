@@ -145,7 +145,7 @@ Invoke via the Bash tool with `timeout: 600000`. If `review_brief_file` is non-n
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" code-review --base main [--review-brief "$(cat "$BRIEF_FILE")"]
 ```
 
-**JSON parsing (strict):** the bridge contract is exactly ONE JSON object on stdout. Parse stdout as a single JSON object; if any extra non-whitespace appears before or after it, treat as a parse failure and surface the raw output verbatim — no best-effort scraping.
+Parse the bridge's single stdout JSON envelope per `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` (envelope shape + strict-parse rule).
 
 On `ok:true`: Read the artifact at `path` with the Read tool; capture `resumeStatus`; append `path` to a `reviewArtifacts[]` list (for Step 9).
 

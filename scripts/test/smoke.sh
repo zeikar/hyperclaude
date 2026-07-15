@@ -577,6 +577,15 @@ else
   miss "shared loop-protocol: file missing at references/loop-protocol.md"
 fi
 
+echo
+echo "==> shared bridge-review-calls reference"
+
+if [ -f "references/bridge-review-calls.md" ]; then
+  ok "shared bridge-review-calls: file exists at references/bridge-review-calls.md"
+else
+  miss "shared bridge-review-calls: file missing at references/bridge-review-calls.md"
+fi
+
 if grep -q "PHASE 1" "$shared_proto" 2>/dev/null; then
   ok "shared loop-protocol: 'PHASE 1' marker present"
 else

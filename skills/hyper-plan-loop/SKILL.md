@@ -157,7 +157,7 @@ Invoke via the Bash tool with `timeout: 600000`. If `review_brief_file` is non-n
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<resolved path>" [--review-brief "$(cat "$BRIEF_FILE")"]
 ```
 
-Parse the single-line JSON. On `ok:true`, read the artifact at `path` with the Read tool.
+Parse the bridge's single stdout JSON envelope per `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` (envelope shape + strict-parse rule). On `ok:true`, read the artifact at `path` with the Read tool.
 
 On any non-`ok:true`, Bash timeout, or JSON parse failure → Step 8 teardown, then STOP with a named-loop report (**"hyper-plan-loop bridge failure, iter N"**) surfacing `error` verbatim (or a short parser/timeout diagnostic if no `error` field) plus the artifact path if present. If the artifact `Read` itself fails → Step 8 teardown, then STOP.
 

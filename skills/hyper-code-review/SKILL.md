@@ -81,14 +81,11 @@ The bridge prints a single JSON line to stdout. Parse it and see the Output cont
 
 ## Output contract
 
-The bridge prints a single JSON line to stdout:
-
-- On `{"ok":true,"path":"...","slug":"...","threadId":"...","resumeStatus":"..."}` — read the review file with the Read tool and present the findings.
-- On `{"ok":false,"error":"...","path":"...","resumeStatus":"...","threadId":"..."}` — surface the error verbatim to the user; do not pretend a review happened. When `resumeStatus` is `resume-failed`, note that the prior context could not be used.
+Parse the bridge's single stdout JSON envelope per `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` (envelope shape + strict-parse rule).
 
 Code-review files have YAML frontmatter (`mode: code-review`, `slug`, `generated`, `plugin-version`, `codex-version`, `template-version`, `git-head`, `cwd`, `codex-thread-id` (when available), `codex-resume-status` (one of `fresh | resumed | fallback | resume-failed`), `codex-resumed-from` (path when resumed successfully), `review-brief` (present when a brief was supplied, or carried forward from a successfully-resolved resume), `codex-input-tokens`, `codex-cached-input-tokens`, `codex-output-tokens`, `codex-reasoning-output-tokens` (each emitted independently when Codex reported that token field in usage; omitted when Codex did not emit usage), plus either `base-ref` or `commit`, and an optional `title`) followed by a Codex review body (`### Findings` with Blocker/Major/Minor + `### Verdict`). Do not modify the file.
 
-**Legacy-artifact resume:** code-review `--resume` requires the prior artifact to carry a `template-version` matching the current code-review prompt. A legacy artifact from the old native `codex exec review` path lacks it and is not resumable: `--resume auto` falls back to a fresh run (`codex-resume-status: fallback`, stderr note); an explicit `--resume <legacy-path>` returns `{"ok":false,...}` with a `resume rejected` error — surface it verbatim and do not pretend a review happened.
+**Legacy-artifact resume:** a legacy artifact from the old native `codex exec review` path lacks `template-version` and so is not resumable — see the shared `template-version` precondition in `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` (`--resume auto` falls back to fresh; explicit `--resume <legacy-path>` returns `resume rejected`).
 
 ## Distinction note
 

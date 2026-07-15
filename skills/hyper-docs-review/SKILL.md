@@ -51,8 +51,8 @@ If the argument doesn't match the regex, ask the user to clarify and stop.
 
 ### Resume semantics
 
-- `--resume <path>` (explicit): if validation fails, bridge returns `ok:false`, no fresh run, stderr note. Surface the error verbatim.
-- `--resume` / `--resume auto`: if validation fails (including a prior artifact whose `template-version` doesn't match the current docs-review template), `auto` falls back to a fresh run with `codex-resume-status: fallback` + stderr note; an explicit path returns `ok:false` with `resume rejected`.
+See `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` for the shared `--resume` semantics (explicit vs `auto` fallback, the `template-version` precondition). Docs-review's identity check keys on the docs target.
+
 - Budget exceeded (docs > 200KB after revision): bridge returns `ok:false` — NOT fallback. Tell user to narrow scope.
 
 ### Step 1 — Resolve target
