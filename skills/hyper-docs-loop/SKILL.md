@@ -32,18 +32,18 @@ See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F1 + §A for the `Agen
 
 **Spawn-is-not-a-solicitation.** Like implement-loop, the docs-loop spawn (Step 4) is contract-only — the documenter goes idle without sending any reply. `request_id_counter` stays at 0 until the FIRST Step 7 fix solicitation, which mints id 1. The Step 4 spawn does NOT change `request_id_counter` or `awaiting_reply`. After spawn, the lead expects EXACTLY ONE payload-less idle notification (the documenter's post-spawn idle). The lead consumes that idle as a readiness signal and does NOT route it through §B/§E unsolicited handling. From the second wake onward (which is always after the first Step 7 solicitation has been sent), §E Phase 1 / Phase 2 routing applies normally.
 
-The lead must also retain the following handle-resolution run-state across turns: `docs_target` (the resolved bridge argv pair from Step 1), `teammate_name = "documenter"` (the spawn `name`; bare-name handle for every lead→documenter send, per §A R1). Every lead→documenter `SendMessage` is addressed via the **§A send-resolution procedure** (R1: bare `teammate_name` — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A for the authoritative algorithm). The spawn step captures the teammate handle but does NOT change `request_id_counter` or `awaiting_reply` (spawn-is-not-a-solicitation stays). Other loop-local run state (e.g. `reviewArtifacts[]`, `review_iteration`) is named where it appears in Steps 5/7.
+The lead must also retain the following handle-resolution run-state across turns: `docs_target` (the resolved bridge argv tokens from Step 1), `teammate_name = "documenter"` (the spawn `name`; bare-name handle for every lead→documenter send, per §A R1). Every lead→documenter `SendMessage` is addressed via the **§A send-resolution procedure** (R1: bare `teammate_name` — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A for the authoritative algorithm). The spawn step captures the teammate handle but does NOT change `request_id_counter` or `awaiting_reply` (spawn-is-not-a-solicitation stays). Other loop-local run state (e.g. `reviewArtifacts[]`, `review_iteration`) is named where it appears in Steps 5/7.
 [DEGRADE] Degrade-only run-state: `teammate_id` (the opaque `agent_id` captured at Step 4 spawn per §A-DEGRADE D0 — never parsed; FALLBACK handle for the first degraded send) and `resolved_handle` (`null` until D1 resolves it; the winning handle for later degraded sends). Unused on the live-mailbox main path.
 
 ## How to invoke
 
 **Invocation argument:** $ARGUMENTS
 
-`$ARGUMENTS` is a **docs target** (an optional path; the loop mirrors `hyper-docs-review`'s target grammar). Resolution:
+`$ARGUMENTS` is a **docs target** (optional path tokens; the loop mirrors `hyper-docs-review`'s target grammar). Resolution:
 
 - `$ARGUMENTS` empty → default to `docs/` (directory mode).
-- `$ARGUMENTS` is an existing `.md` file path → single-file mode.
-- `$ARGUMENTS` is an existing directory path → directory mode.
+- `$ARGUMENTS` is one or more existing `.md` file paths → multi-file mode (each maps to its own `--docs-path`).
+- `$ARGUMENTS` is a single existing directory path → directory mode.
 - Anything else → ask the user to clarify and STOP.
 
 This skill requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` to be set in the environment. If the agent-teams feature is unavailable, the skill stops with the documented fallback message (see Step 2).
@@ -54,13 +54,13 @@ See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F2 for the two-file re
 
 ### Step 1 — Resolve the docs target
 
-Apply the resolution table above to `$ARGUMENTS`. Verify the path exists via Bash (`[ -e "<path>" ]`). Record `docs_target` as the bridge argv pair:
+Apply the resolution table above to `$ARGUMENTS`. Verify each path exists via Bash (`[ -e "<path>" ]`). Record `docs_target` as the bridge argv tokens:
 
 | Argument | `docs_target` argv |
 |---|---|
 | Empty | `['--docs-dir', 'docs/']` |
-| `.md` file that exists | `['--docs-path', '<path>']` |
-| Existing directory | `['--docs-dir', '<path>']` |
+| One or more `.md` files that exist | `['--docs-path', '<path1>', '--docs-path', '<path2>', ...]` (one flag per file, in order) |
+| Single existing directory | `['--docs-dir', '<path>']` |
 | Anything else | Ask the user to clarify, STOP. |
 
 `docs_target` is reused **verbatim** on every iteration in Step 5 and Step 7 — never change it mid-run.
@@ -130,7 +130,7 @@ See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F4 for unsolicited-mes
 
 **Iteration counting:** the fresh review here is **iteration 1**. The Step 8 cap is **6 total Codex reviews**, i.e. at most **5 fix rounds**.
 
-Invoke via the Bash tool with `timeout: 600000`, passing the `docs_target` argv pair from Step 1:
+Invoke via the Bash tool with `timeout: 600000`, passing the `docs_target` argv tokens from Step 1:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" docs-review <docs_target argv>
@@ -174,13 +174,11 @@ SendMessage({
 })
 ```
 
-For `--docs-dir <p>` reviews, a `### Findings` bullet may cite the doc path as a basename only (e.g. `architecture.md`) because the bridge prompt presents files as basenames under that directory. Forward the bullet verbatim — the documenter resolves the basename to the actual path under the directory target using its working-tree knowledge.
-
 Do NOT re-send context the documenter still holds.
 
 **Fix-validation pipeline** (per `references/failure-protocol.md` §3): (1) **id-classification routing** (parse the `request-id: <int>` prefix; route per shared §E Phase 1 / Phase 2 — older = stale-recovery, future = teardown, missing/malformed = corrective) → (2) **anchored structured-schema reply gate** (on matching id only — schema requirements per `references/failure-protocol.md` §1) → (3) **semantic finding-map check** (every cited blocking finding maps to `status: fixed` OR `status: not-applicable` with a non-empty `notes:` reason). **No git-state / no-op gate.** Each stage has its OWN one-redo budget — a §1 schema-gate failure escalates (after its one corrective) to **"hyper-docs-loop reply-contract failure"**; a §3 semantic-finding-map failure escalates (after its own one corrective redo, which re-enters the full pipeline from §1) to **"hyper-docs-loop documenter format, iter N"**. Follow `references/failure-protocol.md` §1 and §3 verbatim.
 
-On pass, increment the iteration counter and re-invoke via the Bash tool with `timeout: 600000`, passing the SAME `docs_target` argv pair:
+On pass, increment the iteration counter and re-invoke via the Bash tool with `timeout: 600000`, passing the SAME `docs_target` argv tokens:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" docs-review <docs_target argv> --resume auto
@@ -219,7 +217,7 @@ Cross-loop invariants (reviewer-as-agent, re-spawning, skipping shutdown, §E-in
 
 - Committing or pushing from the documenter, or letting the documenter invoke codex or `scripts/codex-bridge.mjs`.
 - Letting the documenter edit source code, tests, scripts, or config to make a doc claim "true". The doc is what changes; if the doc was actually right, the documenter reports `status: not-applicable` with a `notes:` reason.
-- Changing `docs_target` mid-run. The same `--docs-path` / `--docs-dir` argv pair is REQUIRED on every iteration (including resumes — the bridge enforces this).
+- Changing `docs_target` mid-run. The same `--docs-path` / `--docs-dir` argv tokens are REQUIRED on every iteration (including resumes — the bridge enforces this).
 - Auto-fixing items from `### Gaps`, `### Broken Or Suspect Links`, or `### Cross-Doc Inconsistencies`. Only `### Findings` drives fix rounds; the other sections need human judgment and are reported in Step 9 only.
 [DEGRADE] - Hardcoding `to: teammate_id` as the primary handle for lead→documenter sends instead of routing via the §A send-resolution procedure. `teammate_id` is the FALLBACK (degrade-only); the PRIMARY is bare `teammate_name`. All lead→documenter sends (fix, corrective, AND teardown `shutdown_request`) must go through the §A procedure — see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §A and §D anti-pattern 3.
 - Editing `hyper-docs-review` or `hyper-docs-sync`. This skill is purely additive.
