@@ -219,6 +219,133 @@ test('loadResumeContext: diff-base equal strings pass', async () => {
   }
 });
 
+// ── Task 2: docs-review docs-target set-equality (multi --docs-path) ────────
+
+test('loadResumeContext: docs-review multi docs-target set match, reordered → success', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-dt-multi-'));
+  try {
+    const a = path.join(tmp, 'a.md');
+    const b = path.join(tmp, 'b.md');
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': [a, b],
+      'template-version': 2,
+      'codex-thread-id': 'thread-multi',
+      'codex-resume-status': 'fresh',
+    });
+    // Current list is the same set, reordered — must still match.
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPaths: [b, a] });
+    assert.equal(ctx.error, undefined);
+    assert.equal(ctx.threadId, 'thread-multi');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: docs-review legacy scalar docs-target vs single-element docsPaths → success (backward-compat)', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-dt-legacy-'));
+  try {
+    const api = path.join(tmp, 'api.md');
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': api,
+      'template-version': 2,
+      'codex-thread-id': 'thread-legacy',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPaths: [api] });
+    assert.equal(ctx.error, undefined);
+    assert.equal(ctx.threadId, 'thread-legacy');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: docs-review docs-target superset (cur adds an extra file) rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-dt-super-'));
+  try {
+    const a = path.join(tmp, 'a.md');
+    const b = path.join(tmp, 'b.md');
+    const c = path.join(tmp, 'c.md');
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': [a, b],
+      'template-version': 2,
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPaths: [a, b, c] });
+    assert.match(ctx.error, /docs-target\/diff-base differs from current/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: docs-review docs-target subset (cur missing a file) rejected', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-dt-sub-'));
+  try {
+    const a = path.join(tmp, 'a.md');
+    const b = path.join(tmp, 'b.md');
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': [a, b],
+      'template-version': 2,
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPaths: [a] });
+    assert.match(ctx.error, /docs-target\/diff-base differs from current/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: docs-review malformed prior docs-target array ([null]) rejected without throwing', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-dt-malformed-null-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': [null],
+      'template-version': 2,
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPaths: [path.join(tmp, 'a.md')] });
+    assert.match(ctx.error, /docs-target\/diff-base differs from current/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: docs-review malformed prior docs-target array ([1]) rejected without throwing', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-dt-malformed-num-'));
+  try {
+    const prior = path.join(tmp, 'p.md');
+    writePriorReview(prior, {
+      mode: 'docs-review',
+      cwd: process.cwd(),
+      'docs-target': [1],
+      'template-version': 2,
+      'codex-thread-id': 't',
+      'codex-resume-status': 'fresh',
+    });
+    const ctx = await loadResumeContext(prior, 'docs-review', { docsPaths: [path.join(tmp, 'a.md')] });
+    assert.match(ctx.error, /docs-target\/diff-base differs from current/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('loadResumeContext: missing thread-id rejected', async () => {
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-tid-'));
   try {

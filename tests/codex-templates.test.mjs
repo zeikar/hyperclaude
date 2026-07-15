@@ -173,6 +173,22 @@ test('template docs-review-resumed.md: empty blocks produce clean prompt (no dan
   );
 });
 
+// ── Task 2: docs-review-resumed.md template — multi-file --docs-path render ──
+
+test('template docs-review-resumed.md: renders with a joined DOCS_TARGET and a multi-entry FILE_LIST_BLOCK', async () => {
+  const text = await readTemplateFile('docs-review-resumed');
+  const rendered = loadTemplate(text, {
+    DOCS_TARGET: 'README.md, docs/workflow.md',
+    FILE_LIST_BLOCK: renderFileListBlock(['README.md', 'docs/workflow.md']),
+    DIFF_BASE_BLOCK: '',
+  });
+  assert.ok(!rendered.includes('{{DOCS_TARGET}}'), 'DOCS_TARGET should be substituted');
+  assert.ok(!rendered.includes('{{FILE_LIST_BLOCK}}'), 'FILE_LIST_BLOCK should be substituted');
+  assert.ok(rendered.includes('README.md, docs/workflow.md'), 'rendered text should include the joined docs target');
+  assert.ok(rendered.includes('  1. README.md'), 'rendered text should list the first file');
+  assert.ok(rendered.includes('  2. docs/workflow.md'), 'rendered text should list the second file');
+});
+
 // ── Task 3: code-review-resumed.md template ─────────────────────────────────
 
 test('template code-review-resumed.md: loads and substitutes {{TARGET_INSTRUCTION}}', async () => {

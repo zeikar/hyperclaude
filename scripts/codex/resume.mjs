@@ -89,9 +89,30 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
       return { error: 'prior artifact plan-path differs from current' };
     }
   } else if (expectedMode === 'docs-review') {
-    const prevTarget = fm['docs-target'];
-    const curTarget = currentArgs.docsPath || currentArgs.docsDir;
-    if (typeof prevTarget !== 'string' || path.resolve(prevTarget) !== path.resolve(curTarget)) {
+    // prevList: normalize the on-disk docs-target — an array (new --docs-path
+    // list form), a legacy scalar string (wrapped to a 1-element array), or
+    // anything else (rejected below). curList: currentArgs.docsPaths is the
+    // canonical field; currentArgs.docsPath is a transitional fallback for the
+    // still-current scalar arg (removed once the field flips to an array).
+    const rawTarget = fm['docs-target'];
+    const prevList = Array.isArray(rawTarget)
+      ? rawTarget
+      : (typeof rawTarget === 'string' ? [rawTarget] : null);
+    // Reject a malformed on-disk array (e.g. `[null]`, `[1]`) here rather than
+    // crashing on path.resolve — a single malformed --resume auto candidate
+    // must be skipped, not abort discoverResumeArtifact's scan of the rest.
+    const validPrevList = Array.isArray(prevList) && prevList.length > 0
+      && prevList.every((p) => typeof p === 'string' && p.length > 0);
+    if (!validPrevList) {
+      return { error: 'prior artifact docs-target/diff-base differs from current' };
+    }
+    const curList = currentArgs.docsPaths?.length
+      ? currentArgs.docsPaths
+      : (currentArgs.docsPath ? [currentArgs.docsPath] : (currentArgs.docsDir ? [currentArgs.docsDir] : []));
+    const prevSet = new Set(prevList.map((p) => path.resolve(p)));
+    const curSet = new Set(curList.map((p) => path.resolve(p)));
+    const setsMatch = prevSet.size === curSet.size && [...prevSet].every((p) => curSet.has(p));
+    if (!setsMatch) {
       return { error: 'prior artifact docs-target/diff-base differs from current' };
     }
     const prevDiff = fm['diff-base'] ?? null;
