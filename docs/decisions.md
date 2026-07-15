@@ -317,6 +317,12 @@ The plan-review prompt asks Codex to judge whether every task traces to a stated
 
 Rules live in `references/review-brief.md`; the four caller skills (`hyper-plan-review`, `hyper-code-review`, `hyper-plan-loop`, `hyper-implement-loop`) point at it rather than restating.
 
+### 2026-07-15 — repeatable `--docs-path` for `docs-review`
+
+`--docs-path` is now repeatable — each occurrence appends a file, so `docs-review` can target a caller-named set (e.g. `README.md`, `docs/workflow.md`, `site/index.html`) in one run instead of one file at a time. Deliberately scoped narrow: no glob or recursive-walk expansion for the list (same rationale as the existing [`--docs-dir` recursion deferral](#recursive---docs-dir-walk-for-hyper-docs-review) above — the 200KB payload guard needs an explicit file set, not an open-ended pattern), and no extension to `plan-review` / `code-review`, which have no analogous multi-target need. The multi-file slug (`<first-file-slug>-plus-<n-1>`) is a human-readable LABEL only, not a uniqueness key — two different file sets can collide on it when they share a first-file basename; the real guard against a wrong resume match is `resume.mjs`'s order-insensitive set-equality check over the full `docs-target` list, not the slug.
+
+`docs-target` frontmatter now encodes as a JSON array in `--docs-path` list mode (vs. the pre-existing JSON string in `--docs-dir` mode); `resume.mjs`'s identity check normalizes both shapes — a legacy scalar string is wrapped to a 1-element array before the set comparison — so pre-existing single-string artifacts remain resumable without a migration.
+
 ---
 
 ## Pointers (decisions documented elsewhere)

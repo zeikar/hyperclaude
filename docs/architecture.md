@@ -160,7 +160,7 @@ node scripts/codex-bridge.mjs <mode> [flags]
 | `research`    | `--task <text>` OR `--task-file <path>`                    | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--slug`, `--out`, `--timeout`, `--dry-run` |
 | `plan-review` | `--plan-path <path>`                                       | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--review-brief <text>` (allowed with `--resume`), `--slug`, `--out`, `--timeout`, `--dry-run` |
 | `code-review` | none — defaults to `--base main`                           | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`; one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--resume <path\|auto>`, `--background <text>` (fresh only — rejected with `--resume`), `--review-brief <text>` (allowed with `--resume`), `--title`, `--out`, `--timeout`, `--dry-run` |
-| `docs-review` | `--docs-path <file>` OR `--docs-dir <dir>`                 | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--diff-base <ref>`, `--out`, `--timeout`, `--dry-run` |
+| `docs-review` | `--docs-path <file>` (repeatable — append multiple files) OR `--docs-dir <dir>` | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--diff-base <ref>`, `--out`, `--timeout`, `--dry-run` |
 
 Defaults:
 
@@ -207,7 +207,7 @@ codex-reasoning-output-tokens: <N>    # same per-field gate; no total key (sourc
 base-ref / commit / title              # code-review (mode-dependent; uncommitted has none)
 plan-path: "<path>"                    # plan-review only
 review-brief: "<text>"                 # plan-review / code-review, when a brief was supplied or carried
-docs-target: "<path>"                  # docs-review
+docs-target: "<path>" | [<path>, ...]  # docs-review — JSON string in `--docs-dir` mode, JSON array in `--docs-path` list mode
 diff-base: "<ref>"                     # docs-review (when --diff-base passed)
 ---
 ```
@@ -215,7 +215,7 @@ diff-base: "<ref>"                     # docs-review (when --diff-base passed)
 Filename: `<YYYYMMDD-HHMM>-<slug>.md` (UTC). Per-mode slug fallbacks:
 
 - `research` — when the task text is pure non-ASCII or otherwise yields no usable slug, the filename falls back to `<YYYYMMDD-HHMM>.md` (slug omitted entirely). Pass `--slug` to force a specific slug.
-- `docs-review` — falls back to the literal `docs` if the docs target's basename can't be slugified, producing `<YYYYMMDD-HHMM>-docs.md`.
+- `docs-review` — single file or `--docs-dir` uses the target's basename, falling back to the literal `docs` if it can't be slugified (`<YYYYMMDD-HHMM>-docs.md`). Multiple `--docs-path` files use `<first-file-slug>-plus-<n-1>` (e.g. two files → `-plus-1`); this is a human-readable label, not a unique key — resume identity is order-insensitive set-equality over the reviewed file set (not the slug).
 - `plan-review` and `code-review` — always derive a slug (from the plan filename or the diff target), so the timestamp-only fallback does not apply.
 
 On collision, the bridge appends `-2`, `-3`, … until free.

@@ -160,7 +160,7 @@ The version is recorded in research / plan-review / docs-review / code-review ou
 1. **Self-check.** Run `node --test tests/*.mjs` and `bash scripts/test/smoke.sh` until green.
 2. **Code review.** `/hyperclaude:hyper-code-review vs <last release tag>` to catch regressions on the diff since the last tag.
 3. **Docs sync + review.** `/hyperclaude:hyper-docs-sync uncommitted` then `/hyperclaude:hyper-docs-review` for any docs that changed shape.
-4. **Bump version.** Update `version` in [.claude-plugin/plugin.json](../.claude-plugin/plugin.json). **Pre-adoption policy:** a breaking change rides a MINOR bump, not a major (`1.0.0` is a maturity marker, not a strict-semver contract — see [CLAUDE.md](../CLAUDE.md) Release flow). When the bump changes the `vMAJOR.MINOR` shown in the status banner, also update it in [site/index.html](../site/index.html) (search for `the design has converged`; the README header carries no version line). Commit.
+4. **Bump version.** Update `version` in [.claude-plugin/plugin.json](../.claude-plugin/plugin.json). **Pre-adoption policy:** a breaking change OR a new feature rides a MINOR bump, not a major (`1.0.0` is a maturity marker, not a strict-semver contract — see [CLAUDE.md](../CLAUDE.md) Release flow). When the bump changes the `vMAJOR.MINOR` shown in the status banner, also update it in [site/index.html](../site/index.html) (search for `the design has converged`; the README header carries no version line). Commit.
 5. **Tag.** `git tag -a vX.Y.Z -m "vX.Y.Z: <one-line summary>"`.
 6. **Push.** `git push origin main vX.Y.Z`.
 7. **Verify GitHub install.** From a fresh checkout: `/plugin marketplace add zeikar/hyperclaude` → `/plugin install hyperclaude` → run a gate.

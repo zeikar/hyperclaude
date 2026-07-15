@@ -153,6 +153,7 @@ Default: top-level `.md` files in `docs/`. Variants:
 /hyperclaude:hyper-docs-review README.md                       # single file
 /hyperclaude:hyper-docs-review docs/api/                       # specific subdir
 /hyperclaude:hyper-docs-review README.md --diff-base main      # with code-diff context
+/hyperclaude:hyper-docs-review README.md docs/workflow.md      # multiple named files (each maps to its own --docs-path)
 ```
 
 Writes `.hyperclaude/docs-reviews/<timestamp>-<slug>.md`. Scope is strict: accuracy / drift / completeness / broken links / cross-doc inconsistencies / redundancy (in-doc duplicated claims, reported Minor; deliberate cross-doc propagation exempt). NOT prose or style — the documenter agent owns those.
@@ -255,7 +256,7 @@ The same slug should follow a feature through the cycle:
 - The plan filename uses the same slug: `<YYYYMMDD-HHMM>-<slug>.md`.
 - `plan-review` extracts the slug from the plan filename.
 - `code-review` uses its own slug derived from the diff target (`vs-main`, `uncommitted`, or `commit-<sha7>`) — release-level, not feature-level.
-- `docs-review` uses the docs target's basename.
+- `docs-review` uses the docs target's basename; multiple `--docs-path` files use `<first-file-slug>-plus-<n-1>`. Resume identity for `docs-review` is set-equality over the reviewed file set (order-insensitive), not the slug — the slug is a human-readable label only.
 
 This is deliberate: research → plan → plan-review form a per-feature trio (linked slug), while code-review / docs-review are release-level gates (linked to the diff or doc target).
 
