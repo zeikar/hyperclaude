@@ -748,6 +748,43 @@ test('parseFrontmatter: CRLF tolerant', () => {
   assert.equal(fm.slug, 'x');
 });
 
+test('parseFrontmatter: round-trips a JSON array value (docs-target list mode)', () => {
+  const txt = `---\n${fmString('docs-target', ['a', 'b'])}\n---\n`;
+  const fm = parseFrontmatter(txt);
+  assert.deepEqual(fm['docs-target'], ['a', 'b']);
+});
+
+test('parseFrontmatter: legacy single-string docs-target still parses as a string', () => {
+  const txt = '---\ndocs-target: "docs/api.md"\n---\n';
+  const fm = parseFrontmatter(txt);
+  assert.equal(fm['docs-target'], 'docs/api.md');
+});
+
+test('parseFrontmatter: malformed [-leading value falls back to raw', () => {
+  const txt = '---\nbroken: [not valid json\n---\n';
+  const fm = parseFrontmatter(txt);
+  assert.equal(fm.broken, '[not valid json');
+});
+
+test('renderDocsReviewFrontmatter + parseFrontmatter: docs-target array round-trips end to end', () => {
+  const fm = renderDocsReviewFrontmatter({
+    slug: 'api',
+    docsTarget: ['docs/a.md', 'docs/b.md'],
+    diffBase: null,
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fm, /docs-target: \["docs\/a\.md","docs\/b\.md"\]/);
+  const parsed = parseFrontmatter(fm);
+  assert.deepEqual(parsed['docs-target'], ['docs/a.md', 'docs/b.md']);
+});
+
 test('parseFrontmatter: also handles |  (no dash) block scalar', () => {
   const txt = [
     '---',

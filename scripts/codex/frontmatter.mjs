@@ -85,6 +85,8 @@ export function renderCodeReviewFrontmatter({
   return lines.join('\n');
 }
 
+// docsTarget may be a string (--docs-dir mode) or a string array (--docs-path
+// list mode); both encode via fmString.
 export function renderDocsReviewFrontmatter({
   slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion, docsTarget, diffBase,
   cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
@@ -121,8 +123,8 @@ export function renderDocsReviewFrontmatter({
 // - CRLF tolerant.
 // - Returns {} when the text has no leading `---` line.
 // - Reads `key: value` lines until the closing `---`.
-// - JSON-quoted values (starting with `"`) are JSON.parsed; on parse failure
-//   the raw substring is stored verbatim.
+// - JSON-quoted or JSON-array values (starting with `"` or `[`) are
+//   JSON.parsed; on parse failure the raw substring is stored verbatim.
 // - Bare-token values are stored as the raw substring after `: `.
 // - `key: |-` and `key: |` start a block scalar; subsequent indented lines
 //   (any line starting with at least one space) are skipped without storing.
@@ -161,7 +163,7 @@ export function parseFrontmatter(text) {
       i += 1;
       continue;
     }
-    if (rest.startsWith('"')) {
+    if (rest.startsWith('"') || rest.startsWith('[')) {
       try {
         out[key] = JSON.parse(rest);
       } catch {
