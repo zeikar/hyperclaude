@@ -42,7 +42,7 @@ The lead must also retain the following handle-resolution run-state across turns
 `$ARGUMENTS` is a **docs target** (optional path tokens; the loop mirrors `hyper-docs-review`'s target grammar). Resolution:
 
 - `$ARGUMENTS` empty → default to `docs/` (directory mode).
-- `$ARGUMENTS` is one or more existing `.md` file paths → multi-file mode (each maps to its own `--docs-path`).
+- `$ARGUMENTS` is one or more existing file paths (any type) → multi-file mode (each maps to its own `--docs-path`).
 - `$ARGUMENTS` is a single existing directory path → directory mode.
 - Anything else → ask the user to clarify and STOP.
 
@@ -54,18 +54,18 @@ See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §F2 for the two-file re
 
 ### Step 1 — Resolve the docs target
 
-Apply the resolution table above to `$ARGUMENTS`. Verify each path exists via Bash (`[ -e "<path>" ]`). Record `docs_target` as the bridge argv tokens:
+Apply the resolution table above to `$ARGUMENTS`. Classify each token via Bash — `[ -f "<path>" ]` (existing file → `--docs-path`) vs `[ -d "<path>" ]` (existing directory → `--docs-dir`); a token that is neither → STOP. Record `docs_target` as the bridge argv tokens:
 
 | Argument | `docs_target` argv |
 |---|---|
 | Empty | `['--docs-dir', 'docs/']` |
-| One or more `.md` files that exist | `['--docs-path', '<path1>', '--docs-path', '<path2>', ...]` (one flag per file, in order) |
+| One or more existing files (each `[ -f ]`, any type) | `['--docs-path', '<path1>', '--docs-path', '<path2>', ...]` (one flag per file, in order) |
 | Single existing directory | `['--docs-dir', '<path>']` |
 | Anything else | Ask the user to clarify, STOP. |
 
 `docs_target` is reused **verbatim** on every iteration in Step 5 and Step 7 — never change it mid-run.
 
-**Directory-target note.** Per `docs-review`'s established contract, `--docs-dir <p>` reviews only the top-level `.md` files directly under `<p>` (not recursive). This is intentional. The loop inherits that scope; if the user wants nested docs reviewed, they invoke the loop once per subdirectory or against a single `.md` path.
+**Directory-target note.** Per `docs-review`'s established contract, `--docs-dir <p>` reviews only the top-level `.md` files directly under `<p>` (not recursive). This is intentional. The loop inherits that scope; if the user wants nested docs reviewed, they invoke the loop once per subdirectory or against an explicit file path of any type.
 
 ### Step 2 — Confirm agent-teams availability
 

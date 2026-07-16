@@ -323,6 +323,8 @@ Rules live in `references/review-brief.md`; the four caller skills (`hyper-plan-
 
 `docs-target` frontmatter now encodes as a JSON array in `--docs-path` list mode (vs. the pre-existing JSON string in `--docs-dir` mode); `resume.mjs`'s identity check normalizes both shapes — a legacy scalar string is wrapped to a 1-element array before the set comparison — so pre-existing single-string artifacts remain resumable without a migration.
 
+**Follow-up 2026-07-16 — skill grammar relaxed from `.md`-only to any file.** The `hyper-docs-review` / `hyper-docs-loop` slash grammars initially accepted only `.md` file tokens, which couldn't express the motivating `site/index.html` target above even though the bridge itself never restricted extension. Relaxed to discriminate file-vs-directory by an existence check (`[ -f ]` / `[ -d ]`) rather than the `.md` extension, so the skills accept any existing file and match the bridge's capability. `--docs-dir` is still non-recursive and still top-level `.md`-only inside a directory (unchanged) — the relaxation is only about which explicit file tokens the `--docs-path` path accepts.
+
 ---
 
 ## Pointers (decisions documented elsewhere)

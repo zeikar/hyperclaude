@@ -31,7 +31,7 @@ Apply this regex to the trimmed `$ARGUMENTS`:
 ^((?:(?!--)\S+\s*)*)(?:--diff-base\s+(\S+))?(?:\s*(--resume)(?:\s+(\S+))?)?\s*$
 ```
 
-- Group 1 = zero or more space-separated leading path tokens (split on whitespace in Step 1); each is either an existing `.md` file or, if it's the sole token, an existing directory; empty defaults to `docs/`. Negative lookahead per-token prevents matching `--diff-base` or `--resume` as a path. Many `.md` files OR one directory — never both.
+- Group 1 = zero or more space-separated leading path tokens (split on whitespace in Step 1); each is either an existing file (any type — not just `.md`) or, if it's the sole token, an existing directory; empty defaults to `docs/`. Negative lookahead per-token prevents matching `--diff-base` or `--resume` as a path. Many files OR one directory — never both.
 - Group 2 = optional `--diff-base <ref>` value
 - Group 3 = literal `"--resume"` token (truthy when present, undefined when not)
 - Group 4 = optional resume artifact path
@@ -42,6 +42,7 @@ When Group 3 is `'--resume'` (truthy) and Group 4 is undefined, treat as `--resu
 - `/hyperclaude:hyper-docs-review` — reviews `docs/`, fresh run
 - `/hyperclaude:hyper-docs-review docs/api.md` — reviews single file, fresh run
 - `/hyperclaude:hyper-docs-review README.md docs/workflow.md docs/architecture.md` — reviews three files, fresh run
+- `/hyperclaude:hyper-docs-review README.md site/index.html` — mixed file types (`.md` + `.html`), fresh run
 - `/hyperclaude:hyper-docs-review --resume` — reviews `docs/`, resumes from latest artifact
 - `/hyperclaude:hyper-docs-review --resume <prev-artifact-path>` — resumes from explicit artifact
 - `/hyperclaude:hyper-docs-review docs/api.md --diff-base main` — single file with diff context
@@ -58,14 +59,14 @@ See `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` for the shared `--
 
 ### Step 1 — Resolve target
 
-Split Group 1 on whitespace into tokens (or default to `docs/` when empty). Verify each path exists first via Bash (`[ -e "<path>" ]`).
+Split Group 1 on whitespace into tokens (or default to `docs/` when empty). Classify each token via Bash — `[ -f "<path>" ]` (existing file → `--docs-path`) vs `[ -d "<path>" ]` (existing directory → `--docs-dir`); a token that is neither → STOP.
 
 | Group 1 tokens | Bridge argv |
 |---|---|
 | Empty | `['docs-review', '--docs-dir', 'docs/']` |
-| One or more `.md` paths that exist | `['docs-review', '--docs-path', '<path1>', '--docs-path', '<path2>', ...]` (one flag per file, in order) |
+| One or more existing files (each `[ -f ]`, any type) | `['docs-review', '--docs-path', '<path1>', '--docs-path', '<path2>', ...]` (one flag per file, in order) |
 | Single existing directory path | `['docs-review', '--docs-dir', '<path>']` |
-| Anything else (mix of files and a dir, non-`.md` path, or a path that doesn't exist) | Tell user the contract, ask to clarify, STOP. |
+| Anything else (mix of files and a dir, more than one directory, or a path that doesn't exist) | Tell user the contract, ask to clarify, STOP. |
 
 ### Step 2 — Run the bridge
 
