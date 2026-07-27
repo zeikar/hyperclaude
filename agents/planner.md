@@ -30,7 +30,7 @@ description: |
   </commentary>
   </example>
 tools: Read, Edit, Glob, Grep, Bash, WebFetch, Write
-model: opus
+model: fable
 color: blue
 ---
 
