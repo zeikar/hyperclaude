@@ -63,7 +63,7 @@ Base path: `.hyperclaude/plans/<timestamp>-<slug>.md`. If it exists, append `-2`
 Use the Agent tool with `subagent_type: hyperclaude:planner`, **`run_in_background: false`** (Step 4 consumes the returned body inline to detect mode and Write the plan). Prompt MUST include:
 
 - **Task** — verbatim.
-- **Research context** — full contents of all matched research artifacts inline (there may be a Codex + Claude pair), if any were found in Step 1. Do not make the agent re-read them.
+- **Research context** — full contents of all matched research artifacts inline (there may be a Codex + Claude pair), if any were found in Step 1, each labelled with its exact repo path so the planner can cite it. Do not make the agent re-read them.
 - **Scope assessment first** — before writing, judge the task's size and pick ONE format:
   - **Fits one cohesive plan** (~10 bite-sized tasks or fewer, a single area) → produce the **detailed** format.
   - **Oversized** (would exceed ~10–12 tasks, or spans multiple independent areas/milestones) → produce the **epic roadmap** format instead. Do not force a giant detailed plan.
