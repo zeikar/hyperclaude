@@ -64,7 +64,7 @@ Two distinct, independently-gated channels — do not conflate them:
 
 ### Step 3 — Run the bridge
 
-Use the Bash tool with `timeout: 600000`. Pass each argument as a separate token — never interpolate user-supplied substrings into a single quoted string.
+Use the Bash tool with `timeout: 600000` and **`run_in_background: true`** (invocation mode: `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md`). Pass each argument as a separate token — never interpolate user-supplied substrings into a single quoted string.
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" code-review <flags from table above> [--resume <Group 3 or 'auto'>] [--review-brief "$(cat "$BRIEF_FILE")"] [--background "$(cat "$BACKGROUND_FILE")"]
@@ -74,7 +74,7 @@ Flag selection follows the dispatch table. If `--resume` was matched (Group 2), 
 
 ### Step 4 — Surface the review
 
-The bridge prints a single JSON line to stdout. Parse it and see the Output contract section below for full details on the JSON structure. In brief:
+Once the bridge task completes, parse the single JSON line from its stdout. See the Output contract section below for full details on the JSON structure. In brief:
 
 - On success — read the review file with the Read tool and present the findings.
 - On failure — surface the error verbatim to the user; do not pretend a review happened. When `resumeStatus` is `resume-failed`, note that the prior context could not be used.

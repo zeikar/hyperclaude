@@ -70,7 +70,7 @@ Split Group 1 on whitespace into tokens (or default to `docs/` when empty). Clas
 
 ### Step 2 — Run the bridge
 
-Use the Bash tool with `timeout: 600000`. Pass each argument as a separate token (no shell interpolation of user-supplied substrings):
+Use the Bash tool with `timeout: 600000` and **`run_in_background: true`** (invocation mode: `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md`). Pass each argument as a separate token (no shell interpolation of user-supplied substrings):
 
 ```bash
 # Single file
@@ -87,7 +87,7 @@ If `--diff-base <ref>` was matched (Group 2), append `--diff-base <ref>` to the 
 
 ### Step 3 — Surface the review
 
-Parse JSON. On `ok:true`, read the output file with the Read tool. On `ok:false`, surface the error verbatim:
+Once the bridge task completes, parse the JSON from its stdout. On `ok:true`, read the output file with the Read tool. On `ok:false`, surface the error verbatim:
 
 - `docs payload exceeds 200KB` → tell user to narrow scope (fewer `--docs-path` files, or a smaller subdirectory)
 - `no .md files in <path>` → tell user the directory has no top-level markdown

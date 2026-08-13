@@ -42,12 +42,20 @@ This is the default. Run the Codex and Claude research paths concurrently so the
 
 1. Resolve the task description (as in **Path selection**), derive `<slug>` (Claude-path rule, step 1 below), and get `<timestamp>` once — these are shared by both artifacts.
 
-2. **Dispatch the Claude researcher in the background FIRST.** Dispatch the `researcher` agent with the Agent tool, `subagent_type: hyperclaude:researcher`, **`run_in_background: true`**, in return-body mode, using the same prompt contract as the Claude path step 4 below (Task verbatim + required section structure). Do not wait for it yet.
+2. **Write the Codex task to a temp file** with the Write tool (avoids shell quoting), as the Codex path step 2 below describes — this must land before the bridge launches.
 
-3. **Then run the Codex bridge** exactly as the Codex path describes (write the task to a temp file with the Write tool, run `node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task-file "<temp file path>"` with `timeout: 600000`, clean up the temp file, parse the JSON line). This Bash call blocks for ~minutes — while it runs, the backgrounded researcher is working in parallel. The bridge writes `.hyperclaude/research/<timestamp>-<slug>.md`.
-   - On `{"ok":false,"error":"..."}` — surface the Codex error to the user. Do NOT pretend the Codex artifact was produced. Then go to step 4 to collect the researcher; if it succeeded, write and report the Claude artifact as a **PARTIAL result** and continue using only it. If the researcher also failed or returned an empty body, report full failure to the user and stop.
+3. **Launch both in ONE message, both backgrounded** — neither blocks, so the lead stays free while the two multi-minute operations run:
+   - The `researcher` agent via the Agent tool, `subagent_type: hyperclaude:researcher`, in return-body mode, using the same prompt contract as the Claude path step 4 below (Task verbatim + required section structure).
+   - The bridge via the Bash tool, **`run_in_background: true`** with `timeout: 600000`: `node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task-file "<temp file path>"`. It writes `.hyperclaude/research/<timestamp>-<slug>.md`.
 
-4. **After the bridge Bash call returns, collect the backgrounded researcher result.** When the `researcher` agent was dispatched with `run_in_background: true`, the Agent tool returns a task handle immediately; the result is delivered as a completion notification. After the blocking bridge call returns, wait for / collect that researcher completion. If the researcher returned an error or an empty body — SKIP writing the Claude artifact, tell the user only the Codex artifact is available (or report full failure if Codex also failed in step 3), and continue using only what succeeded. Otherwise write the Claude artifact with the Write tool to `.hyperclaude/research/<timestamp>-<slug>-claude.md` using the SAME frontmatter block + one-liner as in **Claude path (single — explicit request only)** steps 5–6. The ONLY difference from the single-Claude case is the filename's `-claude` suffix; the frontmatter `slug:` stays `<slug>` (identical to the Codex artifact — this is the canonical trace key).
+   Both deliver their result as a completion notification. End the turn and let them run; answer the user if they ask something else meanwhile.
+
+4. **Once both have completed, write and report the artifacts.** `Read` the bridge task's output file and parse the JSON line in it (ignore the trailing `[exited with code N]` marker), then `rm -f "<temp file path>"`.
+   - Codex `{"ok":true,"path":"..."}` → the Codex artifact is on disk at that path.
+   - Codex `{"ok":false,"error":"..."}` → surface the error to the user. Do NOT pretend the Codex artifact was produced.
+   - Researcher returned a body → write the Claude artifact with the Write tool to `.hyperclaude/research/<timestamp>-<slug>-claude.md`, using the SAME frontmatter block + one-liner as in **Claude path (single — explicit request only)** steps 5–6. The ONLY difference from the single-Claude case is the filename's `-claude` suffix; the frontmatter `slug:` stays `<slug>` (identical to the Codex artifact — this is the canonical trace key).
+   - Researcher errored or returned an empty body → SKIP writing the Claude artifact.
+   - Exactly one side succeeded → report it as a **PARTIAL result** and continue using only what succeeded. Both failed → report full failure to the user and stop.
 
 5. Report BOTH artifact paths to the user (Codex artifact + Claude artifact). Read both and integrate BOTH into your subsequent plan. When you write a plan, save it under `.hyperclaude/plans/<timestamp>-<slug>.md` so `/hyperclaude:hyper-plan-review` can find it later.
 
@@ -57,19 +65,21 @@ This is the default. Run the Codex and Claude research paths concurrently so the
 
 2. Write the resolved task description to a temp file using the **Write tool** (not the Bash tool — this avoids shell quoting). Pick a path under the system temp dir; for example: `/tmp/hyperclaude-task-<unix-timestamp>.txt`. Save the task as plain text; no escaping needed.
 
-3. Run the bridge in research mode using the Bash tool with `timeout: 600000`:
+3. Run the bridge in research mode using the Bash tool with **`run_in_background: true`** and `timeout: 600000`:
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task-file "<temp file path>"
    ```
 
-4. After the bridge returns, clean up the temp file:
+   The lead stays free to answer the user while Codex runs; end the turn and wait for the completion notification.
+
+4. After the bridge task completes, clean up the temp file:
 
    ```bash
    rm -f "<temp file path>"
    ```
 
-5. The bridge prints a single JSON line to stdout. Parse it.
+5. The bridge prints a single JSON line to stdout. `Read` the completed task's output file and parse that line (ignore the trailing `[exited with code N]` marker).
    - On `{"ok":true,"path":"..."}` — read the file with the Read tool.
    - On `{"ok":false,"error":"..."}` — surface the error to the user; do not pretend research happened.
 
@@ -96,7 +106,7 @@ This path runs Claude-native research via the `researcher` agent. It uses `WebFe
    Base path: `.hyperclaude/research/<timestamp>-<slug>-claude.md` (the `-claude` suffix is how the Claude artifact coexists with the Codex one when both ran). If it exists, append `-2`, `-3`, … before the extension until free.
    - **No-ASCII-slug fallback** (mirrors the bridge): if slug derivation yields no ASCII characters (e.g. an all-Korean topic), the filename is timestamp + `-claude` — `.hyperclaude/research/<timestamp>-claude.md` (with the same `-2`/`-3` collision suffixing) — and the frontmatter `slug:` line is the bare key with an empty value: `slug: ` (key, colon, single space, nothing after — NOT `slug: ""`).
 
-4. Dispatch the `researcher` agent with the Agent tool, `subagent_type: hyperclaude:researcher`, **`run_in_background: false`** (steps 5–6 consume the agent body synchronously), in return-body mode (the agent returns the report markdown; it does not write files). The prompt MUST include:
+4. Dispatch the `researcher` agent with the Agent tool, `subagent_type: hyperclaude:researcher`, in return-body mode (the agent returns the report markdown; it does not write files) — it runs backgrounded, so end the turn and resume at step 5 on its completion notification. The prompt MUST include:
    - **Task** — the resolved task description, verbatim.
    - **Required section structure** — the report must use exactly these headings, in this order: `### Prior Art`, `### Pitfalls`, `### Recommendations`, `### Open Questions`.
 

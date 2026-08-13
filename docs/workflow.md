@@ -42,7 +42,7 @@ The slug is minted from the idea text (first 5 words, kebab-case, ASCII) — the
 /hyperclaude:hyper-research add OAuth login to the API
 ```
 
-By default, research runs **both Codex and Claude in parallel**, producing a pair: `.hyperclaude/research/<timestamp>-add-oauth-login-to-the.md` (Codex, read-only sandbox, live web search via `--search`) and `.hyperclaude/research/<timestamp>-add-oauth-login-to-the-claude.md` (the `researcher` agent, dispatched in the background — `WebFetch` on known URLs, not a web-search substitute). Read both. Don't skip the Pitfalls section.
+By default, research runs **both Codex and Claude in parallel**, producing a pair: `.hyperclaude/research/<timestamp>-add-oauth-login-to-the.md` (Codex, read-only sandbox, live web search via `--search`) and `.hyperclaude/research/<timestamp>-add-oauth-login-to-the-claude.md` (the `researcher` agent — `WebFetch` on known URLs, not a web-search substitute). Both run backgrounded, so the session stays responsive. Read both. Don't skip the Pitfalls section.
 
 A single path runs only on an explicit "Codex only" / "Claude only / no-Codex / second-opinion" request — a plain-language intent rule, not a flag. Either way, every artifact carries the same always-present frontmatter keys and section structure, and a pair shares one `slug:`. Trio traceability (`research → plan → plan-review`) is preserved by that shared frontmatter slug — the downstream `hyper-plan` ingests both files of the pair.
 
@@ -135,7 +135,7 @@ Same target contract as `hyper-code-review`. The skill:
 1. Resolves the changed files via git.
 2. Reads the `Code | Docs` mapping table from `CLAUDE.md` / `AGENTS.md` (or falls back to filename-stem heuristics).
 3. Aggregates diffs per affected doc.
-4. Dispatches the `documenter` agent once per doc — UPDATE mode if the file exists, CREATE mode if not.
+4. Dispatches the `documenter` agent once per doc — UPDATE mode if the file exists, CREATE mode if not. All affected docs run in parallel; the report waits on all of them.
 
 The doc edits are the artifact. No `.hyperclaude/` file is written.
 

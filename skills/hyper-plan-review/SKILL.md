@@ -77,11 +77,11 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<
 
 If `--resume` was matched (Group 2 truthy), append `--resume <value>` to the argv passed to the bridge, where `<value>` is Group 3 if present, otherwise `auto`. The `--review-brief "$(cat "$BRIEF_FILE")"` token is OPTIONAL — present when a source exists (fresh and `--resume` alike), omitted otherwise.
 
-Use the Bash tool with `timeout: 600000`.
+Use the Bash tool with `timeout: 600000` and **`run_in_background: true`** (invocation mode: `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md`).
 
 ### Step 4 — Surface the review
 
-Parse the bridge's single stdout JSON envelope per `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` (envelope shape + strict-parse rule). On success, read the review file with the Read tool. Integrate the review:
+Once the bridge task completes, parse the JSON envelope from its stdout per `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md`. On success, read the review file with the Read tool. Integrate the review:
 
 - **Blockers / Majors** — fix the plan before proceeding.
 - **Minors / Improvements** — optionally fold in.

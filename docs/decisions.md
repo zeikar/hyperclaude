@@ -52,6 +52,12 @@ Coverage is uneven by intent: `ENOENT`/`EISDIR` are friendly-mapped only for the
 
 A third admissible brief source — project policy quoted from a tracked file (e.g. `CLAUDE.md`) — was considered and deliberately CUT; the brief carries only what the user said in conversation. **Why:** it kept the caller surface small, and admitting tracked-file policy would drag in a pre-change-revision requirement — a builder could otherwise edit a policy file in the same change and cite its own freshly-added line as scope-authoritative — which in turn needs a per-target preimage rule to prove the quoted policy predated the change. Not worth that machinery absent a real need.
 
+### Atomic artifact-path reservation in the bridge
+
+**Trigger:** two reviews of the same target actually collide in one session.
+
+`pickAvailablePath` (`scripts/codex/paths.mjs`) picks an output path with `existsSync`, but the bridge doesn't write the file until Codex returns — two same-minute runs with the same slug both select it and the second write wins. Pre-existing, but newly reachable: since 2026-08-13 the standalone review gates spawn the bridge backgrounded, so one session can have two in flight. Colliding needs two reviews of the same target inside one UTC minute, and reserving the path atomically costs bridge code plus a concurrency regression test to defend a case nobody has hit.
+
 ---
 
 ## Design decisions
@@ -280,7 +286,7 @@ Verified green on completion (`node --test` + `bash scripts/test/smoke.sh`, incl
 
 Claude Code 2.1.198 flipped the platform default: `Agent`-tool subagents now run in the **background** unless the dispatch explicitly pins `run_in_background: false`. Under the old default, a caller that awaited the result inline still worked because the platform ran synchronously by default; under the new default, an un-annotated dispatch returns a task handle immediately and the very next gate step would race ahead of the agent's actual result.
 
-The sequential / result-inline dispatches in `hyper-implement` (the initial per-task implementer/reviewer dispatches AND any fix-loop re-dispatch), `hyper-plan` (the `planner` dispatches, both fresh and Milestone-expansion), `hyper-docs-sync` (the per-doc `documenter` dispatch), `hyper-research` (the single-Claude path's `researcher` dispatch — NOT the default-parallel path, see below), and `hyper-interview` (the up-front `Explore` dispatch) now pin `run_in_background: false` so each of these gates keeps blocking on the prior agent's result — deterministic gating no longer relies on the old platform default.
+The sequential / result-inline dispatches in `hyper-implement` (the initial per-task implementer/reviewer dispatches AND any fix-loop re-dispatch), `hyper-plan` (the `planner` dispatches, both fresh and Milestone-expansion), `hyper-docs-sync` (the per-doc `documenter` dispatch), `hyper-research` (the single-Claude path's `researcher` dispatch — NOT the default-parallel path, see below), and `hyper-interview` (the up-front `Explore` dispatch) now pin `run_in_background: false` so each of these gates keeps blocking on the prior agent's result — deterministic gating no longer relies on the old platform default. (The `hyper-docs-sync` and `hyper-research` pins were later lifted — see the 2026-08-13 entry.)
 
 `hyper-research`'s default-parallel path is the deliberate exception: its backgrounded `researcher` dispatch stays `run_in_background: true` by design — that dispatch is meant to overlap with the concurrent Codex-bridge call, not block on it.
 
@@ -331,6 +337,11 @@ Plan-loop round counts were measured across two dogfooding repos. Both failure m
 
 The second mode is self-inflicted: prose-heavy plans burn rounds because every added paragraph is reviewed again. The plans that ran longest carried 40–47% non-task preamble and sections that existed only to answer the previous review ("Revision note", "How review round 2 was answered", "Known warts") — which then generated their own findings for contradicting each other and going stale. The plan that converged cleanly was 12% preamble. So the planner's format constraint now states the plan is a task list with long rationale living in a research artifact cited by path, and the revise guidance keeps round changelogs and reviewer replies out of the file. Deliberately guidance, not a structural check: the loop's existing `^## Task` validation stays the only mechanical gate, since a length cap would misfire on genuinely large decompositions. Codex's review of this change pushed further — extend the `WROTE: <id> <path>` reply contract with per-finding verification evidence and gate on it — and that was declined. Re-grounding is unenforceable in-band by design: every other planner constraint ("steps 2–5 minutes", "don't write code in the plan") is unenforced guidance too, and a reply-contract change would ripple through the anchored gate and the request-id machinery to defend a plugin with no installed user base. The effect is instead measured out-of-band, by the same per-round tool counts in `subagents/agent-aplanner-*.jsonl` that diagnosed the problem.
 
+### 2026-08-13 — the lead stops blocking
+
+Re-auditing the 2026-07-04 pins against the platform's own rule — foreground only when the next step consumes the result *and* nothing else could usefully happen — failed two sites. `hyper-docs-sync` never met the first clause: Step 4 already aggregates one dispatch per doc, so documenters edit disjoint files and only the Step 6 report needs a settled tree; it now fans them out in one message with a barrier before the report. `hyper-research` failed the second — its two paths already overlapped, but the Codex bridge ran as a foreground `Bash` call, so a "parallel" run still froze the session for minutes. It and the three standalone review gates now spawn the bridge backgrounded (rule single-sourced in `references/bridge-review-calls.md`). Foreground costs *responsiveness*, not just latency; answering the user is always something else useful the lead could be doing.
+
+Two non-obvious consequences. **The tool defaults differ** — `Agent` has defaulted to background since 2.1.198 so its dispatches leave the field unset, but `Bash` still defaults to foreground, making `run_in_background: true` on every bridge spawn load-bearing rather than redundant. **The `*-loop` skills stay foreground deliberately** — their round state machine sequences review turns against a live teammate (request-id ordering, unsolicited messages, teardown), unchecked against a turn that returns a handle instead of a result; a state-machine question, not a flag flip.
 ---
 
 ## Pointers (decisions documented elsewhere)

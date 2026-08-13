@@ -72,9 +72,13 @@ Lower-confidence heuristic candidates (no clear name overlap) are REPORTED in th
 
 Group all changed files + their diffs that map to the same target doc. Never dispatch the `documenter` agent more than once per target doc; aggregate first.
 
-### Step 5 — Dispatch `documenter` agent
+### Step 5 — Dispatch `documenter` agents in parallel
 
-For each affected doc, dispatch via the Agent tool with `subagent_type: hyperclaude:documenter` and **`run_in_background: false`** (each documenter must land its edit before the loop continues; Step 6's `git status` / `git diff --stat` report requires a settled tree). In the prompt, include:
+Step 4 aggregated to one dispatch per target doc, so the documenters edit disjoint files. Issue every `subagent_type: hyperclaude:documenter` Agent call in a SINGLE message, then **wait for all of them before Step 6** — the report reads the tree once, after every edit has landed.
+
+Single affected doc → dispatch it alone with `run_in_background: false` and consume the result inline.
+
+Each prompt MUST include:
 
 - The target doc path
 - **Whether the doc EXISTS or needs to be CREATED**: check `[ -f "<target>" ]` via Bash before dispatching. If absent, dispatch in CREATE mode (the agent writes a new file with a sensible scaffold). If present, dispatch in UPDATE mode (agent edits in place). Make this explicit in the dispatch prompt.
