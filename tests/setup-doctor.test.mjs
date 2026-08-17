@@ -29,7 +29,7 @@ test('import-safety: importing setup-doctor.mjs does not run main()', () => {
 
 // ---------- CLI: one JSON line ----------
 
-test('CLI: exits 0 and emits exactly one parseable JSON line with ok + 4-element checks', () => {
+test('CLI: exits 0 and emits exactly one parseable JSON line with ok + 5-element checks', () => {
   const repoRoot = fileURLToPath(new URL('..', import.meta.url));
   const result = spawnSync(
     process.execPath,

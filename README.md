@@ -9,7 +9,7 @@
 
 A Claude Code plugin built around a deliberate division of labor between two AI coding agents:
 
-- **Claude** implements — planning, coding, subagents, agent teams
+- **Claude** implements — planning, coding, subagents, persistent background agents
 - **Codex** reviews — plan critique, code review, documentation accuracy review
 
 Thesis: **Claude is the builder, Codex is the critic.** Better software with a smarter cost split.

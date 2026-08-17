@@ -639,6 +639,14 @@ do
   else
     miss "$loop_skill: 'name: $loop_role' present — a named spawn drops the agent definition"
   fi
+  # The other half of the transport: later rounds MUST address the captured id.
+  # Without this, deleting every `to: "<agent_id>"` send would still pass the
+  # two checks above while breaking multi-round context reuse entirely.
+  if grep -q 'to: "<agent_id>"' "$loop_skill" 2>/dev/null; then
+    ok "$loop_skill: later rounds SendMessage to the captured agent_id"
+  else
+    miss "$loop_skill: no 'to: \"<agent_id>\"' send — later rounds cannot reach the agent"
+  fi
 done
 
 # The agent-teams machinery these loops were converted off must stay deleted:

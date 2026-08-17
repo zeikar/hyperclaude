@@ -22,7 +22,7 @@ A spawn without `name:` runs as a background task, and the agent's FINAL TEXT is
 
 ## Correctives and transport failures
 
-Each loop-bound validation stage (declared in the loop's local `failure-protocol.md`) gets exactly ONE corrective redo: a `SendMessage` to `agent_id` restating the reply contract for that stage. If the redo also fails the stage → STOP with the loop's named report. Budgets are per stage, not shared across stages.
+Each loop-bound validation stage (declared in the loop's local `failure-protocol.md`) gets exactly ONE corrective redo: a `SendMessage` to `agent_id` restating the reply contract for that stage. If the redo also fails → STOP with the loop's named report. Whether that budget is per stage or one redo for the whole ordered pipeline is loop-local; the loop's local file declares which.
 
 Transport failures are defined STOPs, not retries:
 
