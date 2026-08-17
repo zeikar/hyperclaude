@@ -2,13 +2,15 @@
 
 Multi-step hyper-* chains. Single-skill triggers (hyper-code-review, hyper-docs-review, hyper-tdd, hyper-debug used on their own) fire from their own skill descriptions — this table only lists chained workflows.
 
+The autonomous **loop** variants are the default here — they harden work to convergence in one gesture. Drop to the manual round-by-round variants only when you want to inspect/checkpoint between rounds, or when the task is a single step.
+
 | User intent / trigger | Recommended workflow |
 |---|---|
-| Vague / under-specified idea → clarify before planning | **hyper-interview** (one question at a time → spec in `.hyperclaude/specs/`), then hand off to hyper-plan (or hyper-research first). Skip when the request is already concrete. |
-| Planning a non-trivial task | hyper-research (optional) → hyper-plan → hyper-plan-review → revise if blockers → hyper-implement. Autonomous variant: **hyper-plan-loop** (plan ↔ review cycle). |
-| Executing a plan | hyper-implement → hyper-code-review → fix findings. Autonomous variant: **hyper-implement-loop** (implement ↔ review ↔ fix cycle). |
-| Task → plan → implement in one gesture | hyper-plan → hyper-plan-review → revise → hyper-implement. The one-gesture **hyper-auto** (chains both loops) needs `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`. |
-| Code changed → docs may be stale | hyper-docs-sync → hyper-docs-review |
+| Vague / under-specified idea → clarify before planning | **hyper-interview** (one question at a time → spec in `.hyperclaude/specs/`), then hand off to hyper-plan-loop (or hyper-research first). Skip when the request is already concrete. |
+| Planning a non-trivial task | **hyper-plan-loop** (plan ↔ Codex review until clean). Prepend hyper-research when prior-art/pitfalls matter. Manual control: hyper-plan → hyper-plan-review → revise. |
+| Executing a plan | **hyper-implement-loop** (implement ↔ code-review ↔ fix until clean). Single-task change → hyper-implement directly. Manual control: hyper-implement → hyper-code-review → fix. |
+| Task → plan → implement in one gesture | **hyper-auto** (chains hyper-plan-loop → hyper-implement-loop; stops cleanly if plan-loop doesn't converge). |
+| Code changed → docs may be stale | **hyper-docs-sync → hyper-docs-loop** (sync maps the code diff first, then docs-review ↔ fix until clean — the loop has no built-in sync step). Manual control: hyper-docs-sync → hyper-docs-review. |
 
 ---
 
