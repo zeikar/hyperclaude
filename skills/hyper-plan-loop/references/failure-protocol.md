@@ -1,89 +1,77 @@
 # hyper-plan-loop — failure & recovery protocol
 
-Operational backstops for `hyper-plan-loop`. The shared cross-loop protocol (team contract, unsolicited-message protocol skeleton, teardown procedure, abstract request-id state machine §E, shared anti-patterns) lives in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`. This file is the plan-loop's binding layer: it names the teammate role (`planner`), the reply-token shape (`WROTE: <id> <path>`), the exact-path accept regex, the file/structure post-acceptance validation stage, and the plan-loop-specific anti-patterns. SKILL.md Step 0 Reads BOTH files.
+Operational backstops for `hyper-plan-loop`. The shared cross-loop protocol (spawn contract, reply transport, corrective/transport-failure skeleton, shared anti-patterns) lives in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`. This file is the plan-loop's binding layer: the agent role (`planner`), the reply shape (`WROTE: <path>`), the exact-path accept rule, the file/structure post-acceptance validation, the named reports, what a transport failure preserves, and the plan-loop-specific anti-patterns. SKILL.md Step 0 Reads BOTH files.
 
 ## Binding declarations
 
-These fill the shared `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` binding holes for the plan-loop:
+- **Agent role:** `planner` — spawned once at SKILL.md Step 2 as `subagent_type: "hyperclaude:planner"`; every later round is addressed to the captured `agent_id`.
+- **Reply shape:** exactly `WROTE: <path>` — a single line, nothing else.
+- **Accept rule:** the trimmed reply must match `^WROTE: <exact resolved plan path from Step 1>\s*$` (path = the entire remaining string, verbatim) plus the no-prose / no-preamble / no-body-echo rule. On any body echo, added prose, preamble, or a different path → the corrective + escalation below.
+- **Post-acceptance validation:** the file/structure check — `[ -s "<resolved plan path>" ]` for existence + the `node -e ...^##\s*Task\s` regex one-liner from SKILL.md Step 6.
+- **Named-loop-report strings:** `hyper-plan-loop reply-contract failure`, `hyper-plan-loop planner-write failure`, `hyper-plan-loop planner format, iter N`, `hyper-plan-loop transport failure`.
+- **Transport failure:** covers both halves of the shared transport-failure rule, which differ only in what ran.
+  - A Step 2 spawn that **returns no usable `agent_id`**, or a later round's **failed `SendMessage`**, is a STOP with **"hyper-plan-loop transport failure"**. The planner ran, so the plan is left exactly as it last wrote it — no restore, no re-spawn — and the report surfaces the resolved plan path from Step 1 so the user can inspect whatever was written.
+  - A Step 2 spawn that **fails outright** is the same STOP under the same report name, but nothing was spawned and so nothing was written this run: state that plainly instead of surfacing a path this run did not produce, and name the manual fallback (`/hyperclaude:hyper-plan + /hyperclaude:hyper-plan-review`).
 
-- **Teammate role-name:** `planner`. This is also `teammate_name = "planner"` — the PRIMARY handle tried first on every first send, per the §A send-resolution procedure in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
-- **Reply-token-with-id shape** (binds the shared §E "parse leading `<loop-bound reply-token-with-id>`" hole): `WROTE: <integer>`. The trailing token after the integer is the path payload.
-- **Accept rule** (binds the shared §E "loop-bound accept rule" hole): the exact regex `^WROTE: <expected id> <exact resolved plan path from Step 1>\s*$` (path = entire remaining string, verbatim) plus the no-prose / no-preamble / no-body-echo rule. On any body echo, added prose, preamble, or a different path at the matching-id step → §1 corrective + escalation.
-- **Post-acceptance validation stage** (binds the shared §E "loop-bound post-acceptance validation" hole): the file/structure check — `[ -s "<resolved plan path>" ]` for existence + the `node -e ...^##\s*Task\s` regex one-liner from SKILL.md Step 7. This is the "PLAN VALIDATION ACCEPTED" stage in plan-loop terms.
-- **Named-loop-report strings** (bind the shared `<loop-name>` placeholder): `hyper-plan-loop reply-contract failure`, `hyper-plan-loop planner-write failure`, `hyper-plan-loop planner format, iter N`.
-- **State-field name reminder:** the shared file calls the awaiting-state field `awaiting_reply`; plan-loop uses that exact name throughout.
-- **Send-resolution:** all lead→planner `SendMessage` `to:` addresses (correctives, teardown) are resolved via the §A send-resolution procedure in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`. On the live-mailbox main path every send is addressed to bare `teammate_name` directly — no handle-resolution step, no cache.
-[DEGRADE] On a degraded host the `agent_id` fallback and `resolved_handle` cache apply instead — see §A-DEGRADE D1 in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
+  SKILL.md's spawn and revise failure branches point here rather than restating either half.
 
-## §1 — Anchored reply gate: corrective + escalation
+## Reply-contract correctives
 
-The anchored reply gate (SKILL.md Step 4) is the accept condition for EVERY planner reply in write-file mode (initial write, any retry, and every Step 7 revise redo). The gate definition stays in SKILL.md; this section is the failure handling.
+The accept rule (declared above, applied at SKILL.md Step 3) is the accept condition for EVERY planner reply in write-file mode: the initial write, any redo, and every Step 6 revise.
 
-On any body echo, added prose, preamble, or a different path: mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective message that carries the new id, addressed via the §A send-resolution procedure:
-
-```
-SendMessage({
-  to: <resolved via §A send-resolution procedure>,
-  summary: "Reply contract: WROTE: <id> <path> only — request <id>",
-  message: "<re-state: use Write or Edit to update the plan at the exact resolved path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else — no plan body, no prose, no preamble; id is <new request_id_counter value>>"
-})
-```
-
-**B2 note — initial corrective can be the FIRST lead→planner send:** in plan-loop the initial planner solicitation is the Agent SPAWN (not a lead→planner `SendMessage`). If the planner's initial `WROTE:` reply is malformed, or the plan file is missing or empty, THIS §1 corrective is the first lead→planner `SendMessage`. On the live-mailbox main path this corrective is addressed to bare `teammate_name` via §A R1 — no handle-resolution cache, no fallback handle. Do NOT claim correctives are by construction never the first send.
-[DEGRADE] On a degraded host this first corrective triggers §A-DEGRADE D1's bare-name→`teammate_id` fallback (since no prior D1 send has occurred, `resolved_handle` is still null). See §A-DEGRADE D1 in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
-
-If the next reply still fails the anchored gate → Step 8 teardown, then STOP (**"hyper-plan-loop reply-contract failure"**).
-
-**File check failure (only reached after the gate passes):** if `[ -s "<resolved plan path>" ]` shows the file missing or empty, this is a fresh solicitation — mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective message addressed via the §A send-resolution procedure:
+On any body echo, added prose, preamble, or a different path, send ONE corrective:
 
 ```
 SendMessage({
-  to: <resolved via §A send-resolution procedure>,
-  summary: "File not written — re-Write at exact path — request <id>",
-  message: "<the file at <resolved plan path> is missing or empty; use Write to write the full plan to that exact path; reply with exactly 'WROTE: <id> <that exact path>' and nothing else; id is <new request_id_counter value>>"
+  to: "<agent_id>",
+  summary: "Reply contract: WROTE: <path> only",
+  message: "<re-state: use Write or Edit to update the plan at the exact resolved path; reply with exactly 'WROTE: <that exact path>' and nothing else — no plan body, no prose, no preamble>"
 })
 ```
 
-Its reply re-enters the anchored gate (§E Phase 2, expecting the new `expected_request_id`). If it is still missing or empty after that → Step 8 teardown, then STOP (**"hyper-plan-loop planner-write failure"**).
+If the next reply still fails the accept rule → STOP (**"hyper-plan-loop reply-contract failure"**).
 
-## §2 — Lead-side unsolicited-message protocol
+**File check failure (only reached after the accept rule passes):** if `[ -s "<resolved plan path>" ]` shows the file missing or empty, send ONE corrective:
 
-See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §B — Unsolicited-message protocol skeleton. The plan-loop binds `<loop-bound reply-token>` = `WROTE: <id> <path>` and `<loop-name>` = `hyper-plan-loop`. The full interplay-with-§E paragraph (Phase 1 / Phase 2 routing for `WROTE:` traffic vs. non-`WROTE:` traffic) is in shared §B; do not duplicate it here.
-[DEGRADE] On a degraded run the planner's reply arrives as the planner's task-completion result (read per §A-DEGRADE D2 in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`), NOT as unsolicited mailbox traffic — a D2-read reply is never routed through the §B idle-correction.
+```
+SendMessage({
+  to: "<agent_id>",
+  summary: "File not written — re-Write at exact path",
+  message: "<the file at <resolved plan path> is missing or empty; use Write to write the full plan to that exact path; reply with exactly 'WROTE: <that exact path>' and nothing else>"
+})
+```
 
-## §3 — Revise-validation redo pipeline (Step 7 failure handling)
+Its reply re-enters the accept rule. If the file is still missing or empty after that → STOP (**"hyper-plan-loop planner-write failure"**).
+
+## Revise-validation redo pipeline (SKILL.md Step 6 failure handling)
 
 The lead never Reads the plan body into its context here (that would reintroduce the token cost this skill is designed to avoid). Validation is filesystem-level only.
 
-**The ordered pipeline** every revise reply must pass (this order is named inline in SKILL.md Step 7): (1) **id-first parse** (§E Phase 2 — parse `reqid`, classify against `expected_request_id`) → (2) **anchored reply gate** (§1, exact-path + no-prose check) → (3) **structure `ok`/`bad` check**. Note: id-first parse is the FIRST operation of the anchored reply gate (Step 4 / §E Phase classification), so §3's three-step granular naming and SKILL.md Step 7's two-step naming ("(1) anchored reply gate (Step 4) → (2) structure check") describe the SAME pipeline. The `bad`/malformed corrective redo re-enters this FULL pipeline from step (1) in this exact order. A redo is never "just the gate", a partial check, or id-skipping. The retry budget: exactly ONE corrective redo, then STOP via Step 8 teardown — and that single redo must pass the full pipeline.
+**The ordered pipeline** every revise reply must pass (named inline in SKILL.md Step 6): (1) **accept rule** → (2) **structure `ok`/`bad` check**. A corrective redo re-enters the FULL pipeline in that same order — never "just the structure check". The retry budget: exactly ONE corrective redo, then STOP — and that single redo must pass the full pipeline.
 
-There is no no-op / unchanged-plan detection. A planner that replies `WROTE:` but applies no real revision is bounded by the Step 8 cap (the loop re-reviews and re-revises until convergence or the cap, then STOPs with the cap report) — this is intentionally not a separate failure path.
+There is no no-op / unchanged-plan detection. A planner that replies `WROTE:` but applies no real revision is bounded by the Step 7 cap (the loop re-reviews and re-revises until convergence or the cap, then STOPs with the cap report) — this is intentionally not a separate failure path.
 
-**Gate failure in Step 7:** apply §1 (initial corrective + escalation to **"hyper-plan-loop reply-contract failure"** via Step 8 teardown if it still fails).
+**Accept-rule failure in Step 6:** apply the corrective + escalation above (escalating to **"hyper-plan-loop reply-contract failure"** if it still fails).
 
-**Structure check (step 2 of the pipeline):** the SKILL.md one-liner prints only `ok` or `bad`. The try/catch in it is load-bearing: any read failure (the planner deleted or clobbered the canonical path) prints `bad` instead of throwing — so a missing/unreadable file routes through the corrective path here, not to teardown as an unexpected tool error.
+**Structure check (step 2 of the pipeline):** the SKILL.md one-liner prints only `ok` or `bad`. The try/catch in it is load-bearing: any read failure (the planner deleted or clobbered the canonical path) prints `bad` instead of throwing — so a missing/unreadable file routes through the corrective path here, not out as an unexpected tool error.
 
-If `bad` (the planner clobbered the canonical path with malformed content, OR the file is missing/unreadable): mint a new id per `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E's mint protocol, then send ONE corrective `SendMessage` (with `summary: "... request <id>"`) instructing the planner to redo the revision and re-Write (or Edit) the exact resolved plan path, passing the new id and requiring `WROTE: <that new id> <exact resolved path>`. That corrective's reply re-enters the FULL pipeline from step (1): id-first parse → anchored reply gate → structure `ok`/`bad` check — the gate now expects that NEWEST `expected_request_id`. If the redo is still `bad` at the structure step → Step 8 teardown, then STOP (**"hyper-plan-loop planner format, iter N"**), surfacing the resolved plan path for manual triage. The loop does NOT auto-restore — the plan file is left as the planner last wrote it; `/hyperclaude:hyper-plan` regenerates it in one step. Only Read the full file into lead context for that human-facing failure diagnostic — never on the success path.
+If `bad` (the planner clobbered the canonical path with malformed content, OR the file is missing/unreadable): send ONE corrective `SendMessage` to `agent_id` instructing the planner to redo the revision and re-Write (or Edit) the exact resolved plan path, requiring a reply of exactly `WROTE: <that exact path>`. That corrective's reply re-enters the FULL pipeline: accept rule → structure `ok`/`bad` check. If the redo is still `bad` at the structure step → STOP (**"hyper-plan-loop planner format, iter N"**), surfacing the resolved plan path for manual triage. The loop does NOT auto-restore — the plan file is left as the planner last wrote it; `/hyperclaude:hyper-plan` regenerates it in one step. Only Read the full file into lead context for that human-facing failure diagnostic — never on the success path.
 
-On `ok`: Step 7 increments the iteration, re-invokes the bridge with `--resume auto`, then loops back to Step 6.
+On `ok`: Step 6 increments the iteration, re-invokes the bridge with `--resume auto`, then loops back to Step 5.
 
-## §5 — Anti-patterns (plan-loop specific)
+## Anti-patterns (plan-loop specific)
 
-The cross-loop anti-patterns (reviewer-is-team-agent, re-spawning fresh, skipping teardown, reusing request_id, checking accept rule before classifying reqid, comparing reqid while not awaiting, treating payload-less idle as failure, inlining §E into SKILL.md) live in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §D.
+The cross-loop anti-patterns (passing `name:` at spawn, re-spawning fresh each round, reviewer-as-agent, inlining the shared contract) live in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
 
 Plan-loop-specific:
 
 - Accepting an existing-plan-path argument. Not a v1 input mode — `$ARGUMENTS` is a task description only.
 - Writing `<plan>-v2.md` (or any) sibling files. Always overwrite the same plan path; `--resume` keys on it.
 - Reading the plan body into lead context each revise round. Use the quiet `ok`/`bad` check — Read-caching the body reintroduces the token cost this skill removes.
-- Accepting any non-`WROTE:` reply (body echo, prose, preamble, wrong path) as success. The anchored gate is exact-match only.
-- Proceeding to Codex review on a `bad` (malformed) just-written file instead of running the §3 corrective + terminal STOP first.
-- Writing the wrong base path. The resolved plan path is a Step 1 concept; Step 2 is the teammate availability check only — never derive the path from Step 2.
-- Treating non-blocking findings as revise targets. Step 6 classifies by **meaning** (correctness, wrong paths, broken ordering, unverifiable steps, missing required behavior) — pure style nits, vague "consider X" suggestions, and prose-polish do NOT gate the loop regardless of which severity word Codex attached. Trust the meaning judgment; do not invent revisions for non-blocking findings.
+- Accepting any non-`WROTE:` reply (body echo, prose, preamble, wrong path) as success. The accept rule is exact-match only.
+- Proceeding to Codex review on a `bad` (malformed) just-written file instead of running the revise-validation corrective + terminal STOP first.
+- Writing the wrong base path. The resolved plan path is a Step 1 concept — the spawn passes it to the planner verbatim; never re-derive it in a later step.
+- Treating non-blocking findings as revise targets. SKILL.md Step 5 classifies by **meaning** (correctness, wrong paths, broken ordering, unverifiable steps, missing required behavior) — pure style nits, vague "consider X" suggestions, and prose-polish do NOT gate the loop regardless of which severity word Codex attached. Trust the meaning judgment; do not invent revisions for non-blocking findings.
 - Omitting `--plan-path` or `--resume auto` on iteration 2+. `--plan-path` is required every iteration; `--resume auto` from iteration 2 onward.
-- Stopping silently at the cap. Always emit the named cap report (after teardown).
+- Stopping silently at the cap. Always emit the named cap report.
 - Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.
-
-## §6 — Request-id state machine
-
-See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` §E. Plan-loop's bindings for the binding holes (reply-token shape, accept rule, post-acceptance validation stage) are declared in the "Binding declarations" section at the top of this file.
