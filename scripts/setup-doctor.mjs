@@ -157,22 +157,32 @@ export function evalCodexSearch(sentinel) {
 }
 
 /**
- * Evaluate the CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS env var check.
- * Pure — performs no env read (caller passes the value).
- * @param {string|undefined} envValue - process.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
+ * Evaluate the Claude Code version check from a sentinel object.
+ * Reports the known-good floor for the *-loop skills' background-agent transport.
+ * Pure — performs no spawn.
+ * @param {{ kind: "ok"|"enoent"|"timeout"|"error-exit"|"error", output?: string, status?: number }} sentinel
  * @returns check result object
  */
-export function evalAgentTeams(envValue) {
-  const name = 'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1';
-  const required = '=1';
+export function evalClaudeCodeVersion(sentinel) {
+  const name = 'Claude Code >= 2.1.232 (loop transport floor)';
+  const required = '>= 2.1.232';
   const remediation =
-    'Set CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 to enable /hyperclaude:hyper-plan-loop, /hyperclaude:hyper-implement-loop, /hyperclaude:hyper-docs-loop, and /hyperclaude:hyper-auto (which chains hyper-plan-loop → hyper-implement-loop) — the loops now require this at teammate spawn; there is no longer a create-tool fallback that surfaces unavailability (optional — the research→plan→implement flow works without it).';
-  if (envValue === '1') {
-    return { name, detected: '1', required, status: 'PASS', severity: 'conditional', remediation };
-  }
-  const detected = (envValue === undefined || envValue === '') ? '<unset>' : envValue;
+    'Upgrade Claude Code to >= 2.1.232 for /hyperclaude:hyper-plan-loop, /hyperclaude:hyper-implement-loop, /hyperclaude:hyper-docs-loop, and /hyperclaude:hyper-auto (which chains hyper-plan-loop → hyper-implement-loop): that release is the known-good floor for their background-agent transport — a spawned agent runs in the background and its final text arrives as the task-notification <result> the loops read. Reported only, nothing blocks on it; the research→plan→implement flow works regardless.';
   // severity 'conditional' is intentional — aggregate() only blocks on 'hard'
-  return { name, detected, required, status: 'WARN', severity: 'conditional', remediation };
+  const base = { name, required, severity: 'conditional', remediation };
+  const floor = [2, 1, 232];
+
+  // Anything short of a parseable version reads as unknown, never a throw.
+  if (sentinel.kind !== 'ok') {
+    return { ...base, detected: '<unknown>', status: 'WARN' };
+  }
+  const parsed = parseSemver(sentinel.output ?? '');
+  if (!parsed) {
+    return { ...base, detected: '<unknown>', status: 'WARN' };
+  }
+  const pass = cmpSemver(parsed, floor) >= 0;
+  const detected = `${parsed[0]}.${parsed[1]}.${parsed[2]}`;
+  return { ...base, detected, status: pass ? 'PASS' : 'WARN' };
 }
 
 // ---------- aggregate ----------
@@ -247,10 +257,16 @@ function main() {
     const codexSearchSentinel = buildSentinel(codexSearchResult);
     const codexSearchCheck = evalCodexSearch(codexSearchSentinel);
 
-    // Check 5: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
-    const agentTeamsCheck = evalAgentTeams(process.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS);
+    // Check 5: Claude Code >= 2.1.232 (floor for the *-loop skills' background-agent transport)
+    const claudeResult = spawnSync('claude', ['--version'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      maxBuffer: 1 << 20,
+    });
+    const claudeSentinel = buildSentinel(claudeResult);
+    const claudeCodeCheck = evalClaudeCodeVersion(claudeSentinel);
 
-    const checks = [nodeCheck, codexCheck, gitCheck, codexSearchCheck, agentTeamsCheck];
+    const checks = [nodeCheck, codexCheck, gitCheck, codexSearchCheck, claudeCodeCheck];
     const result = aggregate(checks);
 
     process.stdout.write(JSON.stringify({ ok: result.ok, checks: result.checks }) + '\n');

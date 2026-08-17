@@ -157,7 +157,7 @@ if out=$(node scripts/setup-doctor.mjs 2>&1); then
     // Cross-check mirror: these names MUST match scripts/setup-doctor.mjs exactly.
     // Duplication is intentional — a rename in the doctor with no smoke update is a test failure.
     const expectedNames = [
-      "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1",
+      "Claude Code >= 2.1.232 (loop transport floor)",
       "Node.js >= 18",
       "codex-cli >= 0.130.0 (version floor only)",
       "codex --search (global flag, pre-subcommand)",

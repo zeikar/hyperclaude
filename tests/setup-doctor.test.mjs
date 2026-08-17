@@ -10,7 +10,7 @@ import {
   evalCodex,
   evalGit,
   evalCodexSearch,
-  evalAgentTeams,
+  evalClaudeCodeVersion,
   aggregate,
 } from '../scripts/setup-doctor.mjs';
 
@@ -232,27 +232,42 @@ test('evalCodexSearch: {kind:"enoent"} → hard FAIL, detected "not found"', () 
   assert.equal(r.detected, 'not found');
 });
 
-// ---------- evalAgentTeams ----------
+// ---------- evalClaudeCodeVersion ----------
 
-test('evalAgentTeams: "1" → PASS, severity NOT hard', () => {
-  const r = evalAgentTeams('1');
+test('evalClaudeCodeVersion: {kind:"ok",output:"2.1.232 (Claude Code)"} (at floor) → PASS, severity NOT hard', () => {
+  const r = evalClaudeCodeVersion({ kind: 'ok', output: '2.1.232 (Claude Code)', status: 0 });
   assert.equal(r.status, 'PASS');
   assert.equal(r.severity, 'conditional');
-  assert.equal(r.detected, '1');
+  assert.equal(r.detected, '2.1.232');
 });
 
-test('evalAgentTeams: undefined → WARN, severity "conditional", detected "<unset>"', () => {
-  const r = evalAgentTeams(undefined);
-  assert.equal(r.status, 'WARN');
+test('evalClaudeCodeVersion: {kind:"ok",output:"2.2.0 (Claude Code)"} (above floor) → PASS', () => {
+  const r = evalClaudeCodeVersion({ kind: 'ok', output: '2.2.0 (Claude Code)', status: 0 });
+  assert.equal(r.status, 'PASS');
   assert.equal(r.severity, 'conditional');
-  assert.equal(r.detected, '<unset>');
+  assert.equal(r.detected, '2.2.0');
 });
 
-test('evalAgentTeams: "" (empty string) → WARN, severity "conditional", detected "<unset>"', () => {
-  const r = evalAgentTeams('');
+// Numeric comparison, not string: a lexical compare would rank "2.1.9" above "2.1.232" and PASS here.
+test('evalClaudeCodeVersion: {kind:"ok",output:"2.1.9 (Claude Code)"} (below floor) → WARN, severity "conditional"', () => {
+  const r = evalClaudeCodeVersion({ kind: 'ok', output: '2.1.9 (Claude Code)', status: 0 });
   assert.equal(r.status, 'WARN');
   assert.equal(r.severity, 'conditional');
-  assert.equal(r.detected, '<unset>');
+  assert.equal(r.detected, '2.1.9');
+});
+
+test('evalClaudeCodeVersion: {kind:"enoent"} (claude not on PATH) → WARN, severity "conditional", detected "<unknown>"', () => {
+  const r = evalClaudeCodeVersion({ kind: 'enoent' });
+  assert.equal(r.status, 'WARN');
+  assert.equal(r.severity, 'conditional');
+  assert.equal(r.detected, '<unknown>');
+});
+
+test('evalClaudeCodeVersion: {kind:"ok",output:"no version here"} (unparseable) → WARN, detected "<unknown>"', () => {
+  const r = evalClaudeCodeVersion({ kind: 'ok', output: 'no version here', status: 0 });
+  assert.equal(r.status, 'WARN');
+  assert.equal(r.severity, 'conditional');
+  assert.equal(r.detected, '<unknown>');
 });
 
 // ---------- aggregate ----------
@@ -263,20 +278,20 @@ test('aggregate: one hard FAIL → ok === false', () => {
     evalCodex({ kind: 'ok', output: 'codex-cli 0.130.0', status: 0 }),        // PASS
     evalGit({ kind: 'ok', output: 'git version 2.39.5', status: 0 }),         // PASS
     evalCodexSearch({ kind: 'ok', output: '', status: 0 }),                   // PASS
-    evalAgentTeams('1'),                                                       // PASS
+    evalClaudeCodeVersion({ kind: 'ok', output: '2.1.232', status: 0 }),      // PASS
   ];
   const result = aggregate(checks);
   assert.equal(result.ok, false);
   assert.deepEqual(result.checks, checks);
 });
 
-test('aggregate: all hard checks PASS, agent-teams WARNs → ok === true', () => {
+test('aggregate: all hard checks PASS, Claude Code below floor WARNs → ok === true', () => {
   const checks = [
     evalNode('18.20.0'),                                                       // PASS
     evalCodex({ kind: 'ok', output: 'codex-cli 0.130.0', status: 0 }),        // PASS
     evalGit({ kind: 'ok', output: 'git version 2.39.5', status: 0 }),         // PASS
     evalCodexSearch({ kind: 'ok', output: '', status: 0 }),                   // PASS
-    evalAgentTeams(undefined),                                                 // WARN conditional
+    evalClaudeCodeVersion({ kind: 'ok', output: '2.1.9', status: 0 }),        // WARN conditional
   ];
   const result = aggregate(checks);
   assert.equal(result.ok, true);
@@ -289,7 +304,7 @@ test('aggregate: codexSearch hard FAIL → ok === false', () => {
     evalCodex({ kind: 'ok', output: 'codex-cli 0.130.0', status: 0 }),        // PASS
     evalGit({ kind: 'ok', output: 'git version 2.39.5', status: 0 }),         // PASS
     evalCodexSearch({ kind: 'error-exit', status: 1 }),                       // hard FAIL
-    evalAgentTeams('1'),                                                       // PASS
+    evalClaudeCodeVersion({ kind: 'ok', output: '2.1.232', status: 0 }),      // PASS
   ];
   const result = aggregate(checks);
   assert.equal(result.ok, false);
