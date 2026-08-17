@@ -24,7 +24,7 @@ research → plan → plan-review → implement → code-review → docs-sync �
 Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex        user
 ```
 
-When the *idea itself* is vague (not just un-planned), an optional `hyper-interview` front-end clarifies it into a spec before `research` / `plan` — a short one-question-at-a-time interview, Claude-only (no Codex; clarity is its job, review happens downstream). The `refine` / `fix` arcs are what `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop` automate — a Claude-side teammate (`planner` / `fixer` / `documenter`) revises while Codex stays the reviewer, looping until no blocking findings remain. Gates write trace artifacts under `.hyperclaude/` (gitignore-friendly); `hyper-docs-sync`, `hyper-docs-loop`, and `hyper-implement` edit the working tree directly. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, slug/artifact conventions, and `--resume`.
+When the *idea itself* is vague (not just un-planned), an optional `hyper-interview` front-end clarifies it into a spec before `research` / `plan` — a short one-question-at-a-time interview, Claude-only (no Codex; clarity is its job, review happens downstream). The `refine` / `fix` arcs are what `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop` automate — a persistent Claude-side agent (`planner` / `fixer` / `documenter`) revises while Codex stays the reviewer, looping until no blocking findings remain. Gates write trace artifacts under `.hyperclaude/` (gitignore-friendly); `hyper-docs-sync`, `hyper-docs-loop`, and `hyper-implement` edit the working tree directly. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, slug/artifact conventions, and `--resume`.
 
 ## Full automation: `hyper-auto`
 
@@ -34,7 +34,7 @@ One gesture, end-to-end:
 /hyperclaude:hyper-auto add OAuth login to the API
 ```
 
-`hyper-auto` chains `hyper-plan-loop → hyper-implement-loop`. Claude plans, Codex critiques the plan until no blockers remain, Claude implements, Codex code-reviews until no blocking findings remain (style/nits are reported, never gating) — all hands-off. A clean composed exit closes with an auto-run `hyper-recap` write-up (Claude-only, no Codex). It's not a new layer, just composition over the two loops, so the same gates and artifacts apply. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (inherited from the underlying loops).
+`hyper-auto` chains `hyper-plan-loop → hyper-implement-loop`. Claude plans, Codex critiques the plan until no blockers remain, Claude implements, Codex code-reviews until no blocking findings remain (style/nits are reported, never gating) — all hands-off. A clean composed exit closes with an auto-run `hyper-recap` write-up (Claude-only, no Codex). It's not a new layer, just composition over the two loops, so the same gates and artifacts apply.
 
 ## Architecture
 
@@ -79,7 +79,7 @@ External dependencies: Claude Code plugin runtime, `codex-cli >= 0.130.0` with t
    /hyperclaude:hyper-setup
    ```
 
-   Checks Node, codex-cli, `codex --search`, git, and (optionally) `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` (needed by the loops and `hyper-auto`). Report-only; nothing is installed automatically.
+   Checks Node, codex-cli, `codex --search`, and git, and reports whether Claude Code is at `>= 2.1.232` — the known-good floor for the transport the loops and `hyper-auto` use. Report-only; nothing is installed automatically, and nothing gates on the version.
 
 3. Run the cycle. Invoke gates explicitly, or chain them with the loops:
 

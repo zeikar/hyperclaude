@@ -852,18 +852,18 @@ exercise after `git tag -a vX.Y.Z`, not a pre-tag gate:
      a plan-loop non-clean terminal (cap-reached with blocking still
      open, bridge failure, etc.) and confirm implement-loop is NOT
      invoked.
-     Verify the final report relays both phases' Step 9 facts (no
+     Verify the final report relays both phases' final-report facts (no
      invented fields), with the composed-flow exception: plan-loop's
      clean-exit "Next step: /hyperclaude:hyper-implement <plan path>"
      recommendation is suppressed (implement already ran in Step 3) so
      the surfaced next-step is the implement-loop's own guidance.
      On a clean composed exit (plan-loop clean AND implement-loop
-     Step-9 `fix(review):` convergence commit succeeded/skipped with a
+     Step-7 `fix(review):` convergence commit succeeded/skipped with a
      clean tree), verify hyper-auto invokes /hyperclaude:hyper-recap
      with the canonical plan path (NOT no-arg) BEFORE its final report,
      that the report carries the actual written recap path, and that
      the implement-loop's recap-recommendation bullet is no longer
-     relayed. On a FAILED Step-9 convergence commit, verify NO recap
+     relayed. On a FAILED Step-7 convergence commit, verify NO recap
      file is written, the report makes no recap-path claim, it emits
      the explicit `auto-recap skipped (<reason>)` line, and it does NOT
      relay the standalone recommendation. On either loop's cap/failure,

@@ -131,7 +131,7 @@ Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex   
           <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">fix</code> arcs are exactly what
           <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">hyper-plan-loop</code>,
           <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">hyper-implement-loop</code>, and
-          <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">hyper-docs-loop</code> automate &mdash; a Claude-side teammate
+          <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">hyper-docs-loop</code> automate &mdash; a persistent Claude-side agent
           (<code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">planner</code> /
           <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">fixer</code> /
           <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">documenter</code>) revises while Codex stays the reviewer,
@@ -234,8 +234,8 @@ Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex   
             </button>
           </div>
           <p class="mt-2 text-sm text-gray-500">
-            Checks Node 18+, codex-cli &ge; 0.130.0, the <code class="text-indigo-300 bg-gray-800 px-1 rounded">codex --search</code> global flag, git, and the optional
-            <code class="text-indigo-300 bg-gray-800 px-1 rounded">CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS</code> env var. Report-only; nothing is installed automatically.
+            Checks Node 18+, codex-cli &ge; 0.130.0, the <code class="text-indigo-300 bg-gray-800 px-1 rounded">codex --search</code> global flag, and git, and reports whether
+            Claude Code is at &ge; 2.1.232 &mdash; the known-good floor for the transport the loops use. Report-only; nothing is installed automatically, and nothing gates on the version.
           </p>
         </div>
 
@@ -280,7 +280,7 @@ Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex   
         <div class="rounded-xl border border-indigo-800 bg-indigo-950/40 p-5 sm:p-6">
           <p class="text-indigo-300 font-semibold text-base mb-2">v1.11 &mdash; the design has converged</p>
           <p class="text-gray-300 text-sm sm:text-base">
-            Dogfooded daily; the core surface (skills, bridge modes, artifact paths, frontmatter keys) is settled. Still pre-adoption, so breaking changes may ride a minor bump for now rather than a major one. The autonomous loops depend on Claude Code&rsquo;s experimental agent-teams feature &mdash; that one corner can shift upstream.
+            Dogfooded daily; the core surface (skills, bridge modes, artifact paths, frontmatter keys) is settled. Still pre-adoption, so breaking changes may ride a minor bump for now rather than a major one.
           </p>
         </div>
       </div>

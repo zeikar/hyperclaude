@@ -10,7 +10,7 @@ hyperclaude wires three things together:
 - **Agents** — sub-Claude personas with restricted tool sets. Each is one `<name>.md` under [agents/](../agents/).
 - **Bridge** — [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs), a Node 18+ stdlib script that shells out to `codex` and writes structured output under `.hyperclaude/`.
 
-There is no daemon, no MCP server, no shared process state — with three documented exceptions, all in the autonomous-loop family: `hyper-plan-loop` spawns a `planner` agent as a persistent team teammate (via Claude Code's experimental agent-teams feature) that retains context across revise iterations for the duration of the loop; `hyper-implement-loop` spawns a `fixer` agent as a persistent team teammate in the same way for its implement-hardening loop; and `hyper-docs-loop` spawns the `documenter` agent (the same agent `hyper-docs-sync` normally dispatches stateless-per-doc) as a persistent team teammate for its docs-hardening loop. In all three loops, every lead→teammate send runs the §A send-resolution procedure: the main path sends `to: teammate_name` (bare name) — the live mailbox routes it directly. Degraded-host addressing (`agent_id` fallback), notification-reply driving (condition (2) re-scoped to deterministic DRIVING), and no-wait degrade teardown are isolated in the removable `§A-DEGRADE` override in `references/loop-protocol.md`; nothing in the main path depends on them. `loop-protocol.md` also carries the shared **§F loop skeleton** — the common Step 0/2/4a/8 boilerplate and degrade-condition pointers — that the three loop SKILLs bind to by pointing at its named §F sub-blocks (F1–F5) rather than restating the prose (§F6 is the skeleton's own degrade-condition pointer to §A-DEGRADE D1/D2/D3 — the SKILLs reference §A-DEGRADE directly via their [DEGRADE] lines, not §F6); loop-specific reply-shape and validation still live in each loop's local `failure-protocol.md`. Conditions (1) and (3) (no usable handle) remain STOP. Teardown on the main path sends a `{ type: "shutdown_request" }` object to bare `teammate_name` best-effort once and does NOT wait for confirmation. In `hyper-plan-loop`, the persistent planner teammate also writes the plan file directly at the lead-resolved path (caller-directed write-file mode), eliminating per-iteration plan-body round-trips. This write-file behavior is scoped to `hyper-plan-loop`; the fixer in `hyper-implement-loop` and the documenter in `hyper-docs-loop` apply edits in place (no canonical output file) and deliver results via `SendMessage` — they do NOT use caller-directed write-file mode. Other agents' existing tool permissions and dispatch semantics are unchanged; stock `hyper-plan` still has the skill own the Write, and `hyper-docs-sync` still dispatches `documenter` stateless-per-doc in its UPDATE/CREATE mode. All other skills and agents are stateless and fresh-per-task. The bridge runs on demand; skills and agents are static markdown. The primary persisted state is `.hyperclaude/` artifacts — individual bridge invocations produce one markdown file each, read back by `--resume` for thread-id discovery; the default `hyper-research` invocation produces a Codex+Claude pair sharing one `slug:`, and loop skills accumulate multiple per-iteration artifacts.
+There is no daemon, no MCP server, no shared process state — with three documented exceptions, all in the autonomous-loop family: `hyper-plan-loop` spawns a `planner` agent that stays live for the duration of the loop and retains context across revise iterations; `hyper-implement-loop` spawns a `fixer` agent and `hyper-docs-loop` the `documenter` agent (the same agent `hyper-docs-sync` normally dispatches stateless-per-doc) the same way, except **lazily** — only on the first review round that carries blocking findings, so a run Codex clears on its first review keeps no live agent at all. All three spawn with NO `name:` field (a named spawn makes the agent a team member and the harness then drops the plugin agent definition — see [decisions.md](decisions.md)); the lead captures the returned `agentId` and addresses every later round with `SendMessage({ to: "<agentId>" })`, and each round's reply arrives as that background task's notification `<result>`. No team is formed, so there is no teardown step; a spawn that returns no usable id and a failed send are both STOPs. `references/loop-protocol.md` carries that shared spawn + reply-transport contract; loop-specific reply shape and validation live in each loop's local `failure-protocol.md`. In `hyper-plan-loop`, the live planner also writes the plan file directly at the lead-resolved path (caller-directed write-file mode), eliminating per-iteration plan-body round-trips. This write-file behavior is scoped to `hyper-plan-loop`; the fixer in `hyper-implement-loop` and the documenter in `hyper-docs-loop` apply edits in place (no canonical output file) and report through their reply — they do NOT use caller-directed write-file mode. Other agents' existing tool permissions and dispatch semantics are unchanged; stock `hyper-plan` still has the skill own the Write, and `hyper-docs-sync` still dispatches `documenter` stateless-per-doc in its UPDATE/CREATE mode. All other skills and agents are stateless and fresh-per-task. The bridge runs on demand; skills and agents are static markdown. The primary persisted state is `.hyperclaude/` artifacts — individual bridge invocations produce one markdown file each, read back by `--resume` for thread-id discovery; the default `hyper-research` invocation produces a Codex+Claude pair sharing one `slug:`, and loop skills accumulate multiple per-iteration artifacts.
 
 ## Directory layout
 
@@ -28,16 +28,16 @@ hyperclaude/
 │   ├── hyper-code-review/       gate — Codex code review
 │   ├── hyper-docs-sync/         gate — Claude doc sync orchestrator
 │   ├── hyper-docs-review/       gate — Codex doc accuracy review
-│   ├── hyper-plan-loop/         gate — autonomous plan-revise loop (persistent planner teammate)
-│   ├── hyper-implement-loop/    gate — autonomous implement-hardening loop (persistent fixer teammate)
-│   ├── hyper-docs-loop/         gate — autonomous docs-hardening loop (persistent documenter teammate)
+│   ├── hyper-plan-loop/         gate — autonomous plan-revise loop (live planner agent)
+│   ├── hyper-implement-loop/    gate — autonomous implement-hardening loop (lazily spawned fixer agent)
+│   ├── hyper-docs-loop/         gate — autonomous docs-hardening loop (lazily spawned documenter agent)
 │   ├── hyper-auto/              gate — chain plan-loop into implement-loop in one gesture
 │   ├── hyper-memory/            orchestration-only — extracts repo-local knowledge candidates (no Codex)
 │   ├── hyper-implement/         helper — plan execution loop
 │   ├── hyper-tdd/               helper — TDD discipline
 │   └── hyper-debug/             helper — debugging discipline
 ├── agents/                      sub-Claude personas (planner, implementer, verifier, documenter, researcher, fixer)
-├── references/                  plugin-wide reference content not owned by any single skill. loop-protocol.md — Step-0 base for hyper-plan-loop, hyper-implement-loop, and hyper-docs-loop; carries §A–§E for the agent-teams contract/state-machine PLUS the shared §F loop skeleton — Step 0/2/4a/8 boilerplate + degrade-condition pointers — that each SKILL binds by pointing at the named §F sub-blocks; the §A-DEGRADE section is the removable degraded-host override — see decisions.md 2026-06-21. review-brief.md — shared `--review-brief` composition rules (source/omission/bound/shell-safety), pointed at by hyper-plan-review, hyper-code-review, hyper-plan-loop, and hyper-implement-loop. bridge-review-calls.md — shared bridge stdout JSON envelope + `--resume` semantics + invocation mode (standalone gates background the spawn, loops don't), pointed at by hyper-plan-review, hyper-code-review, hyper-plan-loop, hyper-implement-loop, hyper-docs-review, and hyper-docs-loop
+├── references/                  plugin-wide reference content not owned by any single skill. loop-protocol.md — Step-0 base for hyper-plan-loop, hyper-implement-loop, and hyper-docs-loop; carries the shared spawn contract (no `name:`, address by returned agentId), the reply transport (the task notification's `<result>`), the corrective/transport-failure rules, and the cross-loop anti-patterns. review-brief.md — shared `--review-brief` composition rules (source/omission/bound/shell-safety), pointed at by hyper-plan-review, hyper-code-review, hyper-plan-loop, and hyper-implement-loop. bridge-review-calls.md — shared bridge stdout JSON envelope + `--resume` semantics + invocation mode (standalone gates background the spawn, loops don't), pointed at by hyper-plan-review, hyper-code-review, hyper-plan-loop, hyper-implement-loop, hyper-docs-review, and hyper-docs-loop
 ├── hooks/                       event-bound hook scripts
 │   ├── hooks.json               hook manifest (registered SessionStart + PostToolUse hooks)
 │   ├── session-start-reminder.mjs  SessionStart reminder (injects workflow-router template)
@@ -57,7 +57,7 @@ hyperclaude/
 │   ├── docs-review-resumed.md
 │   ├── code-review.md
 │   └── code-review-resumed.md
-├── templates/hooks/             hook prompt templates (SessionStart reads session-start-reminder.md, or -loop.md when agent-teams is on)
+├── templates/hooks/             hook prompt template (SessionStart reads session-start-reminder.md)
 ├── tests/                       node --test unit tests for the bridge
 ├── docs/                        this directory
 ├── README.md, LICENSE, .gitignore
@@ -80,15 +80,16 @@ Functional runtime surface stops at the directory above. Zero npm dependencies; 
    │ Agents (planner / implementer /  │  ← fresh sub-Claude per task,
    │   verifier / documenter /        │    restricted tool set
    │   researcher / fixer)            │    (exceptions: hyper-plan-loop keeps
-   │                                  │    planner as a live teammate via
-   │                                  │    experimental agent-teams; the planner
+   │                                  │    planner live across rounds, addressed
+   │                                  │    by its returned agentId; the planner
    │                                  │    also writes the plan file directly in
    │                                  │    caller-directed write-file mode.
-   │                                  │    hyper-implement-loop keeps fixer as a
-   │                                  │    live teammate; fixer edits in place,
-   │                                  │    no canonical output file.
-   │                                  │    hyper-docs-loop keeps documenter as a
-   │                                  │    live teammate; documenter edits in
+   │                                  │    hyper-implement-loop keeps fixer live
+   │                                  │    the same way, spawned lazily on the
+   │                                  │    first blocking round; fixer edits in
+   │                                  │    place, no canonical output file.
+   │                                  │    hyper-docs-loop keeps documenter live
+   │                                  │    the same way; documenter edits in
    │                                  │    place, no canonical output file)
    └──────────┬───────────────────────┘
               │ skills (not agents) shell out
@@ -111,7 +112,7 @@ Direction:
 - Skills are the only layer that shells out to the bridge. Agents stay focused on their narrow job.
 - The bridge is the only component that talks to `codex`. Skills never invoke `codex` directly.
 
-`hyper-setup` is an invoke-only skill, not a gate: its frontmatter carries `disable-model-invocation: true`, so it runs only on an explicit `/hyperclaude:hyper-setup` and is never auto-triggered by its description or preloaded into subagents. It runs `scripts/setup-doctor.mjs` — a standalone local probe that checks Node, codex-cli, git, and the agent-teams env var. `setup-doctor.mjs` is not part of the Codex bridge and never spawns Codex. (Historical note: hyper-setup was the plugin's one `commands/*.md` entry until Claude Code merged plugin commands into skills; the invoke-only guard now depends on a Claude Code that honors `disable-model-invocation`, present since ~v2.1.126 — see decisions.md.)
+`hyper-setup` is an invoke-only skill, not a gate: its frontmatter carries `disable-model-invocation: true`, so it runs only on an explicit `/hyperclaude:hyper-setup` and is never auto-triggered by its description or preloaded into subagents. It runs `scripts/setup-doctor.mjs` — a standalone local probe that checks Node, codex-cli, git, and reports the Claude Code version floor (`>= 2.1.232`) known good for the `*-loop` skills' background-agent transport. That last check is `conditional` severity: a below-floor or unknown version is a WARN that never flips the aggregate `ok`, and nothing in the plugin gates on it. `setup-doctor.mjs` is not part of the Codex bridge and never spawns Codex. (Historical note: hyper-setup was the plugin's one `commands/*.md` entry until Claude Code merged plugin commands into skills; the invoke-only guard now depends on a Claude Code that honors `disable-model-invocation`, present since ~v2.1.126 — see decisions.md.)
 
 ## The bridge
 
@@ -126,7 +127,7 @@ CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modu
 
 ### SessionStart hook
 
-The [SessionStart hook](../hooks/session-start-reminder.mjs) is template-driven: it reads a workflow-router template at runtime and injects its contents as `additionalContext`. Which template is **env-aware** — it matches setup-doctor's `=== '1'` check on `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`: when set, it reads the loop-first [templates/hooks/session-start-reminder-loop.md](../templates/hooks/session-start-reminder-loop.md) (the autonomous `*-loop` / `hyper-auto` skills become the default recommendation for non-trivial multi-step work, with single-step work still routed direct); otherwise it reads the manual-first [templates/hooks/session-start-reminder.md](../templates/hooks/session-start-reminder.md). Gating on the env var keeps the hook from steering a host without agent-teams toward skills that would immediately hit their fallback. If the selected template file is missing, the hook fails open and does not raise an error. This design allows the workflow reminder text to be edited without touching code.
+The [SessionStart hook](../hooks/session-start-reminder.mjs) is template-driven: it reads the loop-first workflow-router template [templates/hooks/session-start-reminder.md](../templates/hooks/session-start-reminder.md) at runtime — the single template, hardcoded — and injects its contents as `additionalContext`. The autonomous `*-loop` / `hyper-auto` skills are its default recommendation for non-trivial multi-step work, with single-step work still routed direct. If the template file is missing, the hook fails open and does not raise an error. This design allows the workflow reminder text to be edited without touching code.
 
 ### PostToolUse stamp hook
 

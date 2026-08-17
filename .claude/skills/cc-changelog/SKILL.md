@@ -70,7 +70,7 @@ checking the actual file):
 | Surface | What to check | Repo anchors |
 |---|---|---|
 | Hooks | `hooks.json` matcher semantics (hyphen/comma/regex), SessionStart & PostToolUse events, hook stderr/exit-code behavior | `hooks/hooks.json`, `hooks/*.mjs` |
-| Agent-teams loop protocol | `SendMessage` routing/name-reuse, idle & `Notification` semantics, teammate lifecycle/failure, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | `references/loop-protocol.md`, `skills/hyper-*-loop/**` |
+| Loop spawn/reply transport | background-agent spawn semantics for a no-`name:` `Agent` call, whether the final text still arrives as the task-notification `<result>`, `SendMessage` routing by returned `agentId`, subagent prompt-cache TTL, and any change to plugin-agent definition resolution (upstream #78234 / #81746) | `references/loop-protocol.md`, `skills/hyper-*-loop/**` |
 | Agent dispatch (non-loop) | `run_in_background` default, subagent depth cap, `Agent(type)` deny/allow rules, subagent model inheritance | `skills/hyper-implement/SKILL.md`, `skills/hyper-plan`, `hyper-tdd`, `hyper-debug`, `hyper-research`, `hyper-docs-sync` |
 | Skill/agent/command frontmatter | `name`/`description`/`metadata.*` parsing, kebab/snake/camel, malformed-YAML handling, slash-command loading | `skills/**/SKILL.md`, `agents/*.md`, `commands/*.md` |
 | Codex bridge / Bash spawn | anything changing how `Bash` spawns or sandboxes child processes (Codex is external, but the bridge is spawned via Bash) | `scripts/codex-bridge.mjs`, `scripts/codex/*.mjs` |
