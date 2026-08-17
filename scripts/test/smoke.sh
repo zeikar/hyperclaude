@@ -255,6 +255,7 @@ for f in \
   skills/hyper-debug/SKILL.md \
   skills/hyper-implement/SKILL.md \
   skills/hyper-implement-loop/SKILL.md \
+  skills/hyper-implement-loop/references/failure-protocol.md \
   skills/hyper-auto/SKILL.md \
   skills/hyper-code-review/SKILL.md \
   skills/hyper-docs-sync/SKILL.md \
@@ -573,9 +574,9 @@ fi
 
 # Binding-hole invariant: the loop-agnostic loop-protocol.md must stay free of
 # any loop-specific reply token (e.g. plan-loop's 'WROTE:') — those belong only
-# in each loop's local failure-protocol.md. Checked over the whole file: the
-# §A-DEGRADE D2 example names plan-loop by role but no longer carries a literal
-# 'WROTE:' token, so the simple whole-file check holds.
+# in each loop's local failure-protocol.md. The complement — each loop's own
+# files DO carry their reply token — is asserted in the reply-token binding
+# block below.
 if ! grep -q "WROTE:" "$shared_proto" 2>/dev/null; then
   ok "shared loop-protocol: 'WROTE:' token absent (binding-hole invariant)"
 else
@@ -611,16 +612,111 @@ else
 fi
 
 echo
+echo "==> no-name agentId spawn invariants"
+
+# Each loop spawns its agent by subagent_type with NO `name:` field, then
+# addresses every later round by the returned agentId. A named spawn makes the
+# agent a team member and the harness drops the plugin agent definition (tools:
+# allowlist lost, ~18KB skill listing re-attached per round, prompt cache
+# invalidated). The paired PRESENT/ABSENT checks catch a regression in either
+# direction: losing the subagent_type spawn, or reintroducing `name:`.
+for pair in \
+  "skills/hyper-plan-loop/SKILL.md:planner" \
+  "skills/hyper-implement-loop/SKILL.md:fixer" \
+  "skills/hyper-docs-loop/SKILL.md:documenter"
+do
+  loop_skill="${pair%:*}"
+  loop_role="${pair##*:}"
+  if grep -q "subagent_type: \"hyperclaude:$loop_role\"" "$loop_skill" 2>/dev/null; then
+    ok "$loop_skill: spawns subagent_type \"hyperclaude:$loop_role\""
+  else
+    miss "$loop_skill: missing subagent_type \"hyperclaude:$loop_role\" spawn"
+  fi
+  # Quoted or unquoted. Not vacuous: each SKILL's own frontmatter carries a
+  # `name: hyper-*-loop` line, which this role-scoped pattern never matches.
+  if ! grep -qE "name:[[:space:]]*\"?$loop_role\"?" "$loop_skill" 2>/dev/null; then
+    ok "$loop_skill: no 'name: $loop_role' spawn field (agent is not a team member)"
+  else
+    miss "$loop_skill: 'name: $loop_role' present — a named spawn drops the agent definition"
+  fi
+done
+
+# The agent-teams machinery these loops were converted off must stay deleted:
+# the AGENT_TEAMS env gate, the [DEGRADE] override block, the shutdown/teardown
+# step, the request-id handshake counters, and bare-`teammate_name` mailbox
+# addressing. Every `§` in these files was a cross-reference into those deleted
+# sections, so a stray § means old protocol text came back with it.
+for f in \
+  skills/hyper-plan-loop/SKILL.md \
+  skills/hyper-plan-loop/references/failure-protocol.md \
+  skills/hyper-implement-loop/SKILL.md \
+  skills/hyper-implement-loop/references/failure-protocol.md \
+  skills/hyper-docs-loop/SKILL.md \
+  skills/hyper-docs-loop/references/failure-protocol.md \
+  references/loop-protocol.md
+do
+  if ! grep -qE 'AGENT_TEAMS|\[DEGRADE\]|shutdown_request|request_id_counter|solicit_sent_at|teammate_name|request-id:' "$f" 2>/dev/null; then
+    ok "$f: no agent-teams machinery tokens (AGENT_TEAMS/[DEGRADE]/shutdown_request/counters/teammate_name/request-id:)"
+  else
+    miss "$f: agent-teams machinery token reintroduced: $(grep -oE 'AGENT_TEAMS|\[DEGRADE\]|shutdown_request|request_id_counter|solicit_sent_at|teammate_name|request-id:' "$f" 2>/dev/null | sort -u | tr '\n' ' ')"
+  fi
+  if ! grep -q '§' "$f" 2>/dev/null; then
+    ok "$f: no '§' section references (deleted protocol sections stay deleted)"
+  else
+    miss "$f: '§' section reference present — points at a deleted protocol section"
+  fi
+done
+
+# The reply transport is the spawned task's notification <result>, not a mailbox
+# read. The shared protocol is the one place that names it.
+if grep -q 'notification `<result>`' "$shared_proto" 2>/dev/null; then
+  ok "shared loop-protocol: names the task-notification \`<result>\` reply transport"
+else
+  miss "shared loop-protocol: does not name the task-notification \`<result>\` reply transport"
+fi
+
+echo
+echo "==> loop reply-token binding invariants"
+
+# Complement of the binding-hole check above: the token the shared protocol must
+# NOT carry is exactly the token each loop's own SKILL + failure-protocol pair
+# MUST carry, so the loop-bound reply shape has a home.
+for f in \
+  skills/hyper-plan-loop/SKILL.md \
+  skills/hyper-plan-loop/references/failure-protocol.md
+do
+  if grep -q "WROTE:" "$f" 2>/dev/null; then
+    ok "$f: carries the plan-loop 'WROTE:' reply token"
+  else
+    miss "$f: missing the plan-loop 'WROTE:' reply token"
+  fi
+done
+
+for f in \
+  skills/hyper-implement-loop/SKILL.md \
+  skills/hyper-implement-loop/references/failure-protocol.md \
+  skills/hyper-docs-loop/SKILL.md \
+  skills/hyper-docs-loop/references/failure-protocol.md
+do
+  if grep -q "files-changed:" "$f" 2>/dev/null; then
+    ok "$f: carries the structured-schema 'files-changed:' reply field"
+  else
+    miss "$f: missing the structured-schema 'files-changed:' reply field"
+  fi
+done
+
+echo
 echo "==> Summary"
 echo "  passed: $pass"
 echo "  failed: $fail"
 echo
 cat <<'NOTE'
 ====================================================================
-REQUIRED MANUAL ACCEPTANCE BEFORE SHIPPING A RELEASE
+POST-RELEASE DOGFOODING CHECKLIST
 --------------------------------------------------------------------
-This script's automated checks alone are NOT sufficient to ship a
-release. Before `git tag -a vX.Y.Z`, you MUST also:
+The checks above cover structure, not behavior. Behavioral acceptance
+happens by dogfooding the RELEASED plugin — so these are the flows to
+exercise after `git tag -a vX.Y.Z`, not a pre-tag gate:
 
   1. Install the plugin from a fresh Claude Code session:
        /plugin marketplace add <this repo URL or local path>
@@ -695,95 +791,64 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
 
   8. Run:
        /hyperclaude:hyper-plan-loop <small task>
-     If agent teams are available: verify the plan file is written BY
-     THE PLANNER itself at the lead-resolved path under
-     .hyperclaude/plans/ (the lead never Writes it), that planner
-     replies are `WROTE: <reqid> <path>`-only (the planner echoes the
-     lead-supplied id verbatim, the id increments across revise and
-     corrective rounds) with no plan body echoed and no
-     "RESEND:"/duplicate-body churn between revise rounds, that at
-     least one Codex plan-review runs, and the loop reaches a terminal
-     state (clean exit, iteration cap, or controlled failure) bounded
-     by the review cap, ending after a best-effort `shutdown_request`
-     (the loop does NOT wait for shutdown confirmation; the teammate is
-     auto-cleaned on session exit).
-     Confirm lead→teammate messages on the main path route by bare
-     `teammate_name` via the mailbox; the `agent_id` fallback is the
-     §A-DEGRADE override (not the main-path address). Confirm that on a
-     degraded host: condition (1)/(3) degrade (bare-name send failed and
-     no fallback teammate_id was captured, or both bare name and
-     teammate_id exhausted) STOPs WITHOUT a teardown attempt; condition
-     (2) (the teammate replies via its task result, not the mailbox)
-     deterministically DRIVES via §A-DEGRADE D2 — same §E
-     id-classification + the loop-bound anchored-reply gate, only the
-     reply read-source differs — NOT a STOP.
-     If agent teams are unavailable: verify it prints the documented
-     graceful-fallback message and leaves no team behind.
-     One branch always applies — this check is required either way.
+     Verify the planner is spawned by `subagent_type` with NO `name:`
+     field, that the plan file is written BY THE PLANNER itself at the
+     lead-resolved path under .hyperclaude/plans/ (the lead never
+     Writes it), and that the spawn's reply arrives as that task's
+     `<result>` and is `WROTE: <path>`-only — no plan body echoed, no
+     preamble.
+     Verify each later revise round goes out as a `SendMessage` to the
+     agentId the spawn returned, that the planner still holds its
+     planning context (it revises in place without being re-sent the
+     task or the research), that at least one Codex plan-review runs,
+     and that the loop reaches a terminal state (clean exit, review
+     cap, or controlled failure) bounded by the 10-review cap.
+     Verify NO shutdown or teardown message is sent — no team is
+     formed, so the background agent is cleaned up on session exit.
 
   9. Run:
        /hyperclaude:hyper-implement-loop <path-to-plan>
-     If agent teams are available: verify that after `hyper-implement`
-     completes ALL plan tasks, the bridge is invoked once for a Codex
-     `code-review --base main`, then the fixer↔code-review loop runs,
-     that the fixer agent applies Codex findings via a semantic
-     finding-map (not a raw diff), that the loop is bounded by the
-     review cap (6 total Codex reviews maximum), and that the loop
-     reaches a terminal state (clean exit on no blocking findings, or
-     the 6-review cap reached), ending after a best-effort
-     `shutdown_request` (the loop does NOT wait for shutdown
-     confirmation; the teammate is auto-cleaned on session exit). If
-     degrade happens AFTER `hyper-implement` ran, verify the
-     already-committed implementation is preserved (degrade is not a
-     clean no-op in that case). Confirm lead→teammate messages on the
-     main path route by bare `teammate_name` via the mailbox; the
-     `agent_id` fallback is the §A-DEGRADE override (not the main-path
-     address). Confirm that on a degraded host: condition (1)/(3)
-     degrade (bare-name send failed and no fallback teammate_id was
-     captured, or both bare name and teammate_id exhausted) STOPs
-     WITHOUT a teardown attempt; condition (2) (the fixer replies via
-     its task result, not the mailbox) deterministically DRIVES via
-     §A-DEGRADE D2 — same §E id-classification + the loop-bound
-     anchored-reply gate — NOT a STOP.
-     If agent teams are unavailable: verify it prints the documented
-     graceful-fallback message and leaves no team behind.
-     One branch always applies — this check is required either way.
+     Verify that after `hyper-implement` completes ALL plan tasks, the
+     bridge is invoked once for a Codex `code-review --base main`, and
+     that the fixer is spawned by `subagent_type` with NO `name:` field
+     — lazily, only on the FIRST round carrying blocking findings (a run
+     Codex clears on iteration 1 spawns no fixer at all). Verify the
+     fixer applies Codex findings via a semantic finding-map (not a raw
+     diff) and that its reply arrives as that task's `<result>` carrying
+     the structured per-finding schema (`finding:` / `status:` /
+     `files-changed:` / `verification:` / `notes:`).
+     Verify each later fix round goes out as a `SendMessage` to the
+     returned agentId with the fixer's context retained, that the loop
+     is bounded by the 6-review cap, that it reaches a terminal state
+     (clean exit on no blocking findings, or the cap), and that NO
+     shutdown or teardown message is sent.
+     If a transport failure STOPs the loop after `hyper-implement` ran,
+     verify the already-committed implementation is preserved and
+     reported (that STOP is not a clean no-op).
 
   9b. Run:
        /hyperclaude:hyper-docs-loop docs/
-     If agent teams are available: verify the documenter is spawned
-     once as a teammate, that Codex docs-review runs against
-     `--docs-dir docs/` on each iteration, that ONLY blocking
-     `### Findings` items drive fix rounds (Gaps / Broken Or Suspect
-     Links / Cross-Doc Inconsistencies are reported but never sent to
-     the documenter), that documenter replies are prefixed with
-     `request-id: <integer>` and carry the per-finding structured
-     schema (`finding:` / `status:` / `files-changed:` / `verification:`
-     / `notes:`), and that the loop reaches a terminal state bounded by
-     the 6-review cap, ending after a best-effort `shutdown_request`
-     (the loop does NOT wait for shutdown confirmation; the teammate is
-     auto-cleaned on session exit).
-     Confirm lead→teammate messages on the main path route by bare
-     `teammate_name` via the mailbox; the `agent_id` fallback is the
-     §A-DEGRADE override (not the main-path address). Confirm that on a
-     degraded host: condition (1)/(3) degrade (bare-name send failed and
-     no fallback teammate_id was captured, or both bare name and
-     teammate_id exhausted) STOPs WITHOUT a teardown attempt; condition
-     (2) (the documenter replies via its task result, not the mailbox)
-     deterministically DRIVES via §A-DEGRADE D2 — same §E
-     id-classification + the loop-bound anchored-reply gate — NOT a
-     STOP.
-     If agent teams are unavailable: verify it prints the documented
-     graceful-fallback message and leaves no team behind.
-     One branch always applies — this check is required either way.
+     Verify Codex docs-review runs against `--docs-dir docs/` on each
+     iteration, that ONLY blocking `### Findings` items drive fix rounds
+     (Gaps / Broken Or Suspect Links / Cross-Doc Inconsistencies are
+     reported but never sent to the documenter), and that the documenter
+     is spawned by `subagent_type` with NO `name:` field — lazily, only
+     on the first round carrying blocking findings.
+     Verify its reply arrives as that task's `<result>` carrying the
+     per-finding structured schema (`finding:` / `status:` /
+     `files-changed:` / `verification:` / `notes:`), that each later
+     round goes out as a `SendMessage` to the returned agentId with
+     context retained, that the loop reaches a terminal state bounded by
+     the 6-review cap, and that NO shutdown or teardown message is
+     sent.
 
   10. Run:
        /hyperclaude:hyper-auto <small task description>
-     If agent teams are available: verify that the skill chains
-     hyper-plan-loop → hyper-implement-loop in one gesture — plan-loop
-     runs to terminal state first, and ONLY a clean exit (no blocking
-     findings) advances into implement-loop with the canonical plan
-     path. Verify the safety boundary: artificially induce or simulate
+     Verify that the skill chains hyper-plan-loop → hyper-implement-loop
+     in one gesture — plan-loop runs to terminal state first, and ONLY a
+     clean exit (no blocking findings) advances into implement-loop with
+     the canonical plan path.
+     Verify the safety boundary: artificially induce or simulate
      a plan-loop non-clean terminal (cap-reached with blocking still
      open, bridge failure, etc.) and confirm implement-loop is NOT
      invoked.
@@ -803,8 +868,6 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      the explicit `auto-recap skipped (<reason>)` line, and it does NOT
      relay the standalone recommendation. On either loop's cap/failure,
      verify no recap runs.
-     If agent teams are unavailable: verify the inherited graceful
-     fallback fires before any inner loop spawns a team.
 
   11. Run (in a fresh Claude Code session):
        /hyperclaude:hyper-setup
@@ -812,7 +875,7 @@ release. Before `git tag -a vX.Y.Z`, you MUST also:
      pass/fail table with remediation lines for any non-PASS check,
      and writes NO file under .hyperclaude/ (report-only, not a gate).
 
-If any of the above fails, STOP and fix before shipping.
+Whatever a dogfood run turns up is input to the next cycle.
 ====================================================================
 NOTE
 
