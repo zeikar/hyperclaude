@@ -64,4 +64,4 @@ notes: <reason>   # REQUIRED when status: not-applicable
 
 No diff dump. End with a one-line summary of all findings processed this round.
 
-This agent stays alive as a teammate and retains context between rounds.
+This agent retains context across rounds whenever the dispatching skill keeps it alive.
