@@ -42,7 +42,7 @@ Read the resolved plan's opening lines. If the file begins with a YAML frontmatt
 
 Read the plan with the Read tool. Extract every `## Task N: <title>` section with its full text — files-to-create/modify, step-by-step checkboxes, verification commands, commit message.
 
-Use TodoWrite to create a todo per task. Mark the first as `in_progress`.
+Track progress in the plan file itself — step 3.5 marks each task's checkboxes `- [x]` as it completes. That file is the only progress record the loop keeps, so it survives context loss.
 
 ### Step 2.5 — Clean-tree preflight, then create / switch to the feature branch
 
@@ -106,7 +106,7 @@ For EACH task in order:
 
 4. **Verifier — when tests or build steps changed.** If the task added or modified test files (`tests/**`, `*.test.*`, `*.spec.*`) or build/CI configuration (`package.json` scripts, smoke script, CI workflow), dispatch `subagent_type: hyperclaude:verifier`, **`run_in_background: false`** (its PASS/FAIL gates the commit). Verifier runs `node --test`, `bash scripts/test/smoke.sh`, lint, etc. and reports PASS / PARTIAL / FAIL with verbatim output. Verifier never modifies files. Skip the verifier when the task didn't touch tests or build inputs — the spec/quality reviews above already cover code correctness.
 
-5. **Mark the task's step checkboxes as `- [x]` in the plan file.** After both reviews approve, use the Edit tool to convert every `- [ ]` inside the current `## Task N: <title>` block to `- [x]`. Scope is the task block only — leave other tasks' boxes alone. This keeps the plan file's checkbox state the durable source of "what's done" — survives context loss and lets a resumed session see exactly which tasks remain. Do this BEFORE the commit/TodoWrite updates so the durable artifact lands first.
+5. **Mark the task's step checkboxes as `- [x]` in the plan file.** After both reviews approve, use the Edit tool to convert every `- [ ]` inside the current `## Task N: <title>` block to `- [x]`. Scope is the task block only — leave other tasks' boxes alone. This keeps the plan file's checkbox state the durable source of "what's done" — survives context loss and lets a resumed session see exactly which tasks remain. Do this BEFORE the commit so the durable artifact lands first.
 
 6. **Commit the task (the lead commits — never the implementer).** Only after spec ✅ + quality ✅ (+ verifier PASS when it ran):
 
@@ -123,7 +123,7 @@ For EACH task in order:
    - Record the resulting commit SHA (`git rev-parse HEAD`) for the final summary.
    - Never push. Never tag here (tags only per Step 4, still user-pushed).
 
-7. **Mark task complete in TodoWrite.** Move on.
+7. **Move on to the next task.**
 
 ### Step 4 — Final pass
 
