@@ -125,7 +125,7 @@ The `prompt` string MUST contain:
 Failure handling — `hyper-implement` has already committed the implementation by this point, so both branches are side-effect-aware STOPs per the transport-failure declaration in `references/failure-protocol.md`:
 
 - **Spawn fails outright** → nothing ran, so this run produced no fix edits. STOP per that declaration.
-- **Spawn returns no usable `agent_id`** → the spawn prompt carried this round's findings, so the fixer may already have applied them. Treat the tree as potentially mutated. STOP per that same declaration.
+- **Spawn returns no usable `agent_id`, or fails ambiguously** → the spawn prompt carried this round's findings, so the fixer may already have applied them. Treat the tree as potentially mutated. STOP per that same declaration.
 
 **Later rounds — reuse the live fixer.** Send the round's blocking findings to the captured `agent_id`:
 

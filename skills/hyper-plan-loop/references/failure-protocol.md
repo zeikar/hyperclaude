@@ -53,7 +53,7 @@ There is no no-op / unchanged-plan detection. A planner that replies `WROTE:` bu
 
 **Accept-rule failure in Step 6:** apply the corrective + escalation above (escalating to **"hyper-plan-loop reply-contract failure"** if it still fails).
 
-**Structure check (step 2 of the pipeline):** the SKILL.md one-liner prints only `ok` or `bad`. The try/catch in it is load-bearing: any read failure (the planner deleted or clobbered the canonical path) prints `bad` instead of throwing — so a missing/unreadable file routes through the corrective path here, not out as an unexpected tool error.
+**Structure check (stage 2 of the pipeline):** the SKILL.md one-liner prints only `ok` or `bad`. The try/catch in it is load-bearing: any read failure (the planner deleted or clobbered the canonical path) prints `bad` instead of throwing — so a missing/unreadable file routes through the corrective path here, not out as an unexpected tool error.
 
 If `bad` (the planner clobbered the canonical path with malformed content, OR the file is missing/unreadable): send ONE corrective `SendMessage` to `agent_id` instructing the planner to redo the revision and re-Write (or Edit) the exact resolved plan path, requiring a reply of exactly `WROTE: <that exact path>`. That corrective's reply re-enters the FULL pipeline: accept rule → structure `ok`/`bad` check. If the redo is still `bad` at the structure step → STOP (**"hyper-plan-loop planner format, iter N"**), surfacing the resolved plan path for manual triage. The loop does NOT auto-restore — the plan file is left as the planner last wrote it; `/hyperclaude:hyper-plan` regenerates it in one step. Only Read the full file into lead context for that human-facing failure diagnostic — never on the success path.
 
