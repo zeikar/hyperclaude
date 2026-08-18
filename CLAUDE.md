@@ -94,6 +94,7 @@ All four modes use a fresh prompt template (`code-review` uses `templates/codex/
 | `scripts/memory/extract.mjs` | `docs/architecture.md`, `docs/development.md`, `docs/gates-and-agents.md` |
 | `skills/hyper-memory/SKILL.md` | `docs/gates-and-agents.md`, `docs/workflow.md`, `README.md` |
 | `skills/hyper-recap/SKILL.md` | `docs/gates-and-agents.md`, `docs/workflow.md`, `docs/architecture.md`, `README.md`, `site/index.html` |
+| transcript-derived cost / cache findings (no code file) | `docs/measurements.md` — add an entry only when a later reader would otherwise re-run the measurement; the conclusion still goes in `docs/decisions.md` |
 
 Behavioral surface changes (CLI flags, frontmatter keys, output paths, mode names) should also propagate to `README.md` and `docs/workflow.md` if the change is user-visible.
 
@@ -127,4 +128,5 @@ When the user asks to release, run the whole flow end to end — don't stop afte
 - [docs/gates-and-agents.md](docs/gates-and-agents.md) — per-skill / per-agent mechanics.
 - [docs/workflow.md](docs/workflow.md) — research → ship cycle, skip rules, `--resume` semantics.
 - [docs/decisions.md](docs/decisions.md) — non-obvious "why" notes and active deferrals.
+- [docs/measurements.md](docs/measurements.md) — numbers backing a decision that would be costly to re-derive; shared method + gotchas.
 - [docs/development.md](docs/development.md) — local install, tests, full release checklist.
