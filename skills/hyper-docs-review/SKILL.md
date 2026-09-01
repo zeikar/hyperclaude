@@ -5,7 +5,7 @@ description: Use after documentation edits — typically after the documenter ag
 
 # hyper-docs-review
 
-Documentation accuracy gate. Sends docs (one or more files, or a directory) to Codex for critique focused on: drift between docs and code, missing coverage, broken or suspect links, contradictions between docs, in-doc duplicated claims (redundancy).
+Documentation accuracy gate. Sends docs (one or more files, or a directory) to Codex for critique focused on: drift between docs and code, missing coverage, broken or suspect links, contradictions between docs, in-doc duplicated or appended-beside claims (redundancy).
 
 ## When to use
 
@@ -109,7 +109,7 @@ Docs-review files have YAML frontmatter:
 
 Followed by sections: `### Findings`, `### Gaps`, `### Broken Or Suspect Links`, `### Cross-Doc Inconsistencies`, `### Verdict`.
 
-Each `### Findings` item includes severity (Blocker / Major / Minor), doc path, quoted stale claim, code evidence, and recommended edit. Redundancy findings replace the stale claim and code evidence with the duplicated claim (quoted once) and every location where it appears.
+Each `### Findings` item includes severity (Blocker / Major / Minor), doc path, quoted stale claim, code evidence, and recommended edit. Redundancy findings replace the stale claim and code evidence with the duplicated claim (quoted once; both passages for a qualifier-beside case) and every location where it appears.
 
 ## Distinction
 
@@ -118,4 +118,4 @@ Each `### Findings` item includes severity (Blocker / Major / Minor), doc path, 
 - `/hyperclaude:hyper-code-review` — Codex critiques code diffs
 - `/hyperclaude:hyper-plan-review` — Codex critiques implementation plans
 
-Scope is STRICT: accuracy / drift / completeness / broken links / cross-doc inconsistencies / redundancy (in-doc duplicated claims — reported Minor; deliberate cross-doc propagation exempt). NOT style or prose quality — that's the documenter agent's domain.
+Scope is STRICT: accuracy / drift / completeness / broken links / cross-doc inconsistencies / redundancy (in-doc duplicated or appended-beside claims — reported Minor; deliberate cross-doc propagation exempt). NOT style or prose quality — that's the documenter agent's domain.

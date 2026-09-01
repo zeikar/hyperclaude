@@ -156,7 +156,7 @@ Default: top-level `.md` files in `docs/`. Variants:
 /hyperclaude:hyper-docs-review README.md docs/workflow.md site/index.html  # multiple named files, any type (each maps to its own --docs-path)
 ```
 
-Writes `.hyperclaude/docs-reviews/<timestamp>-<slug>.md`. Scope is strict: accuracy / drift / completeness / broken links / cross-doc inconsistencies / redundancy (in-doc duplicated claims, reported Minor; deliberate cross-doc propagation exempt). NOT prose or style — the documenter agent owns those.
+Writes `.hyperclaude/docs-reviews/<timestamp>-<slug>.md`. Scope is strict: accuracy / drift / completeness / broken links / cross-doc inconsistencies / redundancy (in-doc duplicated or appended-beside claims, reported Minor; deliberate cross-doc propagation exempt). NOT prose or style — the documenter agent owns those.
 
 Fix accuracy issues before merging or shipping.
 

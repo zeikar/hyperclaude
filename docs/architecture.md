@@ -174,7 +174,7 @@ Defaults:
 
 When either flag is passed the selection tokens are inserted into the semantic argv **after** the subcommand and **before** `--sandbox read-only` (fresh) or before `-c sandbox_mode=read-only` (resume), preserving the [sandbox invariant](#sandbox-policy) in all cases.
 
-`--background <text>` (code-review fresh only): an optional free-text field describing what changed and why. The bridge renders it into the `{{REVIEW_BACKGROUND}}` slot of the fresh `code-review` prompt template (slot added in v3; the template is now at v4). When absent the slot renders as an empty string (no-op). When present the bridge injects a fenced `### Change context` block marked as untrusted DATA (with a fence-collision guard) plus a static template instruction to treat it as data, not instructions. Rejected with an error if `--resume` is also passed.
+`--background <text>` (code-review fresh only): an optional free-text field describing what changed and why. The bridge renders it into the `{{REVIEW_BACKGROUND}}` slot of the fresh `code-review` prompt template (slot added in v3; the template is now at v5). When absent the slot renders as an empty string (no-op). When present the bridge injects a fenced `### Change context` block marked as untrusted DATA (with a fence-collision guard) plus a static template instruction to treat it as data, not instructions. Rejected with an error if `--resume` is also passed.
 
 `--review-brief <text>` (`plan-review` and `code-review`): an optional caller-composed summary of the user's stated requirements and approved decisions, so Codex stops flagging the user's own approved asks as scope creep. It renders (via `renderReviewBriefBlock()`, sharing the `--background` `escapeCodeFence` guard) into the `{{REVIEW_BRIEF}}` slot present on ALL FOUR review prompts — fresh AND resumed, for both modes — as a fenced `### Review brief` block marked DATA-not-instructions. It carries bounded authority: it may say "this was requested, don't flag it," but each template's guardrail paragraph independently forbids it from waiving correctness/security/data-loss findings. The brief is persisted as the `review-brief:` frontmatter scalar and auto-carried on `--resume` (read back as the prior artifact's brief); a supplied flag OVERRIDES the carried value. Unlike `--background` it is deliberately ALLOWED with `--resume`, and a SUPPLIED brief survives a `--resume auto` → fresh fallback. One honest gap: if the flag is OMITTED on a resumed round whose `auto` resolution falls back to fresh, that round carries no brief (a skipped candidate artifact never contributes its brief to a fresh spawn). It is caller-composed — written by Claude, never labelled user-authored; source rules live in [references/review-brief.md](../references/review-brief.md).
 
@@ -191,7 +191,7 @@ slug: <kebab-case>
 generated: <ISO-8601 timestamp>
 plugin-version: <hyperclaude version of the loaded copy that ran, or "unknown">
 codex-version: <semver from `codex --version`>
-template-version: <N>                  # from the fresh template's own frontmatter — research: 1, docs-review: 2, plan-review: 3, code-review: 4
+template-version: <N>                  # from the fresh template's own frontmatter — research: 1, docs-review: 3, plan-review: 3, code-review: 5
 task: |-                               # research / plan-review only — block scalar
   <task text or plan path>
 cwd: "<absolute path>"                 # always

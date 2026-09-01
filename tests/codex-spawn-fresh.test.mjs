@@ -702,7 +702,7 @@ test('mock codex: docs-review --docs-path spawns codex exec --sandbox read-only 
       const outputContent = readFileSync(outputPath, 'utf8');
       assert.ok(outputContent.startsWith('---\n'), 'output should start with YAML frontmatter');
       assert.ok(outputContent.includes('mode: docs-review'), 'frontmatter should contain mode: docs-review');
-      assert.ok(outputContent.includes('template-version: 2'), 'frontmatter should contain template-version: 2');
+      assert.ok(outputContent.includes('template-version: 3'), 'frontmatter should contain template-version: 3');
       assert.ok(outputContent.includes('docs-target:'), 'frontmatter should contain docs-target:');
       assert.ok(outputContent.includes('### Findings'), 'body should include fake codex output');
       assert.ok(outputContent.includes('codex-input-tokens: 7'), 'frontmatter has codex-input-tokens');

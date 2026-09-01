@@ -160,7 +160,7 @@ test('resume happy path: docs-review --resume <prev> spawns exec resume and writ
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 2,
+        'template-version': 3,
         'codex-thread-id': 'thread-resume-1',
         'codex-resume-status': 'fresh',
       });
@@ -314,7 +314,7 @@ test('resume size-budget exceeded (200KB docs payload on resume) → ok:false, f
         slug: 'big',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 2,
+        'template-version': 3,
         'codex-thread-id': 'thread-budget',
         'codex-resume-status': 'fresh',
       });
@@ -365,7 +365,7 @@ test('resume spawn fails (codex exits 7) → status resume-failed, failure body 
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 2,
+        'template-version': 3,
         'codex-thread-id': 'thread-spawnfail',
         'codex-resume-status': 'fresh',
       });
@@ -415,7 +415,7 @@ test('resume auto honors --out: discovers prior under custom dir, not the defaul
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 2,
+        'template-version': 3,
         'codex-thread-id': 'thread-from-custom-dir',
         'codex-resume-status': 'fresh',
       });
@@ -533,7 +533,7 @@ test('resume happy path: code-review --resume <prev> spawns exec resume and writ
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 4,
+        'template-version': 5,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-1',
@@ -597,7 +597,7 @@ test('resume explicit-path mismatch (base-ref differs) → ok:false, no new arti
       const prior = path.join(outDir, '20260510-1015-vs-feature-x.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 4,
+        'template-version': 5,
         cwd: process.cwd(),
         'base-ref': 'feature-x',
         'codex-thread-id': 'thread-cr-x',
@@ -681,7 +681,7 @@ test('resume spawn fails (codex exits 7) → code-review status resume-failed, f
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 4,
+        'template-version': 5,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-fail',
@@ -748,7 +748,7 @@ test('fresh code-review still works without --resume: resumeStatus fresh in JSON
       const fm = parseFrontmatter(outputContent);
       assert.equal(fm['codex-resume-status'], 'fresh', 'frontmatter codex-resume-status should be fresh');
       // Fresh path reads the live templates/codex/code-review.md and emits its version.
-      assert.equal(fm['template-version'], '4', 'fresh code-review must emit the current code-review template-version');
+      assert.equal(fm['template-version'], '5', 'fresh code-review must emit the current code-review template-version');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
@@ -769,7 +769,7 @@ test('resume preserves thread id when thread.started is omitted from codex outpu
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 4,
+        'template-version': 5,
         cwd: process.cwd(),
         'base-ref': 'main',
         'codex-thread-id': 'thread-cr-1',
@@ -929,7 +929,7 @@ test('resume override: --review-brief beats the prior code-review artifact brief
       const prior = path.join(outDir, '20260510-1015-vs-main.md');
       writePriorArtifact(prior, {
         mode: 'code-review',
-        'template-version': 4,
+        'template-version': 5,
         cwd: process.cwd(),
         'base-ref': 'main',
         'review-brief': briefA,
@@ -1423,7 +1423,7 @@ test('resume auto over dir whose only docs-review artifact is OLD-VERSION → fr
       const outputContent = readFileSync(json.path, 'utf8');
       const fm = parseFrontmatter(outputContent);
       assert.equal(fm['codex-resume-status'], 'fallback', 'frontmatter codex-resume-status should be fallback');
-      assert.equal(fm['template-version'], '2', 'fresh fallback must emit the current docs-review template-version');
+      assert.equal(fm['template-version'], '3', 'fresh fallback must emit the current docs-review template-version');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
@@ -1457,7 +1457,7 @@ test('resume model/effort mismatch → fresh-spawn fallback (auto, no matching c
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 2,
+        'template-version': 3,
         'codex-thread-id': 'thread-resume-1',
         'codex-resume-status': 'fresh',
         'codex-model-requested': 'gpt-4',
@@ -1514,7 +1514,7 @@ test('resume auto skips mismatched newest artifact and resumes older matching on
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 2,
+        'template-version': 3,
         'codex-thread-id': 'thread-newer-mismatch',
         'codex-resume-status': 'fresh',
         'codex-model-requested': 'gpt-4',
@@ -1527,7 +1527,7 @@ test('resume auto skips mismatched newest artifact and resumes older matching on
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 2,
+        'template-version': 3,
         'codex-thread-id': 'thread-older-match',
         'codex-resume-status': 'fresh',
       });
