@@ -583,10 +583,41 @@ else
   miss "shared loop-protocol: 'WROTE:' token present (binding-hole invariant violated)"
 fi
 
-if grep -q '\${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md' skills/hyper-plan-loop/SKILL.md 2>/dev/null; then
-  ok "hyper-plan-loop SKILL.md: references shared loop-protocol at Step 0"
+# hyper-plan-loop drives its planner through the planner bridge (a persistent
+# `claude -p` session, 1h cache bucket), NOT the Agent-tool transport. These
+# assert the replacement rather than the thing it replaced.
+if grep -q "scripts/planner-bridge.mjs" skills/hyper-plan-loop/SKILL.md 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: drives the planner through the planner bridge"
 else
-  miss "hyper-plan-loop SKILL.md: does not reference shared loop-protocol"
+  miss "hyper-plan-loop SKILL.md: no planner-bridge invocation"
+fi
+
+if grep -qE "agent_id|SendMessage\\(" skills/hyper-plan-loop/SKILL.md 2>/dev/null; then
+  miss "hyper-plan-loop SKILL.md: stale Agent-tool transport reference (agent_id / SendMessage)"
+else
+  ok "hyper-plan-loop SKILL.md: no stale Agent-tool transport reference"
+fi
+
+if grep -q -- "--end" skills/hyper-plan-loop/SKILL.md 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: discards the planner session at the terminal step"
+else
+  miss "hyper-plan-loop SKILL.md: never ends the planner session (--end missing)"
+fi
+
+# A STOP after a failed --start must not run --end: on a key collision the
+# session belongs to another live run, and --end cannot check ownership.
+if grep -q "never runs \`--end\`" skills/hyper-plan-loop/references/failure-protocol.md 2>/dev/null; then
+  ok "hyper-plan-loop failure-protocol.md: a failed --start skips the STOP --end"
+else
+  miss "hyper-plan-loop failure-protocol.md: missing the failed---start --end exception"
+fi
+
+# Sessions key on the plan-file stem, not the slug: two tasks can derive the
+# same slug and would then resume each other's planner conversation.
+if grep -q -- "--workflow" skills/hyper-plan-loop/SKILL.md 2>/dev/null && ! grep -q -- "planner-bridge.mjs --slug" skills/hyper-plan-loop/SKILL.md 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: keys the planner session on --workflow, not the collidable slug"
+else
+  miss "hyper-plan-loop SKILL.md: planner session keyed on the slug (workflows can collide)"
 fi
 
 echo
@@ -620,8 +651,9 @@ echo "==> no-name agentId spawn invariants"
 # allowlist lost, ~18KB skill listing re-attached per round, prompt cache
 # invalidated). The paired PRESENT/ABSENT checks catch a regression in either
 # direction: losing the subagent_type spawn, or reintroducing `name:`.
+# hyper-plan-loop is deliberately absent: its planner runs as a planner-bridge
+# session, asserted above.
 for pair in \
-  "skills/hyper-plan-loop/SKILL.md:planner" \
   "skills/hyper-implement-loop/SKILL.md:fixer" \
   "skills/hyper-docs-loop/SKILL.md:documenter"
 do
@@ -799,20 +831,24 @@ exercise after `git tag -a vX.Y.Z`, not a pre-tag gate:
 
   8. Run:
        /hyperclaude:hyper-plan-loop <small task>
-     Verify the planner is spawned by `subagent_type` with NO `name:`
-     field, that the plan file is written BY THE PLANNER itself at the
-     lead-resolved path under .hyperclaude/plans/ (the lead never
-     Writes it), and that the spawn's reply arrives as that task's
-     `<result>` and is `WROTE: <path>`-only — no plan body echoed, no
+     Verify Step 2 starts the planner through
+     `scripts/planner-bridge.mjs --workflow <plan-file stem> --start`,
+     that a session id appears at
+     .hyperclaude/planner-sessions/<that stem>.id, and that the plan
+     file is written BY THE PLANNER itself at the lead-resolved path
+     under .hyperclaude/plans/ (the lead never Writes it), with the
+     envelope body `WROTE: <path>`-only — no plan body echoed, no
      preamble.
-     Verify each later revise round goes out as a `SendMessage` to the
-     agentId the spawn returned, that the planner still holds its
-     planning context (it revises in place without being re-sent the
-     task or the research), that at least one Codex plan-review runs,
-     and that the loop reaches a terminal state (clean exit, review
-     cap, or controlled failure) bounded by the 10-review cap.
-     Verify NO shutdown or teardown message is sent — no team is
-     formed, so the background agent is cleaned up on session exit.
+     Verify each later revise round calls the bridge with the SAME
+     --workflow key and comes back with "resumed":true, that the
+     planner still holds its planning context (it revises in place
+     without being re-sent the task or the research), that at least
+     one Codex plan-review runs, and that the loop reaches a terminal
+     state (clean exit, review cap, or controlled failure) bounded by
+     the 10-review cap.
+     Verify the terminal step runs `--end` and the session id file is
+     gone afterwards, and that a STOP on a failed --start does NOT
+     run --end. Ctrl-C mid-round should leave no session file behind.
 
   9. Run:
        /hyperclaude:hyper-implement-loop <path-to-plan>

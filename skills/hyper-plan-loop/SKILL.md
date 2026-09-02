@@ -18,18 +18,18 @@ Skip when:
 
 ## Failure & recovery protocol — read first
 
-`${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` carries the shared cross-loop protocol: **Spawn contract**, **Reply transport**, **Correctives and transport failures**, **Shared anti-patterns**. `references/failure-protocol.md` (sibling of this file) is the plan-loop binding layer: it names this loop's reply shape (`WROTE: <path>`), the exact-path accept rule, the post-acceptance file/structure validation, the named reports, and what a transport failure preserves. Step 0 makes Reading BOTH mandatory before the loop starts.
+`references/failure-protocol.md` (sibling of this file) is this loop's complete binding layer: the planner backend, the reply shape (`WROTE: <path>`), the exact-path accept rule, the post-acceptance file/structure validation, the named reports, and what a transport failure preserves. Step 0 makes Reading it mandatory before the loop starts. The cross-loop `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` governs the `Agent`-tool transport and does not apply here — this loop's planner is a `claude -p` bridge session.
 
-## Spawn & reply transport
+## Planner session & reply transport
 
-See `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` — **Spawn contract** for the `Agent` / `SendMessage` argument shapes, **Reply transport** for how each round's reply reaches the lead. Loop-specific bindings:
+The planner is a persistent `claude -p` session driven by `scripts/planner-bridge.mjs` (Step 2 starts it, every later call for the same `--workflow` key resumes it, Step 8 ends it). Each round's reply comes back synchronously in the bridge envelope's `body`. Loop-specific bindings:
 
 - **Plan ownership:** the planner writes the canonical plan file itself via caller-directed write-file mode (its Step 2 prompt carries the exact resolved path). The lead never Writes or Reads the plan body on the normal path — it does only a quiet `ok`/`bad` structure check, and only Reads the body for human-facing failure diagnostics. Every write-file-mode reply (initial write, corrective redo, revise) is gated to `WROTE: <path>`-only (Step 3 accept rule).
 
 The lead must retain the following run-state across turns:
 
 - `plan_path` — the resolved canonical plan path from Step 1.
-- `agent_id` — the id returned by the Step 2 spawn, captured verbatim; the address for every later round.
+- `workflow_key` — the resolved plan path's basename without `.md`, passed as `--workflow` on every bridge call. The session id itself lives in `.hyperclaude/planner-sessions/<workflow_key>.id`, owned by the bridge, never in lead run-state.
 - `review_iteration` — the Codex bridge re-invocation count the Step 7 cap bounds.
 - `review_brief_file` — the scratchpad path holding the composed review brief (Step 1), or `null` when no admissible source exists. Retained across turns; distinct from the shell variable `BRIEF_FILE` assigned from it in each Step 4/6 bridge Bash call.
 
@@ -45,7 +45,9 @@ The lead must retain the following run-state across turns:
 
 ### Step 0 — Read the failure & recovery protocol
 
-Read BOTH files before spawning: `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` (the shared spawn + reply transport) AND `references/failure-protocol.md` (sibling of this file — the plan-loop binding: reply shape, accept rule, validation stages, named reports, transport-failure declaration).
+Read `references/failure-protocol.md` (sibling of this file — the plan-loop binding: reply shape, accept rule, validation stages, named reports, transport-failure declaration) before starting the planner.
+
+The cross-loop `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` does NOT bind this loop: its planner runs as a persistent `claude -p` session through the planner bridge, not as an `Agent`-tool agent, so there is no `name:`-less spawn, no `agentId`, and no task-notification reply to govern. `hyper-implement-loop` and `hyper-docs-loop` still use that transport.
 
 ### Step 1 — Resolve task + slug + plan path
 
@@ -64,37 +66,34 @@ Reuse the stock `hyper-plan` logic — see `skills/hyper-plan/SKILL.md` Steps 1�
 
 4. **Compose the review brief (or record `null`).** Compose per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`. The admissible source here is `$ARGUMENTS` (the user's own task text) and decisions the user explicitly approved in this conversation — **never** the planner's plan output (Step 6 revises the plan every round; re-deriving the brief from it would let the planner bless its own scope additions). Record the resulting scratchpad path as `review_brief_file`, or `null` if no admissible source exists.
 
-### Step 2 — Spawn the planner
+### Step 2 — Start the planner session
 
-Use the Agent tool with NO `name:` field. The full contract text below goes in the `prompt:` string (a populated `prompt` field — not a separate message):
+The planner runs as a persistent `claude -p` session through the planner bridge — one session per planning workflow, keyed by the Step 1 plan-file stem — rather than as an `Agent`-tool subagent. That is what puts its prompt cache in the 1-hour TTL bucket, so the context survives the multi-minute Codex review between rounds; a subagent writes a 5-minute bucket that every review boundary outlives.
 
+`Write` the contract string to a file in the session scratchpad (outside the repo, never `echo`, no hardcoded literal path), assign its path to `PROMPT_FILE` in the SAME Bash invocation as the bridge call, then invoke via the Bash tool:
+
+```bash
+PROMPT_FILE='<scratchpad path, POSIX-escaped — every embedded ' becomes '\''>'
+node "${CLAUDE_PLUGIN_ROOT}/scripts/planner-bridge.mjs" --workflow "<plan-file stem from Step 1>" --start --prompt-file "$PROMPT_FILE"
 ```
-Agent({
-  subagent_type: "hyperclaude:planner",
-  prompt: "<the contract string assembled from the bullets below>"
-})
-```
 
-The `prompt` string MUST contain:
+The key is the resolved plan path's basename without `.md`, and the bare slug will not do: two different tasks can derive the same slug, which would then resume each other's conversation. The bridge mints and atomically reserves the key on this `--start` call and resumes it on every later call (which omit `--start`), so the lead carries no session id in run-state. A `--start` whose key is already taken FAILS rather than joining that session — two planning tasks in one conversation would let either one's `--end` close the other — and a continue with no session fails rather than running a findings-only prompt in a fresh planner. It prints exactly ONE JSON object: `{"ok":true,...,"resumed":false,"body":"<the planner's reply>"}` on success, `{"ok":false,"error":"..."}` on failure. Parse it strictly — any extra non-whitespace around it is a parse failure, surfaced verbatim.
+
+The contract string MUST contain:
 
 - **Task** — verbatim.
 - **Research context** — full contents of ALL matched research artifacts inline (there may be a Codex + Claude pair), if any were found in Step 1, each labelled with its exact repo path so the planner can cite it. Do not make the planner re-read them.
 - **Output format** — a multi-task plan with `## Task N: <title>` headings. Each task block: **Files to create / modify** (exact paths), **Steps** (`[ ]`-checkboxes, 2–5 min each), **Verification** (a command or observable change), **Commit message** (one line, conventional-commits). No frontmatter — plan body only; the skill owns the file name.
 - **Write-file mode** — the exact resolved plan path from Step 1, stated literally, with an explicit instruction: use the `Write` tool to write the full plan to THAT EXACT path yourself (never a different path, never a `-v2.md` sibling), then reply with exactly `WROTE: <that exact path>` as your FINAL TEXT and NOTHING else — no plan body, no summary of changes, no preamble. This applies identically to every later round's reply.
-- State that the planner stays live between rounds, will receive Codex feedback in later turns, and must retain its full planning context.
+- State that this session persists across rounds, will receive Codex feedback in later turns, and must retain its full planning context.
 
-**After the `Agent(...)` call** — capture the returned `agent_id` verbatim into run-state; it addresses every later round.
-
-Failure handling:
-
-- **Spawn fails** → nothing ran this round. STOP per the transport-failure declaration in `references/failure-protocol.md`.
-- **Spawn returns no usable `agent_id`** → the planner may still have written the plan (the spawn prompted the write). STOP per that same declaration.
+Failure handling: an `ok:false` envelope, a non-zero exit, or unparseable stdout → STOP per the transport-failure declaration in `references/failure-protocol.md`.
 
 ### Step 3 — Confirm the planner wrote the plan
 
 The lead never Writes the plan — the planner writes the canonical file itself (caller-directed write-file mode, Step 2). The lead only verifies.
 
-Read the reply from the spawn's `<result>` (on a later round, from that round's `<result>`).
+Read the planner's reply from the bridge envelope's `body` field (on a later round, from that round's envelope).
 
 **Accept rule** — applies to EVERY planner reply in write-file mode (the initial write, any corrective redo, and every Step 6 revise): the trimmed reply must match `^WROTE: <exact resolved plan path from Step 1>\s*$`, where the path is the entire remaining string, verbatim. Any body echo, added prose, preamble, or a different path → corrective + escalation per `references/failure-protocol.md` (**Reply-contract correctives**).
 
@@ -137,19 +136,18 @@ First check the cap: if the iteration counter is already at 10 (10 total Codex r
 
 The lead never Reads the plan body into its context here (that would reintroduce the token cost this skill is designed to avoid). Validation is filesystem-level only.
 
-Send the blocking findings to the still-live planner:
+Send the blocking findings to the same planner session — `Write` them to a NEW scratchpad prompt file and call the bridge with the SAME `--workflow` key, which resumes the session:
 
-```
-SendMessage({
-  to: "<agent_id>",
-  summary: "Revise plan from Codex findings",
-  message: "<verbatim blocking findings + relevant ### Verdict text when it explains the required direction; instruct: first Read <the exact resolved plan path> to refresh, then re-read the files, symbols, and commands the findings cite (Read/Grep) — and for a finding that names none, the tasks it implicates and the code that would have to change — so each fix is checked against the tree rather than recalled, then revise THAT SAME path in place (Edit it, or re-Write it), fixing each finding at its source rather than rewording the sentence that triggered it, and without adding a changelog of the round or a reply to the reviewer; reply with exactly 'WROTE: <that exact path>' and nothing else — no plan body, no preamble>"
-})
+```bash
+PROMPT_FILE='<scratchpad path for this round's findings, POSIX-escaped>'
+node "${CLAUDE_PLUGIN_ROOT}/scripts/planner-bridge.mjs" --workflow "<plan-file stem from Step 1>" --prompt-file "$PROMPT_FILE"
 ```
 
-Read the reply from that round's `<result>`. A `SendMessage` that fails → STOP per the transport-failure declaration in `references/failure-protocol.md`.
+That file MUST carry: the verbatim blocking findings + relevant `### Verdict` text when it explains the required direction; and the instruction to first Read `<the exact resolved plan path>` to refresh, then re-read the files, symbols, and commands the findings cite (Read/Grep) — and for a finding that names none, the tasks it implicates and the code that would have to change — so each fix is checked against the tree rather than recalled, then revise THAT SAME path in place (Edit it, or re-Write it), fixing each finding at its source rather than rewording the sentence that triggered it, and without adding a changelog of the round or a reply to the reviewer; reply with exactly `WROTE: <that exact path>` and nothing else — no plan body, no preamble.
 
-Do NOT re-send the task or research — the planner still holds that context.
+Read the reply from that round's envelope `body`. An `ok:false` envelope → STOP per the transport-failure declaration in `references/failure-protocol.md`. The envelope's `resumed` MUST be `true` here; a `false` means the session was lost and the planner no longer holds the task — STOP under that same declaration rather than letting it re-plan from a findings-only prompt.
+
+Do NOT re-send the task or research — the session still holds that context.
 
 **Revise-validation** — every revise reply must pass, in order: (1) **accept rule** (Step 3) → (2) **structure `ok`/`bad` check**. The single-redo budget, corrective wording, and terminal STOP are specified in `references/failure-protocol.md` (**Revise-validation redo pipeline**) — follow it verbatim. The structure check is a one-liner that prints only `ok` or `bad`:
 
@@ -173,7 +171,15 @@ On cap-reached, emit the named-loop report (**"hyper-plan-loop revise loop"**) d
 
 (Cap is only reachable via Step 6, which only runs when the latest review had blocking findings — so cap-reached always means "blocking findings still open." A run where Codex returns non-blocking-only at any iteration exits cleanly via Step 5 before the cap can trip.)
 
-### Step 8 — Final report
+### Step 8 — Close the planner session, then report
+
+Both terminal outcomes that reach this step (converged, cap-reached) end the planning workflow, so discard its session (an `ok:false` here means the session file is still on disk — report it rather than claiming a clean close):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/planner-bridge.mjs" --workflow "<plan-file stem from Step 1>" --end
+```
+
+A STOP path does not reach this step, so it ends the session itself — see `references/failure-protocol.md`. A re-run resolves a NEW plan path (new timestamp, or a `-2` suffix) and therefore a new key, so a session left behind is one nothing can ever resume.
 
 Report:
 
@@ -188,7 +194,7 @@ Report:
 
 ## Anti-patterns
 
-Cross-loop invariants (passing `name:` at spawn, re-spawning each round, reviewer-as-agent, inlining the shared contract): see `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md` — **Shared anti-patterns**. Plan-loop-specific:
+Two cross-loop invariants apply in their bridge form: never start a second planner session for one workflow (the `--workflow` key is what keeps it to one), and never merge the reviewer and planner roles. Plan-loop-specific:
 
 - Reading the plan body into lead context each revise round, or accepting any non-`WROTE:` reply as success.
 - Writing `<plan>-v2.md` (or any) sibling files. Always overwrite the same plan path; `--resume` keys on it.

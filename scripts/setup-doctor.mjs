@@ -167,7 +167,7 @@ export function evalClaudeCodeVersion(sentinel) {
   const name = 'Claude Code >= 2.1.232 (loop transport floor)';
   const required = '>= 2.1.232';
   const remediation =
-    'Upgrade Claude Code to >= 2.1.232 for /hyperclaude:hyper-plan-loop, /hyperclaude:hyper-implement-loop, /hyperclaude:hyper-docs-loop, and /hyperclaude:hyper-auto (which chains hyper-plan-loop → hyper-implement-loop): that release is the known-good floor for their background-agent transport — a spawned agent runs in the background and its final text arrives as the task-notification <result> the loops read. Reported only, nothing blocks on it; the research→plan→implement flow works regardless.';
+    'Upgrade Claude Code to >= 2.1.232 for /hyperclaude:hyper-implement-loop, /hyperclaude:hyper-docs-loop, and /hyperclaude:hyper-auto (which chains into hyper-implement-loop): that release is the known-good floor for their background-agent transport — a spawned agent runs in the background and its final text arrives as the task-notification <result> the loops read. Reported only, nothing blocks on it; the research→plan→implement flow works regardless.';
   // severity 'conditional' is intentional — aggregate() only blocks on 'hard'
   const base = { name, required, severity: 'conditional', remediation };
   const floor = [2, 1, 232];

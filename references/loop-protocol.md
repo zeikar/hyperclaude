@@ -1,6 +1,6 @@
 # Loop protocol — shared reference
 
-The cross-loop spawn and reply-transport contract, read at Step 0 by `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop` alongside each loop's own `failure-protocol.md`. Everything loop-bound — the agent role, the reply shape, the accept rule, the validation stages, the named reports, the review cap — is declared in that local file, never here.
+The cross-loop spawn and reply-transport contract, read at Step 0 by `hyper-implement-loop` and `hyper-docs-loop` alongside each loop's own `failure-protocol.md`. It does NOT govern `hyper-plan-loop`, whose planner runs as a persistent `claude -p` session through `scripts/planner-bridge.mjs`. Everything loop-bound — the agent role, the reply shape, the accept rule, the validation stages, the named reports, the review cap — is declared in that local file, never here.
 
 ## Spawn contract
 
