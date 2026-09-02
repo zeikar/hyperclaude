@@ -160,3 +160,73 @@ printf 'mock docs failure' >&2
 exit 7
 `;
 
+
+// ---------------------------------------------------------------------------
+// Planner bridge fixtures.
+//
+// The planner bridge spawns `claude` (not codex) with an argv array and
+// HYPERCLAUDE_ROLE=planner in the child env. Each mock records argv (one per
+// line) plus the role env, then emits a `--output-format json` envelope.
+// ---------------------------------------------------------------------------
+
+export const PLANNER_BRIDGE = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  'scripts',
+  'planner-bridge.mjs'
+);
+
+export const MOCK_CLAUDE_SUCCESS = `#!/usr/bin/env bash
+printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+cat > "$(dirname "$0")/stdin.log"
+printf '%s\\n' "\${HYPERCLAUDE_ROLE:-<unset>}" > "$(dirname "$0")/role.log"
+sid=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--session-id" ] || [ "$prev" = "--resume" ]; then sid="$arg"; fi
+  prev="$arg"
+done
+printf '{"type":"result","is_error":false,"session_id":"%s","result":"## Task 1: do the thing"}\\n' "$sid"
+`;
+
+export const MOCK_CLAUDE_IS_ERROR = `#!/usr/bin/env bash
+printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+cat > "$(dirname "$0")/stdin.log"
+printf '{"type":"result","is_error":true,"result":"planner hit a permission denial"}\\n'
+`;
+
+export const MOCK_CLAUDE_NONZERO = `#!/usr/bin/env bash
+printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+cat > "$(dirname "$0")/stdin.log"
+echo 'claude: fatal: something broke' >&2
+exit 7
+`;
+
+// Sleeps so the harness can signal the bridge mid-run, and records that it was
+// asked to stop. `trap` fires on the forwarded SIGTERM.
+export const MOCK_CLAUDE_SLOW = `#!/usr/bin/env bash
+printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+cat > "$(dirname "$0")/stdin.log"
+sleep 30 &
+sleep_pid=$!
+# Kill the backgrounded sleep too. Leaving it alive would orphan a process that
+# still holds this script's stdout pipe, so the parent's 'close' would not fire
+# until the sleep ended -- the same shape as the codex npm-wrapper kill bug.
+trap 'printf killed > "$(dirname "$0")/killed.log"; kill "$sleep_pid" 2>/dev/null; exit 143' TERM INT
+printf ready > "$(dirname "$0")/ready.log"
+wait "$sleep_pid"
+`;
+
+// Records whether the workflow's session file already existed when claude was
+// spawned — proving the key is reserved BEFORE the child runs, not after.
+export const MOCK_CLAUDE_RESERVATION_CHECK = `#!/usr/bin/env bash
+printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+cat > "$(dirname "$0")/stdin.log"
+if ls .hyperclaude/planner-sessions/*.id >/dev/null 2>&1; then
+  printf reserved > "$(dirname "$0")/reservation.log"
+else
+  printf absent > "$(dirname "$0")/reservation.log"
+fi
+printf '{"type":"result","is_error":false,"session_id":"sid-from-claude","result":"## Task 1: ok"}\\n'
+`;

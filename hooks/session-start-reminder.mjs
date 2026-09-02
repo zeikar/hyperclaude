@@ -8,6 +8,14 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// A `claude -p` child spawned by the planner bridge re-reads this plugin, and
+// injecting the workflow router there would invite it to re-enter the cycle it
+// is a step of. Matched exactly, so an unrelated or inherited value cannot
+// silently suppress the router. Nothing else the planner needs comes from this
+// hook — CLAUDE.md, project instructions and the agent definition load
+// independently of it.
+if (process.env.HYPERCLAUDE_ROLE === 'planner') process.exit(0);
+
 const templatePath = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'templates', 'hooks', 'session-start-reminder.md');
 
 const SNAPSHOT_SECTIONS = [
