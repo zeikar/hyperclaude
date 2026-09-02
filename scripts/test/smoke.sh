@@ -604,6 +604,16 @@ else
   miss "hyper-plan-loop SKILL.md: never ends the planner session (--end missing)"
 fi
 
+# Planner turns must be backgrounded: measured on a real repo, a planner turn
+# outran the Bash tool 600s FOREGROUND ceiling and was killed mid-write.
+pb_calls=$(grep -c 'planner-bridge.mjs" .*--prompt-file' skills/hyper-plan-loop/SKILL.md 2>/dev/null)
+pb_bg=$(grep -c "run_in_background: true" skills/hyper-plan-loop/SKILL.md 2>/dev/null)
+if [ "$pb_calls" -eq 2 ] && [ "$pb_bg" -ge 4 ]; then
+  ok "hyper-plan-loop SKILL.md: planner AND codex turns all run in background"
+else
+  miss "hyper-plan-loop SKILL.md: a planner-bridge turn still runs foreground (calls=$pb_calls background=$pb_bg)"
+fi
+
 # A STOP after a failed --start must not run --end: on a key collision the
 # session belongs to another live run, and --end cannot check ownership.
 if grep -q "never runs \`--end\`" skills/hyper-plan-loop/references/failure-protocol.md 2>/dev/null; then

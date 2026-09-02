@@ -70,14 +70,16 @@ Reuse the stock `hyper-plan` logic — see `skills/hyper-plan/SKILL.md` Steps 1�
 
 The planner runs as a persistent `claude -p` session through the planner bridge — one session per planning workflow, keyed by the Step 1 plan-file stem — rather than as an `Agent`-tool subagent. That is what puts its prompt cache in the 1-hour TTL bucket, so the context survives the multi-minute Codex review between rounds; a subagent writes a 5-minute bucket that every review boundary outlives.
 
-`Write` the contract string to a file in the session scratchpad (outside the repo, never `echo`, no hardcoded literal path), assign its path to `PROMPT_FILE` in the SAME Bash invocation as the bridge call, then invoke via the Bash tool:
+`Write` the contract string to a file in the session scratchpad (outside the repo, never `echo`, no hardcoded literal path), assign its path to `PROMPT_FILE` in the SAME Bash invocation as the bridge call, then invoke via the Bash tool with **`run_in_background: true`** and `timeout: 600000`:
 
 ```bash
 PROMPT_FILE='<scratchpad path, POSIX-escaped — every embedded ' becomes '\''>'
 node "${CLAUDE_PLUGIN_ROOT}/scripts/planner-bridge.mjs" --workflow "<plan-file stem from Step 1>" --start --prompt-file "$PROMPT_FILE"
 ```
 
-The key is the resolved plan path's basename without `.md`, and the bare slug will not do: two different tasks can derive the same slug, which would then resume each other's conversation. The bridge mints and atomically reserves the key on this `--start` call and resumes it on every later call (which omit `--start`), so the lead carries no session id in run-state. A `--start` whose key is already taken FAILS rather than joining that session — two planning tasks in one conversation would let either one's `--end` close the other — and a continue with no session fails rather than running a findings-only prompt in a fresh planner. It prints exactly ONE JSON object: `{"ok":true,...,"resumed":false,"body":"<the planner's reply>"}` on success, `{"ok":false,"error":"..."}` on failure. Parse it strictly — any extra non-whitespace around it is a parse failure, surfaced verbatim.
+The key is the resolved plan path's basename without `.md`, and the bare slug will not do: two different tasks can derive the same slug, which would then resume each other's conversation. The bridge mints and atomically reserves the key on this `--start` call and resumes it on every later call (which omit `--start`), so the lead carries no session id in run-state. A `--start` whose key is already taken FAILS rather than joining that session — two planning tasks in one conversation would let either one's `--end` close the other — and a continue with no session fails rather than running a findings-only prompt in a fresh planner. **Background is required, not a preference.** A planner turn reads the research context, inspects the tree and writes a whole plan; measured on a real repo it outran the Bash tool's 600s FOREGROUND ceiling, which killed the call mid-write and cost the whole turn. A backgrounded Bash call carries no such ceiling. End the turn after invoking; when the completion notification arrives, `Read` the output file it names.
+
+That file merges stdout, stderr and a trailing `[exited with code N]` marker, so apply the strict-parse rule to the envelope line alone: the bridge prints exactly ONE JSON object — `{"ok":true,...,"resumed":false,"body":"<the planner's reply>"}` on success, `{"ok":false,"error":"..."}` on failure — and any extra non-whitespace *within that line* is a parse failure, surfaced verbatim. Do not touch the plan path while the planner is running.
 
 The contract string MUST contain:
 
@@ -93,7 +95,7 @@ Failure handling: an `ok:false` envelope, a non-zero exit, or unparseable stdout
 
 The lead never Writes the plan — the planner writes the canonical file itself (caller-directed write-file mode, Step 2). The lead only verifies.
 
-Read the planner's reply from the bridge envelope's `body` field (on a later round, from that round's envelope).
+Read the planner's reply from the `body` field of the envelope line in the background task's output file (on a later round, from that round's output file).
 
 **Accept rule** — applies to EVERY planner reply in write-file mode (the initial write, any corrective redo, and every Step 6 revise): the trimmed reply must match `^WROTE: <exact resolved plan path from Step 1>\s*$`, where the path is the entire remaining string, verbatim. Any body echo, added prose, preamble, or a different path → corrective + escalation per `references/failure-protocol.md` (**Reply-contract correctives**).
 
@@ -111,13 +113,13 @@ If missing or empty → apply the file-check corrective + escalation in `referen
 
 **Iteration counting:** the fresh review here is **iteration 1**. The Step 7 cap is **10 total reviews** (iter 1 fresh + at most **9 resumed revise rounds**).
 
-Invoke via the Bash tool with `timeout: 600000`. If `review_brief_file` is non-null, assign it to `BRIEF_FILE` per the shell-safety recipe in `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md` and append `--review-brief "$(cat "$BRIEF_FILE")"`; omit both when `review_brief_file` is `null`:
+Invoke via the Bash tool with **`run_in_background: true`** and `timeout: 600000` — a plan-review outruns the 600s foreground ceiling as readily as a planner turn does (this loop's measured review boundaries were 469s and 1393s), and a killed call costs the whole review. If `review_brief_file` is non-null, assign it to `BRIEF_FILE` per the shell-safety recipe in `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md` and append `--review-brief "$(cat "$BRIEF_FILE")"`; omit both when `review_brief_file` is `null`:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<resolved path>" [--review-brief "$(cat "$BRIEF_FILE")"]
 ```
 
-Parse the bridge's single stdout JSON envelope per `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` (envelope shape + strict-parse rule). On `ok:true`, read the artifact at `path` with the Read tool.
+End the turn; when the completion notification arrives, `Read` the output file it names and parse the envelope line per `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` (envelope shape + strict-parse rule; that file merges stdout, stderr and an `[exited with code N]` marker, so the rule applies to the JSON line alone). On `ok:true`, read the artifact at `path` with the Read tool. Leave the plan path alone while the review runs.
 
 On any non-`ok:true`, Bash timeout, or JSON parse failure → STOP with a named-loop report (**"hyper-plan-loop bridge failure, iter N"**) surfacing `error` verbatim (or a short parser/timeout diagnostic if no `error` field) plus the artifact path if present. If the artifact `Read` itself fails → STOP with that same named report.
 
@@ -136,7 +138,7 @@ First check the cap: if the iteration counter is already at 10 (10 total Codex r
 
 The lead never Reads the plan body into its context here (that would reintroduce the token cost this skill is designed to avoid). Validation is filesystem-level only.
 
-Send the blocking findings to the same planner session — `Write` them to a NEW scratchpad prompt file and call the bridge with the SAME `--workflow` key, which resumes the session:
+Send the blocking findings to the same planner session — `Write` them to a NEW scratchpad prompt file and call the bridge (Bash tool, **`run_in_background: true`** and `timeout: 600000`, per Step 2) with the SAME `--workflow` key, which resumes the session:
 
 ```bash
 PROMPT_FILE='<scratchpad path for this round's findings, POSIX-escaped>'
@@ -145,7 +147,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/planner-bridge.mjs" --workflow "<plan-file s
 
 That file MUST carry: the verbatim blocking findings + relevant `### Verdict` text when it explains the required direction; and the instruction to first Read `<the exact resolved plan path>` to refresh, then re-read the files, symbols, and commands the findings cite (Read/Grep) — and for a finding that names none, the tasks it implicates and the code that would have to change — so each fix is checked against the tree rather than recalled, then revise THAT SAME path in place (Edit it, or re-Write it), fixing each finding at its source rather than rewording the sentence that triggered it, and without adding a changelog of the round or a reply to the reviewer; reply with exactly `WROTE: <that exact path>` and nothing else — no plan body, no preamble.
 
-Read the reply from that round's envelope `body`. An `ok:false` envelope → STOP per the transport-failure declaration in `references/failure-protocol.md`. The envelope's `resumed` MUST be `true` here; a `false` means the session was lost and the planner no longer holds the task — STOP under that same declaration rather than letting it re-plan from a findings-only prompt.
+End the turn; when the completion notification arrives, `Read` that output file and take the reply from the envelope line's `body`. An `ok:false` envelope → STOP per the transport-failure declaration in `references/failure-protocol.md`. The envelope's `resumed` MUST be `true` here; a `false` means the session was lost and the planner no longer holds the task — STOP under that same declaration rather than letting it re-plan from a findings-only prompt.
 
 Do NOT re-send the task or research — the session still holds that context.
 
@@ -155,7 +157,7 @@ Do NOT re-send the task or research — the session still holds that context.
 node -e 'try{process.stdout.write(/^##\s*Task\s/m.test(require("fs").readFileSync(process.argv[1],"utf8"))?"ok":"bad")}catch{process.stdout.write("bad")}' "<resolved plan path>"
 ```
 
-`bad` → corrective + terminal handling per that pipeline. On `ok`, increment the iteration counter and re-invoke the bridge via the Bash tool with `timeout: 600000`. Same `review_brief_file`-gated `BRIEF_FILE` assignment + `--review-brief` token as Step 4 — per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s two re-supply reasons (fallback survival on an `auto`→fresh fallback, and mid-loop updates), re-pass it on every round; never regenerate `review_brief_file` from the planner's just-revised plan (that would let the planner bless its own scope additions) — only a NEW user decision may update it:
+`bad` → corrective + terminal handling per that pipeline. On `ok`, increment the iteration counter and re-invoke the bridge via the Bash tool with **`run_in_background: true`** and `timeout: 600000` (Step 4's reason), reading that round's envelope from the output file the completion notification names. Same `review_brief_file`-gated `BRIEF_FILE` assignment + `--review-brief` token as Step 4 — per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s two re-supply reasons (fallback survival on an `auto`→fresh fallback, and mid-loop updates), re-pass it on every round; never regenerate `review_brief_file` from the planner's just-revised plan (that would let the planner bless its own scope additions) — only a NEW user decision may update it:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<same path>" --resume auto [--review-brief "$(cat "$BRIEF_FILE")"]
