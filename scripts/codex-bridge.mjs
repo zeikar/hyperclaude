@@ -349,9 +349,9 @@ async function main(argv) {
     // Step 8: spawn codex.
     let result;
     if (resumeContext) {
-      result = await runCodexResume(resumeContext.threadId, prompt, args.timeout, selectionArgs);
+      result = await runCodexResume(resumeContext.threadId, prompt, selectionArgs);
     } else {
-      result = await runCodexExec(['exec', ...selectionArgs, '--sandbox', 'read-only', '-'], prompt, args.timeout);
+      result = await runCodexExec(['exec', ...selectionArgs, '--sandbox', 'read-only', '-'], prompt);
     }
 
     // Step 9: pick final resume status.
@@ -515,7 +515,7 @@ async function main(argv) {
         TARGET_INSTRUCTION: targetInstruction,
         REVIEW_BRIEF: reviewBriefBlock,
       });
-      result = await runCodexResume(resumeContext.threadId, prompt, args.timeout, selectionArgs);
+      result = await runCodexResume(resumeContext.threadId, prompt, selectionArgs);
     } else {
       // Compute the REVIEW_BACKGROUND substitution inline (single-use; no helper).
       // Empty/whitespace background → '' so the slot vanishes with zero behavior change.
@@ -537,7 +537,7 @@ async function main(argv) {
         REVIEW_BACKGROUND: reviewBackground,
       });
       const argv = ['exec', ...selectionArgs, '--sandbox', 'read-only', '-'];
-      result = await runCodexExec(argv, prompt, args.timeout);
+      result = await runCodexExec(argv, prompt);
     }
 
     // Pick final resume status.
@@ -714,9 +714,9 @@ async function main(argv) {
 
   let result;
   if (resumeContext) {
-    result = await runCodexResume(resumeContext.threadId, prompt, args.timeout, selectionArgs);
+    result = await runCodexResume(resumeContext.threadId, prompt, selectionArgs);
   } else {
-    result = await runCodexExec(['exec', ...selectionArgs, '--sandbox', 'read-only', '-'], prompt, args.timeout);
+    result = await runCodexExec(['exec', ...selectionArgs, '--sandbox', 'read-only', '-'], prompt);
   }
   await mkdir(inv.dir, { recursive: true });
 

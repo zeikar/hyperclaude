@@ -28,7 +28,6 @@ export function renderFailureBody({ parseDiagnostics, lastMessageText, stderr, e
   const ex = exit || {};
   const status = (ex.status === undefined || ex.status === null) ? 'null' : String(ex.status);
   const signal = (ex.signal === undefined || ex.signal === null) ? 'null' : String(ex.signal);
-  const timedOut = ex.timedOut ? 'true' : 'false';
 
   return [
     '# (codex failed)',
@@ -47,7 +46,7 @@ export function renderFailureBody({ parseDiagnostics, lastMessageText, stderr, e
     stderrBody,
     '',
     '## Exit',
-    `status=${status}, signal=${signal}, timed-out=${timedOut}`,
+    `status=${status}, signal=${signal}`,
     '',
   ].join('\n');
 }

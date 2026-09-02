@@ -16,7 +16,7 @@ test('mock codex: bridge spawns codex exec with --json + --output-last-message i
 
     const result = spawnSync(
       'node',
-      [BRIDGE, 'research', '--task', 'verify spawn argv', '--timeout', '30', '--out', tmpdir],
+      [BRIDGE, 'research', '--task', 'verify spawn argv', '--out', tmpdir],
       {
         encoding: 'utf8',
         env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
@@ -81,7 +81,7 @@ test('mock codex: bridge handles failed codex (exit 7) — writes file and repor
 
     const result = spawnSync(
       'node',
-      [BRIDGE, 'research', '--task', 'verify spawn argv', '--timeout', '30', '--out', tmpdir],
+      [BRIDGE, 'research', '--task', 'verify spawn argv', '--out', tmpdir],
       {
         encoding: 'utf8',
         env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
@@ -118,7 +118,8 @@ test('mock codex: bridge handles failed codex (exit 7) — writes file and repor
     assert.ok(outputContent.includes('## stderr'), 'stderr section present');
     assert.ok(outputContent.includes('mock codex failure'), 'stderr verbatim');
     // Exit line.
-    assert.ok(/status=7,\s*signal=(?:null|SIG[A-Z]+),\s*timed-out=false/.test(outputContent), 'exit line with status=7');
+    assert.ok(/status=7,\s*signal=(?:null|SIG[A-Z]+)\n/.test(outputContent), 'exit line with status=7');
+    assert.ok(!/timed-out=/.test(outputContent), 'exit line carries no timed-out field');
     assert.ok(!outputContent.includes('codex-input-tokens'), 'no usage keys when codex emitted no turn.completed');
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });
@@ -575,7 +576,8 @@ test('mock codex: code-review failure (exit 7) writes structured failure body an
     assert.ok(outputContent.includes('partial review output'), 'last-message body embedded');
     assert.ok(outputContent.includes('## stderr'), 'stderr section present');
     assert.ok(outputContent.includes('mock review failure'), 'stderr verbatim');
-    assert.ok(/status=7,\s*signal=(?:null|SIG[A-Z]+),\s*timed-out=false/.test(outputContent), 'exit line with status=7');
+    assert.ok(/status=7,\s*signal=(?:null|SIG[A-Z]+)\n/.test(outputContent), 'exit line with status=7');
+    assert.ok(!/timed-out=/.test(outputContent), 'exit line carries no timed-out field');
     assert.ok(!outputContent.includes('codex-input-tokens'), 'no usage keys when codex emitted no turn.completed');
   } finally {
     rmSync(tmpdir, { recursive: true, force: true });

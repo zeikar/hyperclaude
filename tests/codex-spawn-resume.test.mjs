@@ -66,7 +66,7 @@ test('runCodexResume: argv shape — exec resume -c sandbox_mode=read-only <thre
     const origPath = process.env.PATH;
     process.env.PATH = `${tmpdir}:${origPath}`;
     try {
-      const result = await runCodexResume('test-thread-id-123', 'continue the review', 30);
+      const result = await runCodexResume('test-thread-id-123', 'continue the review');
       assert.equal(result.ok, true, `runCodexResume should succeed, reason: ${result.reason}`);
     } finally {
       process.env.PATH = origPath;
@@ -105,7 +105,7 @@ test('runCodexResume: knownThreadId propagates as result.threadId when thread.st
     process.env.PATH = `${tmpdir}:${origPath}`;
     let result;
     try {
-      result = await runCodexResume('my-known-thread-id', 'resume prompt', 30);
+      result = await runCodexResume('my-known-thread-id', 'resume prompt');
     } finally {
       process.env.PATH = origPath;
     }
@@ -1140,7 +1140,6 @@ test('runCodexResume: selectionArgs inserted after exec resume, before -c sandbo
       const result = await runCodexResume(
         'tid-123',
         'prompt',
-        30,
         ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high']
       );
       assert.equal(result.ok, true, `runCodexResume should succeed, reason: ${result.reason}`);

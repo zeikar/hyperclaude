@@ -283,4 +283,4 @@ Each Codex gate is one `codex` invocation. The bridge passes `--sandbox read-onl
 
 Every invocation (all modes, fresh and resume) runs with live web search enabled via the global `--search` flag, so Codex may fetch external content (official docs, changelogs, live references) while it has your task or code context. This is intentional and does NOT relax the read-only filesystem sandbox.
 
-Default per-call timeout is 600s. Default per-mode size guards: docs-review docs payload ≤ 200KB, docs-review diff ≤ 500KB. See [architecture.md](architecture.md) for the rest.
+There is no per-call timeout — a Codex run takes as long as it takes. Default per-mode size guards: docs-review docs payload ≤ 200KB, docs-review diff ≤ 500KB. See [architecture.md](architecture.md) for the rest.

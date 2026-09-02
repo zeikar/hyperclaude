@@ -5,10 +5,10 @@
 import path from 'node:path';
 
 const ALLOWED_FLAGS_PER_MODE = {
-  research:      new Set(['--task', '--task-file', '--slug', '--out', '--dry-run', '--timeout', '--model', '--effort']),
-  'plan-review': new Set(['--plan-path', '--slug', '--out', '--dry-run', '--timeout', '--resume', '--model', '--effort', '--review-brief']),
-  'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--background', '--out', '--dry-run', '--timeout', '--resume', '--model', '--effort', '--review-brief']),
-  'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--timeout', '--resume', '--model', '--effort']),
+  research:      new Set(['--task', '--task-file', '--slug', '--out', '--dry-run', '--model', '--effort']),
+  'plan-review': new Set(['--plan-path', '--slug', '--out', '--dry-run', '--resume', '--model', '--effort', '--review-brief']),
+  'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--background', '--out', '--dry-run', '--resume', '--model', '--effort', '--review-brief']),
+  'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--resume', '--model', '--effort']),
 };
 
 const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh']);
@@ -27,7 +27,6 @@ export function parseArgs(argv) {
     planPath: null,
     out: null,
     dryRun: false,
-    timeout: 600,
     reviewTarget: null,
     baseRef: null,
     commit: null,
@@ -67,7 +66,6 @@ export function parseArgs(argv) {
         break;
       }
       case '--out':        out.out = next(); break;
-      case '--timeout':    out.timeout = Number(next()); break;
       case '--dry-run':    out.dryRun = true; break;
       case '--base': {
         if (out.reviewTarget !== null) throw new Error('--base, --uncommitted, and --commit are mutually exclusive');
@@ -171,8 +169,5 @@ export function parseArgs(argv) {
   if (mode === 'research' && !out.task && !out.taskFile) throw new Error('--task or --task-file is required for research');
   if (mode === 'plan-review' && !out.planPath) throw new Error('--plan-path is required for plan-review');
   if (mode === 'docs-review' && out.docsPaths.length === 0 && !out.docsDir) throw new Error('--docs-path or --docs-dir is required for docs-review');
-  if (!Number.isFinite(out.timeout) || out.timeout <= 0) {
-    throw new Error(`--timeout must be a positive finite number, got: ${out.timeout}`);
-  }
   return out;
 }

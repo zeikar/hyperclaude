@@ -76,3 +76,24 @@ Unbounded is catastrophic because bridging a >60min gap needs 15+ refreshes, eac
 **Round boundaries behave differently in kind, not degree.** Under the old teammate transport `cache_read` sat at the 13,818-token system+tools floor at every boundary and the whole conversation was re-written. Here, sub-5-minute boundaries kept `cache_read` at **89k–132k** and re-wrote only an 8–24k delta — the conversation prefix survives. One boundary of the eight exceeded the TTL (354s): `cache_read` collapsed to 5,192 and 80k was re-written, exactly the accepted 5-minute-TTL exposure.
 
 **Caveat.** Whole-run `write:read` was 1:7.6, the top of the old teammate range rather than clearly outside it — a 25-minute single run is dominated by its initial write. The per-boundary `cache_read` figures are the signal, not the run-level ratio.
+
+## 2026-09-02 — four bridge timeouts, four healthy runs killed
+
+**Source differs from the shared Method above.** Not the Claude transcript corpus but codex's own rollout logs: `~/.codex/sessions/<YYYY/MM/DD>/rollout-*-<codex-thread-id>.jsonl`, located via the `codex-thread-id` in the failed artifact's frontmatter. Event timestamps are what establish stall length and time-of-death.
+
+Four artifacts in a consumer repo carried `# (codex failed)` + `timed-out=true`:
+
+| artifact | rollout evidence | what the 600s kill interrupted |
+|---|---|---|
+| `docs-reviews/…-architecture.md` (04:58) | 113 events; 424s stall from 05:01:13 → **recovered** → 05:08:44 reasoning → 05:09:02 `agent_message` | the finished review body mid-print, truncated at `### Verdict` |
+| `docs-reviews/…-architecture.md` (05:17) | 33 events; 604s stall from 05:18:10 → response at 05:28:14 with `last_token_usage` | 37s before the response landed |
+| `research/…-cancel-workflow.md` | 203 events; longest normal gap 73s; 4 `spawn_agent`, nesting depth 10; 3.88M tokens | report writing, just after sub-agent results were collected |
+| `research/…-child-python-workflow.md` | 290 events; **zero gaps over 60s**; 4 `spawn_agent`; 6.50M tokens | same |
+
+**4/4 killed work that would have completed. Zero genuinely wedged.**
+
+Three gotchas that will corrupt a re-run:
+
+- **Artifact mtime is not run duration.** `child.kill()` hit only the npm Node wrapper; a surviving descendant held the stdout pipe, so `close` — and the artifact write — lagged the deadline by up to six minutes, with an exit signature of `status=0, signal=null`. Measure from the rollout's first and last event instead.
+- **`codex_core::tools::router: error=timeout_ms must be at least 10000` in stderr is not the cause.** It is the router rejecting a `wait_agent{"timeout_ms":1000}` argument below its floor; the model corrects to a valid value within ~3s and continues. Sub-agents share the parent's stderr, so such a line can appear with no matching event in the parent rollout.
+- **Judging an idle threshold by normal event spacing is the trap.** The largest healthy gap was 73s, which suggests idle-240s is safe; the two real stalls were 424s and 604s and both self-recovered, so that threshold kills exactly the runs a reaper is supposed to spare.

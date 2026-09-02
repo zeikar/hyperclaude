@@ -91,17 +91,17 @@ export function parseCodexJsonl(stdoutText) {
 }
 
 // Internal codex spawn helper. Returns a structured result with explicit
-// exit shape `{ status, signal, timedOut }` so callers can tell the
-// difference between "exited 7", "killed by SIGTERM", and "we timed out".
+// exit shape `{ status, signal }` so callers can tell "exited 7" from
+// "killed by a signal". There is no wall-clock deadline: the bridge lets a
+// codex run take as long as it takes (see docs/decisions.md).
 //
 // `stdinMode` is the stdio[0] config: 'pipe' (default — caller may write+end
 // via stdinPayload) or 'ignore' (no stdin fd; child sees /dev/null).
-function spawnCodex(spawnArgs, { stdinPayload = null, stdinMode = 'pipe' } = {}, timeoutSec) {
+function spawnCodex(spawnArgs, { stdinPayload = null, stdinMode = 'pipe' } = {}) {
   return new Promise((resolve) => {
     const child = spawn('codex', spawnArgs, { stdio: [stdinMode, 'pipe', 'pipe'] });
     const stdoutChunks = [];
     const stderrChunks = [];
-    let timedOut = false;
     // `settled` ensures the promise resolves at most once. On spawn failure,
     // Node fires both `error` and then `close` (code=null); without this guard
     // `resolve` would be called twice (harmless in native Promises, but fragile
@@ -110,17 +110,8 @@ function spawnCodex(spawnArgs, { stdinPayload = null, stdinMode = 'pipe' } = {},
     const settle = (result) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
       resolve(result);
     };
-    const KILL_GRACE_MS = 2000;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill('SIGTERM');
-      setTimeout(() => {
-        if (child.exitCode === null) child.kill('SIGKILL');
-      }, KILL_GRACE_MS).unref();
-    }, timeoutSec * 1000);
 
     child.stdout.on('data', (c) => stdoutChunks.push(c));
     child.stderr.on('data', (c) => stderrChunks.push(c));
@@ -130,16 +121,13 @@ function spawnCodex(spawnArgs, { stdinPayload = null, stdinMode = 'pipe' } = {},
         reason: `spawn error: ${err.message}`,
         stdout: '',
         stderr: '',
-        exit: { status: null, signal: null, timedOut: false },
+        exit: { status: null, signal: null },
       });
     });
     child.on('close', (status, signal) => {
       const stdout = Buffer.concat(stdoutChunks).toString('utf8');
       const stderr = Buffer.concat(stderrChunks).toString('utf8');
-      const exit = { status, signal, timedOut };
-      if (timedOut) {
-        return settle({ ok: false, reason: `codex timed out after ${timeoutSec}s`, stdout, stderr, exit });
-      }
+      const exit = { status, signal };
       if (status !== 0) {
         return settle({ ok: false, reason: `codex exited ${status}`, stdout, stderr, exit });
       }
@@ -196,7 +184,7 @@ function injectJsonAndOutputFlags(semanticArgv, lastMessagePath) {
 // `knownThreadId` is an authority over the parsed threadId — used by resume
 // callers so the result's threadId is correct even when `thread.started` is
 // not re-emitted on resume.
-export async function runCodexExec(argv, stdinPayload, timeoutSec, knownThreadId = null) {
+export async function runCodexExec(argv, stdinPayload, knownThreadId = null) {
   const lastMessagePath = path.join(os.tmpdir(), `hyperclaude-codex-${crypto.randomUUID()}.txt`);
   const fullArgv = injectJsonAndOutputFlags(argv, lastMessagePath);
   // --search is a global codex flag (must precede the subcommand). It switches the
@@ -215,7 +203,7 @@ export async function runCodexExec(argv, stdinPayload, timeoutSec, knownThreadId
     const spawnOpts = stdinPayload === null
       ? { stdinPayload: null, stdinMode: 'ignore' }
       : { stdinPayload, stdinMode: 'pipe' };
-    spawnResult = await spawnCodex(fullArgv, spawnOpts, timeoutSec);
+    spawnResult = await spawnCodex(fullArgv, spawnOpts);
     // Read the tempfile BEFORE unlinking. Codex writes the final agent
     // message here; for many runs this is the entire body.
     try {
@@ -288,13 +276,12 @@ export async function runCodexExec(argv, stdinPayload, timeoutSec, knownThreadId
 // `selectionArgs` — output of buildCodexSelectionArgs — is spliced in after the
 // subcommand and BEFORE `-c sandbox_mode=read-only` so the sandbox override remains
 // the last word and the read-only invariant is unbroken.
-// Passes knownThreadId as the 4th arg to runCodexExec so the result's threadId
+// Passes knownThreadId as the 3rd arg to runCodexExec so the result's threadId
 // is authoritative even when `thread.started` is not re-emitted on resume.
-export function runCodexResume(threadId, prompt, timeoutSec, selectionArgs = []) {
+export function runCodexResume(threadId, prompt, selectionArgs = []) {
   return runCodexExec(
     ['exec', 'resume', ...selectionArgs, '-c', 'sandbox_mode=read-only', threadId, '-'],
     prompt,
-    timeoutSec,
     threadId,
   );
 }

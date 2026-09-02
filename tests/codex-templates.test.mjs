@@ -78,7 +78,7 @@ test('renderFailureBody: shape with all fields populated', () => {
     },
     lastMessageText: 'partial body content',
     stderr: 'mock stderr line',
-    exit: { status: 7, signal: null, timedOut: false },
+    exit: { status: 7, signal: null },
   });
   assert.match(body, /^# \(codex failed\)\n/);
   assert.match(body, /## JSONL parser report/);
@@ -90,7 +90,8 @@ test('renderFailureBody: shape with all fields populated', () => {
   assert.match(body, /- malformed lines: 2/);
   assert.match(body, /## Last message \(from --output-last-message\)\npartial body content/);
   assert.match(body, /## stderr\nmock stderr line/);
-  assert.match(body, /## Exit\nstatus=7, signal=null, timed-out=false/);
+  assert.match(body, /## Exit\nstatus=7, signal=null\n/);
+  assert.doesNotMatch(body, /timed-out=/);
 });
 
 test('renderFailureBody: empty lastMessage renders "(empty)"', () => {
@@ -104,13 +105,14 @@ test('renderFailureBody: empty lastMessage renders "(empty)"', () => {
     },
     lastMessageText: '',
     stderr: '',
-    exit: { status: null, signal: 'SIGTERM', timedOut: true },
+    exit: { status: null, signal: 'SIGTERM' },
   });
   assert.match(body, /- thread\.started: no/);
   assert.match(body, /- turn\.failed: no/);
   assert.match(body, /- top-level error events: 0\n/);
   assert.match(body, /## Last message \(from --output-last-message\)\n\(empty\)/);
-  assert.match(body, /## Exit\nstatus=null, signal=SIGTERM, timed-out=true/);
+  assert.match(body, /## Exit\nstatus=null, signal=SIGTERM\n/);
+  assert.doesNotMatch(body, /timed-out=/);
 });
 
 // ── Task 3: plan-review-resumed.md template ───────────────────────────────────────

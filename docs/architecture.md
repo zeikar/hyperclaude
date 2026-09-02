@@ -158,14 +158,14 @@ node scripts/codex-bridge.mjs <mode> [flags]
 
 | Mode          | Required flags                                             | Optional flags                                                                       |
 |---------------|------------------------------------------------------------|--------------------------------------------------------------------------------------|
-| `research`    | `--task <text>` OR `--task-file <path>`                    | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--slug`, `--out`, `--timeout`, `--dry-run` |
-| `plan-review` | `--plan-path <path>`                                       | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--review-brief <text>` (allowed with `--resume`), `--slug`, `--out`, `--timeout`, `--dry-run` |
-| `code-review` | none — defaults to `--base main`                           | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`; one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--resume <path\|auto>`, `--background <text>` (fresh only — rejected with `--resume`), `--review-brief <text>` (allowed with `--resume`), `--title`, `--out`, `--timeout`, `--dry-run` |
-| `docs-review` | `--docs-path <file>` (repeatable — append multiple files) OR `--docs-dir <dir>` | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--diff-base <ref>`, `--out`, `--timeout`, `--dry-run` |
+| `research`    | `--task <text>` OR `--task-file <path>`                    | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--slug`, `--out`, `--dry-run` |
+| `plan-review` | `--plan-path <path>`                                       | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--review-brief <text>` (allowed with `--resume`), `--slug`, `--out`, `--dry-run` |
+| `code-review` | none — defaults to `--base main`                           | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`; one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--resume <path\|auto>`, `--background <text>` (fresh only — rejected with `--resume`), `--review-brief <text>` (allowed with `--resume`), `--title`, `--out`, `--dry-run` |
+| `docs-review` | `--docs-path <file>` (repeatable — append multiple files) OR `--docs-dir <dir>` | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--diff-base <ref>`, `--out`, `--dry-run` |
 
 Defaults:
 
-- `--timeout` 600s. Validated as a positive finite number. (Large code-review diffs can exceed 5 min on a fresh Codex thread; 600s default avoids token waste from premature timeouts. Pass an explicit `--timeout` for niche cases.)
+- **No wall-clock timeout, and no idle reaper.** The bridge waits for Codex to finish, however long that takes; runaway spend is the caller's Ctrl-C. Why, with the measurements: [decisions.md](decisions.md).
 - `--out` defaults to the mode-specific output directory listed in the table above (`.hyperclaude/research/`, `.hyperclaude/plan-reviews/`, `.hyperclaude/code-reviews/`, `.hyperclaude/docs-reviews/`).
 - `--slug` is auto-derived: from the task text (`research`), the plan filename's slug suffix (`plan-review`), the base ref / commit short SHA / `uncommitted` (`code-review`), or the docs target — a single file's / `--docs-dir`'s basename, or `<first-file-slug>-plus-<n-1>` for multiple `--docs-path` files (`docs-review`; see per-mode slug fallbacks below). User-provided slugs must match `^[a-z0-9]+(?:-[a-z0-9]+){0,4}$`.
 - `--dry-run` validates argv and that the mode's prompt template loads (uniformly for all four modes, including `code-review`), then skips the codex spawn. It does not require codex on PATH.
@@ -223,11 +223,11 @@ On collision, the bridge appends `-2`, `-3`, … until free.
 
 On success (non-dry-run, `plan-review` / `docs-review` / `code-review`) the script exits 0 and prints `{"ok":true,"path":"…","slug":"…","threadId":"<uuid>","resumeStatus":"<state>"}`. On failure those modes print `{"ok":false,"error":"…","path":"<path|null>","resumeStatus":"<state>","threadId":"<uuid|null>"}`. Research success / failure uses the same v0.3 shape (no `threadId` / `resumeStatus` exposed). `--dry-run` skips the write and prints `{"ok":true,"dryRun":true,"mode":"…","slug":"…","outputPath":"…","timestamp":"…"}` (unchanged for all modes).
 
-Exits are: argv errors (exit 2), missing/unreadable input (exit 1), failed `git diff` for `--diff-base` (exit 1), template load failures (exit 1), Codex spawn / non-zero / timeout (exit 1), oversized payloads (exit 1, with byte count), resume budget exceeded (exit 1; no fallback). Filesystem failures during output (`mkdir`, `writeFile`) propagate as unhandled rejections — they only fire when the caller's `.hyperclaude/` directory is unwritable. Even on Codex failure the file is still written with a structured failure body (see below).
+Exits are: argv errors (exit 2), missing/unreadable input (exit 1), failed `git diff` for `--diff-base` (exit 1), template load failures (exit 1), Codex spawn / non-zero (exit 1), oversized payloads (exit 1, with byte count), resume budget exceeded (exit 1; no fallback). Filesystem failures during output (`mkdir`, `writeFile`) propagate as unhandled rejections — they only fire when the caller's `.hyperclaude/` directory is unwritable. Even on Codex failure the file is still written with a structured failure body (see below).
 
 ### Failure artifact body shape
 
-When Codex exits non-zero or times out (plan-review / docs-review / code-review), the bridge still writes the artifact. The body follows a fixed structure produced by `renderFailureBody`:
+When Codex exits non-zero (plan-review / docs-review / code-review), the bridge still writes the artifact. The body follows a fixed structure produced by `renderFailureBody`:
 
 ```
 # (codex failed)
@@ -246,7 +246,7 @@ When Codex exits non-zero or times out (plan-review / docs-review / code-review)
 <verbatim stderr from the Codex process>
 
 ## Exit
-status=<code|null>, signal=<name|null>, timed-out=<bool>
+status=<code|null>, signal=<name|null>
 ```
 
 Output is always to the file-per-run (tmpfile body + stderr), never just to stdout. `codex-resume-status` in frontmatter is set to `resume-failed` when the failure occurs on a resume spawn; otherwise follows the normal status.

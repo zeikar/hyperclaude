@@ -17,7 +17,7 @@ The bridge prints exactly ONE JSON object on stdout.
 
 A review takes minutes, so the three standalone gates — `hyper-plan-review`, `hyper-code-review`, `hyper-docs-review` — invoke the bridge with **`run_in_background: true`**. End the turn; when the completion notification arrives, `Read` the output file it names. That file merges stdout, stderr and a trailing `[exited with code N]` marker, so apply the strict-parse rule to the envelope line alone: parse the single line that is a JSON object, and treat the bridge's `hyperclaude: …` notes around it as diagnostics (a `--resume auto` fallback emits one). Answer the user meanwhile, but leave the review target alone — `code-review` reads the live working tree, so editing it mid-review yields a mixed-state result.
 
-The `*-loop` skills keep it foreground: their round state machine has not been re-checked against a non-blocking review turn.
+The `*-loop` skills keep it foreground: their round state machine has not been re-checked against a non-blocking review turn. That leaves a split worth knowing: the bridge itself imposes no deadline, but a foreground Bash call is still capped at 600s by the harness, and a loop review that exceeds it is killed before the bridge writes anything — no artifact, no diagnostics. The backgrounded gates and `hyper-research` have no such ceiling.
 
 ## Resume semantics
 
