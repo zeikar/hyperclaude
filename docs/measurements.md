@@ -97,3 +97,26 @@ Three gotchas that will corrupt a re-run:
 - **Artifact mtime is not run duration.** `child.kill()` hit only the npm Node wrapper; a surviving descendant held the stdout pipe, so `close` — and the artifact write — lagged the deadline by up to six minutes, with an exit signature of `status=0, signal=null`. Measure from the rollout's first and last event instead.
 - **`codex_core::tools::router: error=timeout_ms must be at least 10000` in stderr is not the cause.** It is the router rejecting a `wait_agent{"timeout_ms":1000}` argument below its floor; the model corrects to a valid value within ~3s and continues. Sub-agents share the parent's stderr, so such a line can appear with no matching event in the parent rollout.
 - **Judging an idle threshold by normal event spacing is the trap.** The largest healthy gap was 73s, which suggests idle-240s is safe; the two real stalls were 424s and 604s and both self-recovered, so that threshold kills exactly the runs a reaper is supposed to spare.
+
+## 2026-09-04 — the planner's 1h bucket holds, and the loop was never the cost
+
+**Sources differ from the shared Method above.** Three, one per cost centre: the lead session's own `<session-id>.jsonl`; the planner's `claude -p` transcript, which lands in the *same* `~/.claude/projects/<cwd>/` directory under its bridge-minted session id; and the Codex artifacts' own `codex-*-tokens` frontmatter. The middle one is the useful discovery — **the planner needs no added usage recording**, because a headless `claude -p` run writes a normal transcript with full `message.usage`, so `parseClaudeJson()` discarding the envelope's `usage` costs nothing.
+
+**Subject.** A consumer repo, one `hyper-plan-loop` run: 7 Codex review rounds, planner span 53m50s, 42 deduped planner calls, 381 deduped lead calls.
+
+**All six round boundaries hit the cache.** `cache_read` on the first call after each resume, against the prior round's ending cumulative prefix:
+
+| gap | 8m57s | 5m57s | 4m24s | 4m34s | 3m06s | 2m39s |
+|---|---|---|---|---|---|---|
+| `cache_read` at resume | 203,074 | 251,335 | 280,252 | 313,590 | 325,705 | 346,560 |
+| prior cumulative | 203,106 | 251,367 | 280,284 | 313,622 | 325,737 | 346,592 |
+
+Every one is within 32 tokens of a total hit. All 355,402 written tokens landed in `ephemeral_1h`; `ephemeral_5m` was 0 on all 42 calls.
+
+**What the bucket is actually worth — smaller than it looks on a fast loop.** Only **2 of the 6** gaps exceed five minutes, so the 5-minute counterfactual re-creates 454,409 tokens at 1.25x (568,011) where the 1h run read them at 0.1x (45,441), while paying a 266,551 premium writing everything at 2x instead of 1.25x. Net **−256,019 base-input units, ~10% of planner spend**. Had all six boundaries exceeded five minutes — the profile of the 469s and 1393s boundaries in the 2026-08-17 entry — the same run saves **1,712,042, ~68%**. The worst case, a loop whose every boundary lands inside five minutes, is the 2x write premium alone: 266,551, under 2% of the run's Claude-side total.
+
+**Three suspected cost drivers, all exonerated.** *Plan re-reads:* the lead never read the plan file in full — 6 partial touches, 2,956 chars — and took each round's findings from the backgrounded bridge's captured stdout, 19,074 chars for all 7 rounds. **~6,300 tokens for the entire loop.** *Plan size:* 44,691 bytes, mid-pack; the immediately preceding series converged in 4 rounds on a **larger** 49,177-byte plan while spending *more* uncached per round (342k vs 225k). *Round count:* findings went 9→5→4→3→2→1→0, monotonic, no oscillation; rounds 5–7 together were 3.6% of the series' uncached spend and round 6 still caught a real race.
+
+**Where it did go.** In base-input-equivalents the lead session is 12.84M against the planner's 2.52M, and 81% of the lead is `cache_read` — 381 turns against a context that grew to 518k and compacted exactly once, at the very end. Two `hyper-code-review` passes and a `hyper-research` ran ahead of the loop in the same uncompacted 4h50m context: **408,905 paid input and 72.8M `cache_read` before the loop's first call**, against the loop's own 55,538. Codex is separately priced: 17.9M input at 91.2% cached, **1,574,163 uncached**, one round (a transport-verification round) carrying 18% of that alone. Second-largest planner line item is self-inflicted: 4 full-file `Write` calls totalling 144,001 chars, ~25% of planner output, where `Edit` would have done.
+
+**Gotcha for a re-run.** The lead transcript is being appended to while you read it; snapshot the file first or two passes will disagree.
