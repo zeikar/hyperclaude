@@ -201,10 +201,26 @@ fi
 echo
 echo "==> Plugin manifest validation"
 if command -v claude >/dev/null 2>&1; then
-  if claude plugin validate . > /tmp/hyperclaude-validate.log 2>&1; then
+  # --json (Claude Code >= 2.1.259) names the failing path and message, so a
+  # failure is readable here instead of in a log the reader has to go open.
+  # Older CLIs reject the flag, hence the plain-form fallback.
+  validate_json=/tmp/hyperclaude-validate.json
+  if claude plugin validate . --json > "$validate_json" 2>&1; then
     ok "claude plugin validate ."
+  elif claude plugin validate . > /tmp/hyperclaude-validate.log 2>&1; then
+    ok "claude plugin validate . (--json unsupported on this Claude Code)"
   else
-    miss "claude plugin validate . failed (see /tmp/hyperclaude-validate.log)"
+    validate_detail=$(node -e '
+      try {
+        const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+        const errs = [];
+        for (const m of [j.manifest, ...(j.contents || [])]) {
+          for (const e of ((m && m.errors) || [])) errs.push(`${e.path ?? "?"}: ${e.message}`);
+        }
+        process.stdout.write(errs.join("; "));
+      } catch { process.stdout.write(""); }
+    ' "$validate_json" 2>/dev/null)
+    miss "claude plugin validate . failed${validate_detail:+ — $validate_detail} (see $validate_json)"
   fi
 else
   printf '  \033[33m-\033[0m claude CLI not on PATH; skipping plugin validate.\n'

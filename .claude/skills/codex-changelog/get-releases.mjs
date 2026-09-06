@@ -21,7 +21,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const REPO = 'openai/codex';
-const LIMIT = 40;
+// The window has to span ALPHAS, not just stables: codex ships many `-alpha.NN`
+// per week and they occupy the same list. A 40-release window failed to reach a
+// baseline only nine stables back (2026-09-06). Listing is one `gh` call whose
+// cost does not scale with LIMIT — the per-release `view` calls are bounded by
+// how many NEW stables there are — so keep this generous.
+const LIMIT = 200;
 const STATE_FILE = join(dirname(fileURLToPath(import.meta.url)), '.last-checked-version');
 const SEMVER = /^\d+\.\d+\.\d+$/;
 const TAG = /^rust-v(\d+\.\d+\.\d+)(-[0-9A-Za-z.]+)?$/;
