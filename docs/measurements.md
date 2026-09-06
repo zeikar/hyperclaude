@@ -120,3 +120,20 @@ Every one is within 32 tokens of a total hit. All 355,402 written tokens landed 
 **Where it did go.** In base-input-equivalents the lead session is 12.84M against the planner's 2.52M, and 81% of the lead is `cache_read` — 381 turns against a context that grew to 518k and compacted exactly once, at the very end. Two `hyper-code-review` passes and a `hyper-research` ran ahead of the loop in the same uncompacted 4h50m context: **408,905 paid input and 72.8M `cache_read` before the loop's first call**, against the loop's own 55,538. Codex is separately priced: 17.9M input at 91.2% cached, **1,574,163 uncached**, one round (a transport-verification round) carrying 18% of that alone. Second-largest planner line item is self-inflicted: 4 full-file `Write` calls totalling 144,001 chars, ~25% of planner output, where `Edit` would have done.
 
 **Gotcha for a re-run.** The lead transcript is being appended to while you read it; snapshot the file first or two passes will disagree.
+
+## 2026-09-06 — agent frontmatter buys the 1h bucket; the planner bridge was not needed
+
+**Question.** Claude Code 2.1.248 added `experimental.cacheTtl` to subagent frontmatter. Does a native subagent carrying it actually write `ephemeral_1h`, or only the main thread and `claude -p` (the 2026-09-04 entry) can?
+
+**Method differs from the shared one above.** Two throwaway project agents under `.claude/agents/`, identical but for the field: same `model: fable`, same `tools:` list as the real planner. Each dispatched from its own `claude -p` session, sequentially, and read back from `~/.claude/projects/<cwd>/<session>/subagents/agent-*.jsonl`. Claude Code 2.1.261.
+
+| arm | `ephemeral_5m` | `ephemeral_1h` | `cache_read` |
+|---|---|---|---|
+| no `cacheTtl` | 13,226 | 0 | 2,604 |
+| `experimental.cacheTtl: 1h` | 0 | 13,217 | 2,604 |
+
+Single-variable: same model, same tools, same read floor, and the 9-token prefix difference is the distinguishing marker text described next.
+
+**Two traps that cost a first attempt.** *Identical prefixes collapse the A/B.* The first run spawned both arms in parallel from bodies that differed only in frontmatter; the second arm read the first's just-written prefix (`cache_read` 15,662 = 2,604 + 13,058) and wrote **0/0**, which reads as a clean negative. Give each arm a textually distinct system prompt and run them sequentially. *Agents are not hot-reloaded.* A `.claude/agents/*.md` added mid-session is invisible to the running session's `Agent` tool — `Agent type '…' not found`. Spawn from a fresh `claude -p` instead. This failure mode is loud, which is why both arms were new files rather than an edit to the installed `planner`: an edited definition could have silently kept serving the old frontmatter and produced a false negative.
+
+**Settled:** `agents/planner.md` carries the field and `scripts/planner-bridge.mjs` is retired — the bridge existed only to move the planner into the 1h bucket, and three lines of frontmatter do it. Overage is not a differentiator: `isUsingOverage` forces 5m on a `claude -p` session too. Scope is unchanged from the 2026-08-17 verdict — the field is set on the planner alone, because 1h loses wherever the cache is not read back across a slow boundary.

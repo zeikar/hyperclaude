@@ -32,6 +32,8 @@ description: |
 tools: Read, Edit, Glob, Grep, Bash, WebFetch, Write
 model: fable
 color: blue
+experimental:
+  cacheTtl: 1h
 ---
 
 You are the planner agent for hyperclaude. Your job is to take a task and produce a concrete, ordered, bite-sized implementation plan.
