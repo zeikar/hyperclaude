@@ -262,6 +262,7 @@ async function main(argv) {
       }) + '\n');
       process.exit(1);
     }
+    const effectiveModel = args.model ?? getCodexEffectiveModel();
 
     // Step 4 (resume): try to resolve a prior thread when --resume is set.
     // On 'auto' miss → fall back to fresh + stderr note. On explicit failure → fail hard.
@@ -382,6 +383,7 @@ async function main(argv) {
       codexResumedFrom: resumeContext && result.ok ? resumeFromPath : undefined,
       codexModelRequested: args.model,
       codexEffortRequested: args.effort,
+      codexModelEffective: effectiveModel,
     });
     let headingTarget;
     if (args.docsPaths.length === 1) {
@@ -430,6 +432,7 @@ async function main(argv) {
       }) + '\n');
       process.exit(1);
     }
+    const effectiveModel = args.model ?? getCodexEffectiveModel();
 
     // Resume resolution: try to resolve a prior thread when --resume is set.
     // On 'auto' miss → fall back to fresh + stderr note. On explicit failure → fail hard.
@@ -569,6 +572,7 @@ async function main(argv) {
       codexResumedFrom: resumeContext && result.ok ? resumeFromPath : undefined,
       codexModelRequested: args.model,
       codexEffortRequested: args.effort,
+      codexModelEffective: effectiveModel,
     });
 
     let heading;
@@ -624,6 +628,7 @@ async function main(argv) {
     }) + '\n');
     process.exit(1);
   }
+  const effectiveModel = args.model ?? getCodexEffectiveModel();
 
   // Plan-review-only: try to resolve resume context before reading the plan, so
   // that an explicit-path validation failure short-circuits with a clean error.
@@ -749,6 +754,7 @@ async function main(argv) {
     codexResumedFrom: resumeContext && result.ok ? resumeFromPath : undefined,
     codexModelRequested: args.model,
     codexEffortRequested: args.effort,
+    codexModelEffective: effectiveModel,
   });
 
   const heading = args.mode === 'research'

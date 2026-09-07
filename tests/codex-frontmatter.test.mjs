@@ -332,6 +332,34 @@ test('renderFrontmatter: codex-thread-id omitted when null, present when truthy'
   assert.match(fmWith, /codex-thread-id: "thread-abc123"/);
 });
 
+test('renderFrontmatter: codex-model-effective omitted when null, present when truthy, sits between codex-effort-requested and codex-thread-id', () => {
+  const base = {
+    mode: 'research',
+    task: 'test',
+    slug: 'test',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexEffortRequested: 'high',
+    codexThreadId: 'thread-abc123',
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  };
+  const fmWithout = renderFrontmatter({ ...base, codexModelEffective: null });
+  assert.doesNotMatch(fmWithout, /codex-model-effective:/);
+  assert.equal(parseFrontmatter(fmWithout)['codex-model-effective'], undefined);
+
+  const fmWith = renderFrontmatter({ ...base, codexModelEffective: 'gpt-5' });
+  const lines = fmWith.split('\n');
+  const effortIdx = lines.findIndex((l) => l.startsWith('codex-effort-requested:'));
+  assert.ok(effortIdx >= 0, 'codex-effort-requested line must be present');
+  assert.equal(lines[effortIdx + 1], 'codex-model-effective: "gpt-5"', 'codex-model-effective must be the line immediately after codex-effort-requested');
+  assert.equal(lines[effortIdx + 2], 'codex-thread-id: "thread-abc123"', 'codex-thread-id must be the line immediately after codex-model-effective');
+  assert.equal(parseFrontmatter(fmWith)['codex-model-effective'], 'gpt-5');
+});
+
 test('renderFrontmatter: codex-resumed-from omitted when absent, present when truthy', () => {
   const fmWithout = renderFrontmatter({
     mode: 'research',
@@ -439,6 +467,36 @@ test('renderCodeReviewFrontmatter: codex-thread-id omitted when null, present wh
   assert.match(fmWith, /codex-thread-id: "thread-def456"/);
 });
 
+test('renderCodeReviewFrontmatter: codex-model-effective omitted when null, present when truthy, sits between codex-effort-requested and codex-thread-id', () => {
+  const base = {
+    slug: 'vs-main',
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    gitHead: 'unknown',
+    reviewTarget: 'base',
+    baseRef: 'main',
+    commit: null,
+    title: null,
+    cwd: '/tmp',
+    codexEffortRequested: 'high',
+    codexThreadId: 'thread-def456',
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  };
+  const fmWithout = renderCodeReviewFrontmatter({ ...base, codexModelEffective: null });
+  assert.doesNotMatch(fmWithout, /codex-model-effective:/);
+  assert.equal(parseFrontmatter(fmWithout)['codex-model-effective'], undefined);
+
+  const fmWith = renderCodeReviewFrontmatter({ ...base, codexModelEffective: 'gpt-5' });
+  const lines = fmWith.split('\n');
+  const effortIdx = lines.findIndex((l) => l.startsWith('codex-effort-requested:'));
+  assert.ok(effortIdx >= 0, 'codex-effort-requested line must be present');
+  assert.equal(lines[effortIdx + 1], 'codex-model-effective: "gpt-5"', 'codex-model-effective must be the line immediately after codex-effort-requested');
+  assert.equal(lines[effortIdx + 2], 'codex-thread-id: "thread-def456"', 'codex-thread-id must be the line immediately after codex-model-effective');
+  assert.equal(parseFrontmatter(fmWith)['codex-model-effective'], 'gpt-5');
+});
+
 test('renderCodeReviewFrontmatter: base-ref and commit migrated to fmString', () => {
   const fm = renderCodeReviewFrontmatter({
     slug: 'vs-main',
@@ -507,6 +565,34 @@ test('renderDocsReviewFrontmatter: codex-thread-id omitted when null, present wh
     codexResumedFrom: undefined,
   });
   assert.match(fmWith, /codex-thread-id: "thread-ghi789"/);
+});
+
+test('renderDocsReviewFrontmatter: codex-model-effective omitted when null, present when truthy, sits between codex-effort-requested and codex-thread-id', () => {
+  const base = {
+    slug: 'api',
+    docsTarget: 'docs/api.md',
+    diffBase: null,
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexEffortRequested: 'high',
+    codexThreadId: 'thread-ghi789',
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  };
+  const fmWithout = renderDocsReviewFrontmatter({ ...base, codexModelEffective: null });
+  assert.doesNotMatch(fmWithout, /codex-model-effective:/);
+  assert.equal(parseFrontmatter(fmWithout)['codex-model-effective'], undefined);
+
+  const fmWith = renderDocsReviewFrontmatter({ ...base, codexModelEffective: 'gpt-5' });
+  const lines = fmWith.split('\n');
+  const effortIdx = lines.findIndex((l) => l.startsWith('codex-effort-requested:'));
+  assert.ok(effortIdx >= 0, 'codex-effort-requested line must be present');
+  assert.equal(lines[effortIdx + 1], 'codex-model-effective: "gpt-5"', 'codex-model-effective must be the line immediately after codex-effort-requested');
+  assert.equal(lines[effortIdx + 2], 'codex-thread-id: "thread-ghi789"', 'codex-thread-id must be the line immediately after codex-model-effective');
+  assert.equal(parseFrontmatter(fmWith)['codex-model-effective'], 'gpt-5');
 });
 
 test('renderDocsReviewFrontmatter: docs-target and diff-base migrated to fmString', () => {

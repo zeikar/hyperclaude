@@ -21,7 +21,7 @@ function pushCodexUsage(lines, usage) {
 export function renderFrontmatter({
   mode, task, slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion,
   planPath, reviewBrief, cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
-  codexModelRequested, codexEffortRequested, codexUsage,
+  codexModelRequested, codexEffortRequested, codexModelEffective, codexUsage,
 }) {
   const lines = ['---'];
   lines.push(`mode: ${mode}`);
@@ -43,6 +43,7 @@ export function renderFrontmatter({
   lines.push(fmString('git-head', gitHead));
   if (codexModelRequested) lines.push(fmString('codex-model-requested', codexModelRequested));
   if (codexEffortRequested) lines.push(fmString('codex-effort-requested', codexEffortRequested));
+  if (codexModelEffective) lines.push(fmString('codex-model-effective', codexModelEffective));
   if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
   lines.push(`codex-resume-status: ${codexResumeStatus}`);
   if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
@@ -55,7 +56,7 @@ export function renderFrontmatter({
 export function renderCodeReviewFrontmatter({
   slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion, gitHead, reviewTarget, baseRef, commit, title,
   reviewBrief, cwd, codexThreadId, codexResumeStatus, codexResumedFrom,
-  codexModelRequested, codexEffortRequested, codexUsage,
+  codexModelRequested, codexEffortRequested, codexModelEffective, codexUsage,
 }) {
   const lines = ['---'];
   lines.push('mode: code-review');
@@ -76,6 +77,7 @@ export function renderCodeReviewFrontmatter({
   lines.push(fmString('cwd', cwd));
   if (codexModelRequested) lines.push(fmString('codex-model-requested', codexModelRequested));
   if (codexEffortRequested) lines.push(fmString('codex-effort-requested', codexEffortRequested));
+  if (codexModelEffective) lines.push(fmString('codex-model-effective', codexModelEffective));
   if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
   lines.push(`codex-resume-status: ${codexResumeStatus}`);
   if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));
@@ -90,7 +92,7 @@ export function renderCodeReviewFrontmatter({
 export function renderDocsReviewFrontmatter({
   slug, generated, pluginVersion = 'unknown', codexVersion, templateVersion, docsTarget, diffBase,
   cwd, gitHead, codexThreadId, codexResumeStatus, codexResumedFrom,
-  codexModelRequested, codexEffortRequested, codexUsage,
+  codexModelRequested, codexEffortRequested, codexModelEffective, codexUsage,
 }) {
   const lines = ['---'];
   lines.push('mode: docs-review');
@@ -106,6 +108,7 @@ export function renderDocsReviewFrontmatter({
   lines.push(fmString('git-head', gitHead));
   if (codexModelRequested) lines.push(fmString('codex-model-requested', codexModelRequested));
   if (codexEffortRequested) lines.push(fmString('codex-effort-requested', codexEffortRequested));
+  if (codexModelEffective) lines.push(fmString('codex-model-effective', codexModelEffective));
   if (codexThreadId) lines.push(fmString('codex-thread-id', codexThreadId));
   lines.push(`codex-resume-status: ${codexResumeStatus}`);
   if (codexResumedFrom) lines.push(fmString('codex-resumed-from', codexResumedFrom));

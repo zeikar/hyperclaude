@@ -1101,3 +1101,147 @@ test('mock codex: docs-review two --docs-path aggregate over 200KB rejected (no 
     rmSync(tmpdir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// codex-model-effective: getCodexEffectiveModel() probes (doctor + debug models),
+// gated behind args.model ?? getCodexEffectiveModel() short-circuit.
+// ---------------------------------------------------------------------------
+
+test('mock codex: research with no --model probes doctor + debug models, records codex-model-effective', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-model-eff-flagless-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const result = spawnSync(
+      process.execPath,
+      [BRIDGE, 'research', '--task', 'probe effective model', '--out', tmpdir],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+      }
+    );
+
+    assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.ok, true);
+
+    const outputContent = readFileSync(json.path, 'utf8');
+    assert.ok(
+      outputContent.includes('codex-model-effective: "mock-default"'),
+      'frontmatter should record the catalog default (config.load reported the <default> placeholder)'
+    );
+
+    // probe.log proves WHICH probes ran: doctor (finds the placeholder) then
+    // debug models (resolves the real default from the catalog).
+    const probeLog = readFileSync(path.join(tmpdir, 'probe.log'), 'utf8');
+    assert.ok(/^doctor$/m.test(probeLog), 'probe.log should record the doctor probe');
+    assert.ok(/^debug$/m.test(probeLog) && /^models$/m.test(probeLog), 'probe.log should record the debug models probe');
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('mock codex: research with MOCK_CODEX_CONFIG_MODEL set only probes doctor, records the pinned model', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-model-eff-pinned-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const result = spawnSync(
+      process.execPath,
+      [BRIDGE, 'research', '--task', 'probe effective model', '--out', tmpdir],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}`, MOCK_CODEX_CONFIG_MODEL: 'pinned-model' },
+      }
+    );
+
+    assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.ok, true);
+
+    const outputContent = readFileSync(json.path, 'utf8');
+    assert.ok(
+      outputContent.includes('codex-model-effective: "pinned-model"'),
+      'frontmatter should record the doctor-reported config model verbatim'
+    );
+
+    // config.load already named a real model — the catalog probe must never run.
+    const probeLog = readFileSync(path.join(tmpdir, 'probe.log'), 'utf8');
+    assert.ok(/^doctor$/m.test(probeLog), 'probe.log should record the doctor probe');
+    assert.ok(!probeLog.includes('debug') && !probeLog.includes('models'), 'probe.log should NOT record a debug models probe');
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('mock codex: research with --model gpt-5 short-circuits getCodexEffectiveModel() — no probe.log at all', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-model-eff-flag-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const result = spawnSync(
+      process.execPath,
+      [BRIDGE, 'research', '--task', 'probe effective model', '--model', 'gpt-5', '--out', tmpdir],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` },
+      }
+    );
+
+    assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.ok, true);
+
+    const outputContent = readFileSync(json.path, 'utf8');
+    assert.ok(
+      outputContent.includes('codex-model-effective: "gpt-5"'),
+      'frontmatter should record the requested model verbatim (args.model short-circuits the probe)'
+    );
+
+    // args.model ?? getCodexEffectiveModel() must short-circuit before either probe spawns.
+    assert.ok(!existsSync(path.join(tmpdir, 'probe.log')), '--model must skip getCodexEffectiveModel() entirely — no probe spawn');
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('mock codex: research with MOCK_CODEX_PROBE_FAIL=1 still succeeds, with no codex-model-effective line', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-model-eff-fail-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const result = spawnSync(
+      process.execPath,
+      [BRIDGE, 'research', '--task', 'probe effective model', '--out', tmpdir],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}`, MOCK_CODEX_PROBE_FAIL: '1' },
+      }
+    );
+
+    // A probe failure must never fail the run.
+    assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+    const json = JSON.parse(result.stdout);
+    assert.equal(json.ok, true);
+
+    const outputContent = readFileSync(json.path, 'utf8');
+    assert.ok(!outputContent.includes('codex-model-effective'), 'frontmatter must NOT record codex-model-effective when the probe fails');
+
+    // The doctor probe still ran (and failed) before the resolver gave up, and
+    // an unreadable doctor must NOT fall through to the catalog — the bridge
+    // cannot tell whether config pins a model, so it must not guess one.
+    const probeLog = readFileSync(path.join(tmpdir, 'probe.log'), 'utf8');
+    assert.ok(/^doctor$/m.test(probeLog), 'probe.log should record the doctor probe attempt');
+    assert.ok(!probeLog.includes('debug') && !probeLog.includes('models'), 'probe.log should NOT record a debug models probe after doctor failed');
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
