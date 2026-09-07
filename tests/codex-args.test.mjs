@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, renameSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, cpSync, realpathSync } from 'node:fs';
 import os from 'node:os';
 import { slugify, parseArgs, buildInvocation } from '../scripts/codex-bridge.mjs';
 import { BRIDGE } from './helpers/fixtures.mjs';
@@ -203,24 +203,36 @@ test('parseArgs: --slug rejects invalid', () => {
 // M5 — --dry-run fails fast on missing template
 
 test('cli: --dry-run reports missing template', () => {
+  // Stage a private copy of the scripts/ + templates/ trees the bridge needs
+  // to resolve its own template root (scripts/codex/../../templates/codex/),
+  // then delete research.md from the COPY only. Spawning the bridge from the
+  // copy (not the real repo) means this never mutates the live, shared
+  // templates/codex/research.md — that used to race tests/codex-templates.test.mjs,
+  // which reads the same real path from a concurrently-running process.
   const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const templatePath = path.join(repoRoot, 'templates', 'codex', 'research.md');
-  const bakPath = templatePath + '.bak';
-  renameSync(templatePath, bakPath);
-  let result;
+  // os.tmpdir() is a symlink on macOS (/var -> /private/var); the bridge's own
+  // "am I the entry module" self-invocation guard compares import.meta.url
+  // (Node resolves the real path) against process.argv[1] verbatim, so the
+  // spawned bridge would silently no-op unless we spawn it via the resolved
+  // real path.
+  const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-missing-template-')));
   try {
-    result = spawnSync(
+    cpSync(path.join(repoRoot, 'scripts'), path.join(tmp, 'scripts'), { recursive: true });
+    cpSync(path.join(repoRoot, 'templates'), path.join(tmp, 'templates'), { recursive: true });
+    rmSync(path.join(tmp, 'templates', 'codex', 'research.md'));
+
+    const result = spawnSync(
       'node',
-      [BRIDGE, 'research', '--task', 'smoke', '--dry-run'],
+      [path.join(tmp, 'scripts', 'codex-bridge.mjs'), 'research', '--task', 'smoke', '--dry-run'],
       { encoding: 'utf8' }
     );
+    assert.equal(result.status, 1, `expected exit 1, stderr: ${result.stderr}`);
+    const out = JSON.parse(result.stdout);
+    assert.equal(out.ok, false);
+    assert.match(out.error, /failed to read prompt template/);
   } finally {
-    renameSync(bakPath, templatePath);
+    rmSync(tmp, { recursive: true, force: true });
   }
-  assert.equal(result.status, 1, `expected exit 1, stderr: ${result.stderr}`);
-  const out = JSON.parse(result.stdout);
-  assert.equal(out.ok, false);
-  assert.match(out.error, /failed to read prompt template/);
 });
 
 test('parseArgs: --task-file accepted as alternative to --task', () => {
