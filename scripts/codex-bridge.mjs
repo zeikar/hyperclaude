@@ -270,7 +270,7 @@ async function main(argv) {
     let resumeFromPath = null;      // resolved prior artifact path (for codexResumedFrom)
     let resumeStatus = 'fresh';
     if (args.resumeFrom) {
-      const r = await resolveResume('docs-review', args);
+      const r = await resolveResume('docs-review', args, effectiveModel);
       if (r.ok) {
         resumeContext = r.context;
         resumeFromPath = r.prevPath;
@@ -440,7 +440,7 @@ async function main(argv) {
     let resumeFromPath = null;      // resolved prior artifact path (for codexResumedFrom)
     let resumeStatus = 'fresh';
     if (args.resumeFrom) {
-      const r = await resolveResume('code-review', args);
+      const r = await resolveResume('code-review', args, effectiveModel);
       if (r.ok) {
         resumeContext = r.context;
         resumeFromPath = r.prevPath;
@@ -636,7 +636,7 @@ async function main(argv) {
   let resumeFromPath = null;
   let resumeStatus = 'fresh';
   if (args.mode === 'plan-review' && args.resumeFrom) {
-    const r = await resolveResume('plan-review', args);
+    const r = await resolveResume('plan-review', args, effectiveModel);
     if (r.ok) {
       resumeContext = r.context;
       resumeFromPath = r.prevPath;

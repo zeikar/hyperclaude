@@ -157,9 +157,12 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   // effective settings, so it conservatively rejects that artifact rather than
   // continuing a thread whose model/effort it can't confirm (prompt-caching
   // motivated). Scope: this compares ONLY the recorded bridge overrides — two
-  // flagless runs both record null and match; it does NOT detect
-  // ~/.codex/config.toml drift. Message stays neutral (no "fresh fallback"
-  // wording): the fallback-vs-fatal decision belongs to resolveResume/caller.
+  // flagless runs both record null and match; effective-model drift (e.g.
+  // ~/.codex/config.toml changing between runs) is instead handled by the
+  // discovery-level codex-model-effective rule in discoverResumeArtifact, and
+  // only for `--resume auto` — explicit resume never blocks on it. Message
+  // stays neutral (no "fresh fallback" wording): the fallback-vs-fatal
+  // decision belongs to resolveResume/caller.
   const prevModel = fm['codex-model-requested'] ?? null;
   const curModel = currentArgs.model ?? null;
   const prevEffort = fm['codex-effort-requested'] ?? null;
@@ -174,10 +177,10 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
 //   { ok: true, prevPath, context }
 //   { ok: false, fatal: true,  error }   // explicit path → caller fails hard
 //   { ok: false, fatal: false, error }   // 'auto' miss → caller falls back to fresh
-export async function resolveResume(mode, args) {
+export async function resolveResume(mode, args, currentEffectiveModel = null) {
   let prevPath;
   if (args.resumeFrom === 'auto') {
-    const d = await discoverResumeArtifact(mode, args);
+    const d = await discoverResumeArtifact(mode, args, currentEffectiveModel);
     if (d.error) return { ok: false, fatal: false, error: d.error };
     prevPath = d.path;
   } else {
@@ -193,7 +196,15 @@ export async function resolveResume(mode, args) {
 // discoverResumeArtifact: searches the configured output directory for the
 // newest artifact whose frontmatter passes loadResumeContext. Returns either
 // { path } or { error: 'no matching artifact in <dir>' }.
-export async function discoverResumeArtifact(mode, args) {
+//
+// currentEffectiveModel: the resolved model this run will actually use
+// (args.model ?? getCodexEffectiveModel(), computed by the caller). A
+// candidate that otherwise passes loadResumeContext is still skipped when its
+// recorded codex-model-effective differs from currentEffectiveModel — this is
+// an AUTO-ONLY exclusion, not an identity gate, so it lives here rather than
+// in loadResumeContext: explicit `--resume <path>` must not block on it, only
+// `--resume auto`'s own candidate search.
+export async function discoverResumeArtifact(mode, args, currentEffectiveModel = null) {
   const dir = args.out ?? defaultModeDir(mode);
   let entries;
   try {
@@ -215,12 +226,22 @@ export async function discoverResumeArtifact(mode, args) {
       }
       return b.localeCompare(a);
     });
+  const isNonEmptyString = (v) => typeof v === 'string' && v.length > 0;
+  let modelSkip = null; // { name, priorModel } of the newest candidate skipped on the model rule
   for (const name of candidates) {
     const candidatePath = path.join(dir, name);
     const ctx = await loadResumeContext(candidatePath, mode, args);
-    if (!ctx.error) {
-      return { path: candidatePath };
+    if (ctx.error) continue;
+    const priorModel = ctx.frontmatter['codex-model-effective'];
+    if (isNonEmptyString(priorModel) && isNonEmptyString(currentEffectiveModel)
+        && priorModel !== currentEffectiveModel) {
+      if (!modelSkip) modelSkip = { name, priorModel };
+      continue;
     }
+    return { path: candidatePath };
+  }
+  if (modelSkip) {
+    return { error: `no matching artifact in ${dir} (${modelSkip.name} ran under "${modelSkip.priorModel}"; this run resolves to "${currentEffectiveModel}")` };
   }
   return { error: `no matching artifact in ${dir}` };
 }

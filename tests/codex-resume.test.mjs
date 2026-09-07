@@ -524,6 +524,213 @@ test('discoverResumeArtifact: skips ineligible artifacts (mode mismatch) and fin
   }
 });
 
+// ── Task 3: discoverResumeArtifact codex-model-effective drift (auto-only) ──
+
+test('discoverResumeArtifact: newest mismatched is skipped, and among the remaining ELIGIBLE candidates the newest one wins (proves ordering, not just single-valid-answer)', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-modeldrift-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    const newest = path.join(tmp, '20260601-0000-newest.md');
+    writePriorReview(newest, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-newest',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-5.6-sol',
+    });
+    // TWO eligible (matching-model) candidates remain after the newest is
+    // skipped, so returning the newer of the two actually exercises the
+    // newest-first sort — a single eligible candidate could pass regardless
+    // of traversal order.
+    const middle = path.join(tmp, '20260510-1015-middle.md');
+    writePriorReview(middle, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-middle',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-6-astra',
+    });
+    const oldest = path.join(tmp, '20260101-0000-oldest.md');
+    writePriorReview(oldest, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-oldest',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-6-astra',
+    });
+    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath }, 'gpt-6-astra');
+    assert.equal(r.error, undefined);
+    assert.equal(r.path, middle, 'must pick the NEWER of the two eligible candidates, not the oldest');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: multiple mismatched candidates → error names the NEWEST skipped one, not the oldest', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-modelmiss-multi-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    // Both candidates are excluded on the model rule, each under a DIFFERENT
+    // recorded model, so the assertion can only pass if the reported name/model
+    // is the NEWEST skip — not the oldest, and not whichever the loop visited
+    // last (a single-candidate fixture cannot distinguish "remember the first"
+    // from "remember the last"/"overwrite every time").
+    const newest = path.join(tmp, '20260601-0000-newest.md');
+    writePriorReview(newest, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-newest',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-5.6-sol',
+    });
+    const older = path.join(tmp, '20260510-1015-older.md');
+    writePriorReview(older, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-older',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-4-legacy',
+    });
+    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath }, 'gpt-6-astra');
+    assert.equal(
+      r.error,
+      `no matching artifact in ${tmp} (20260601-0000-newest.md ran under "gpt-5.6-sol"; this run resolves to "gpt-6-astra")`
+    );
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: currentEffectiveModel omitted (unknown current) never excludes — newest wins', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-modelnull-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    const newest = path.join(tmp, '20260601-0000-newest.md');
+    writePriorReview(newest, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-newest',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-5.6-sol',
+    });
+    const older = path.join(tmp, '20260510-1015-older.md');
+    writePriorReview(older, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-older',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-6-astra',
+    });
+    // Two-arg call: currentEffectiveModel defaults to null, matching every existing caller.
+    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath });
+    assert.equal(r.error, undefined);
+    assert.equal(r.path, newest);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: newest lacks codex-model-effective (unknown prior) never excludes — newest wins', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-modelmissing-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    const newest = path.join(tmp, '20260601-0000-newest.md');
+    writePriorReview(newest, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-newest',
+      'codex-resume-status': 'fresh',
+      // no codex-model-effective key at all
+    });
+    const older = path.join(tmp, '20260510-1015-older.md');
+    writePriorReview(older, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-older',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-6-astra',
+    });
+    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath }, 'gpt-6-astra');
+    assert.equal(r.error, undefined);
+    assert.equal(r.path, newest);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: single mismatched candidate → error names both models and the skipped artifact', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-modelmiss-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    const only = path.join(tmp, '20260510-1015-only.md');
+    writePriorReview(only, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-only',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-5.6-sol',
+    });
+    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath }, 'gpt-6-astra');
+    assert.equal(
+      r.error,
+      `no matching artifact in ${tmp} (20260510-1015-only.md ran under "gpt-5.6-sol"; this run resolves to "gpt-6-astra")`
+    );
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('loadResumeContext: codex-model-effective mismatch does NOT block (auto-only rule, not an identity gate)', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-lrc-modeldrift-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    const prior = path.join(tmp, '20260510-1015-prior.md');
+    writePriorReview(prior, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-prior',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-5.6-sol',
+    });
+    // Current run resolves to a different model — loadResumeContext (used by
+    // the explicit --resume <path> branch) does not even look at it.
+    const ctx = await loadResumeContext(prior, 'plan-review', { planPath });
+    assert.equal(ctx.error, undefined);
+    assert.equal(ctx.threadId, 'tid-prior');
+    assert.ok(ctx.frontmatter);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 // ── Task 2: loadResumeContext code-review identity ────────────────────────────
 
 test('loadResumeContext: code-review --base main identity success', async () => {

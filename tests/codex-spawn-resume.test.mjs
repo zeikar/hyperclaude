@@ -1561,3 +1561,173 @@ test('resume auto skips mismatched newest artifact and resumes older matching on
     rmSync(tmpdir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Task 3 (this task): --resume auto excludes a candidate whose recorded
+// codex-model-effective differs from the current run's resolved model;
+// explicit --resume <path> records but does not block on the same mismatch.
+// ---------------------------------------------------------------------------
+
+test('resume auto: candidate ran under a different effective model → fallback, stderr names both models, no resume in argv, new artifact records the current model', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-modeleff-fallback-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_DOCS_REVIEW_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-modeleff-fallback-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-api.md');
+      writePriorArtifact(prior, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'template-version': 3,
+        'codex-thread-id': 'thread-resume-1',
+        'codex-resume-status': 'fresh',
+        'codex-model-effective': 'gpt-5.6-sol',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', 'auto', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}`, MOCK_CODEX_CATALOG_DEFAULT: 'gpt-6-astra' },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'fallback', 'candidate excluded on the model-drift rule → fresh fallback');
+      assert.match(result.stderr, /hyperclaude: resume fallback —/, 'stderr should carry the resume fallback note');
+      assert.match(result.stderr, /"gpt-5\.6-sol"/, 'stderr fallback note should name the prior candidate model');
+      assert.match(result.stderr, /"gpt-6-astra"/, 'stderr fallback note should name the current resolved model');
+
+      const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+      const argv = argvLog.split('\n').filter((l) => l.length > 0);
+      assert.ok(!argv.includes('resume'), 'argv must not contain "resume" — fresh spawn');
+
+      const outputContent = readFileSync(json.path, 'utf8');
+      assert.ok(
+        outputContent.includes('codex-model-effective: "gpt-6-astra"'),
+        'new artifact should record the current run\'s resolved model'
+      );
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume explicit path: same effective-model mismatch does NOT block — resumed, prior thread id used, new artifact records the current model', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-modeleff-explicit-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-modeleff-explicit-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-api.md');
+      writePriorArtifact(prior, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'template-version': 3,
+        'codex-thread-id': 'thread-resume-1',
+        'codex-resume-status': 'fresh',
+        'codex-model-effective': 'gpt-5.6-sol',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', prior, '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}`, MOCK_CODEX_CATALOG_DEFAULT: 'gpt-6-astra' },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'resumed', 'explicit --resume must not block on an effective-model mismatch');
+
+      const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
+      const argv = argvLog.split('\n').filter((l) => l.length > 0);
+      assert.ok(argv.includes('thread-resume-1'), 'argv should carry the prior artifact\'s thread id');
+
+      const outputContent = readFileSync(json.path, 'utf8');
+      assert.ok(
+        outputContent.includes('codex-model-effective: "gpt-6-astra"'),
+        'new artifact should record the current run\'s resolved model, not the prior one'
+      );
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
+
+test('resume auto: probe failure (unknown current model) never excludes — resumed, new artifact has no codex-model-effective line', () => {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-modeleff-unknown-'));
+  try {
+    const mockCodexPath = path.join(tmpdir, 'codex');
+    writeFileSync(mockCodexPath, MOCK_CODEX_RESUME_SUCCESS);
+    chmodSync(mockCodexPath, 0o755);
+
+    const docPath = path.join(tmpdir, 'api.md');
+    writeFileSync(docPath, '# API\n\nbody.\n');
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rs-modeleff-unknown-out-'));
+    try {
+      const prior = path.join(outDir, '20260510-1015-api.md');
+      writePriorArtifact(prior, {
+        mode: 'docs-review',
+        slug: 'api',
+        cwd: process.cwd(),
+        'docs-target': docPath,
+        'template-version': 3,
+        'codex-thread-id': 'thread-resume-1',
+        'codex-resume-status': 'fresh',
+        'codex-model-effective': 'gpt-5.6-sol',
+      });
+
+      const result = spawnSync(
+        process.execPath,
+        [BRIDGE, 'docs-review', '--docs-path', docPath, '--resume', 'auto', '--out', outDir],
+        {
+          encoding: 'utf8',
+          env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}`, MOCK_CODEX_PROBE_FAIL: '1' },
+        }
+      );
+
+      assert.equal(result.status, 0, `bridge stderr: ${result.stderr}`);
+      const json = JSON.parse(result.stdout);
+      assert.equal(json.ok, true);
+      assert.equal(json.resumeStatus, 'resumed', 'an unknown current model must never exclude the only candidate');
+
+      const outputContent = readFileSync(json.path, 'utf8');
+      assert.ok(
+        !outputContent.includes('codex-model-effective'),
+        'new artifact must NOT record codex-model-effective when the probe fails'
+      );
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+});
