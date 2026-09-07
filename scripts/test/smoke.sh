@@ -244,6 +244,48 @@ if command -v codex >/dev/null 2>&1; then
   else
     miss "codex --search exec --help rejected — --search global flag unavailable or wrong placement"
   fi
+  # Unlike the three exit-status probes above, these two judge stdout CONTENT,
+  # not exit status: getCodexEffectiveModel() (scripts/codex/codex.mjs)
+  # deliberately ignores doctor's exit code — an unrelated doctor check
+  # (network, auth, ~20 others) can fail while config.load still prints
+  # correctly — and parses only stdout. Gating on exit status here would
+  # false-negative on an offline or expired-auth machine even though
+  # production resolves fine. A real spawn failure or malformed/truncated
+  # output still fails loudly: there is nothing valid to parse, so the shape
+  # assertion below reports the same miss.
+  out=$(codex doctor --json 2>/dev/null)
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    const model = j.checks && j.checks["config.load"] && j.checks["config.load"].details && j.checks["config.load"].details.model;
+    process.exit(typeof model === "string" && model.length > 0 ? 0 : 1);
+  '; then
+    ok "codex doctor --json: checks[\"config.load\"].details.model is a non-empty string"
+  else
+    miss "codex doctor --json: checks[\"config.load\"].details.model missing/empty — codex-model-effective would silently stop being recorded"
+  fi
+  out=$(codex debug models 2>/dev/null)
+  if printf '%s' "$out" | node -e '
+    const j = JSON.parse(require("fs").readFileSync(0,"utf8"));
+    const models = Array.isArray(j.models) ? j.models : [];
+    const shapeOk = models.length > 0 && models.every(
+      (m) => typeof m.slug === "string" && typeof m.priority === "number" && typeof m.visibility === "string"
+    );
+    const hasListed = models.some((m) => m.visibility === "list");
+    process.exit(shapeOk && hasListed ? 0 : 1);
+  '; then
+    ok "codex debug models: models[] non-empty with string slug, numeric priority, visibility, and >=1 \"list\" entry"
+  else
+    miss "codex debug models: catalog shape unexpected — codex-model-effective's catalog fallback would silently stop being recorded"
+  fi
+  if out=$(node --input-type=module -e '
+    import { getCodexEffectiveModel } from "./scripts/codex-bridge.mjs";
+    const model = getCodexEffectiveModel();
+    process.exit(typeof model === "string" && model.length > 0 && !/^<.*>$/.test(model) ? 0 : 1);
+  ' 2>&1); then
+    ok "getCodexEffectiveModel() returns a non-empty, non-placeholder model string"
+  else
+    miss "getCodexEffectiveModel() returned empty/placeholder — codex-model-effective would silently stop being recorded: $out"
+  fi
 else
   printf '  \033[33m-\033[0m codex not on PATH; skipping Codex 0.130 capability probes.\n'
 fi
