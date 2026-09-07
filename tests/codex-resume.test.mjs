@@ -371,11 +371,16 @@ test('loadResumeContext: status fallback rejected', async () => {
       mode: 'plan-review',
       cwd: process.cwd(),
       'plan-path': '/tmp/p.md',
+      'template-version': 3,
       'codex-thread-id': 't',
       'codex-resume-status': 'fallback',
     });
     const ctx = await loadResumeContext(prior, 'plan-review', { planPath: '/tmp/p.md' });
     assert.match(ctx.error, /resume-status "fallback"; only fresh\/resumed eligible/);
+    // Every other identity check passed — provenance (threadId/frontmatter)
+    // is still returned alongside the error for discovery's cross-artifact
+    // thread exclusion, even though this artifact stays resume-ineligible.
+    assert.equal(ctx.threadId, 't');
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -389,11 +394,13 @@ test('loadResumeContext: status resume-failed rejected', async () => {
       mode: 'plan-review',
       cwd: process.cwd(),
       'plan-path': '/tmp/p.md',
+      'template-version': 3,
       'codex-thread-id': 't',
       'codex-resume-status': 'resume-failed',
     });
     const ctx = await loadResumeContext(prior, 'plan-review', { planPath: '/tmp/p.md' });
     assert.match(ctx.error, /resume-status "resume-failed"/);
+    assert.equal(ctx.threadId, 't');
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -699,6 +706,91 @@ test('discoverResumeArtifact: single mismatched candidate → error names both m
     assert.equal(
       r.error,
       `no matching artifact in ${tmp} (20260510-1015-only.md ran under "gpt-5.6-sol"; this run resolves to "gpt-6-astra")`
+    );
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: older artifact sharing the rejected thread id is also excluded, not just the newest', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-modelmiss-samethread-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    // Newest was explicitly resumed under a different model — model rule skips it.
+    const newest = path.join(tmp, '20260601-0000-newest.md');
+    writePriorReview(newest, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-shared',
+      'codex-resume-status': 'resumed',
+      'codex-model-effective': 'gpt-5.6-sol',
+    });
+    // Older artifact records the SAME thread id (it was resumed into the newer
+    // one above) but under the CURRENT model — without thread-level exclusion,
+    // auto-discovery would select it and resume tid-shared anyway, silently
+    // continuing the thread the model rule just rejected.
+    const older = path.join(tmp, '20260510-1015-older.md');
+    writePriorReview(older, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-shared',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-6-astra',
+    });
+    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath }, 'gpt-6-astra');
+    assert.equal(
+      r.error,
+      `no matching artifact in ${tmp} (20260601-0000-newest.md ran under "gpt-5.6-sol"; this run resolves to "gpt-6-astra")`
+    );
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: older artifact sharing a thread a FAILED cross-model resume touched is also excluded (resume-failed carries provenance even though ineligible)', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-modelmiss-resumefailed-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    // Newest: an explicit --resume under a different model that ultimately
+    // FAILED (codex-resume-status: resume-failed) — ineligible as a resume
+    // candidate on its own, but it may have added real turns to tid-shared
+    // under gpt-5.6-sol before failing. loadResumeContext rejects it (bad
+    // status), so without provenance-independent exclusion, discovery would
+    // never even look at its recorded thread/model.
+    const newest = path.join(tmp, '20260601-0000-newest.md');
+    writePriorReview(newest, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-shared',
+      'codex-resume-status': 'resume-failed',
+      'codex-model-effective': 'gpt-5.6-sol',
+    });
+    // Older artifact is the one the failed attempt above tried to resume —
+    // same thread id, fully eligible, and its OWN recorded model matches the
+    // current run. Selecting it would resume tid-shared, silently continuing
+    // the turns the failed cross-model attempt already added under gpt-5.6-sol.
+    const older = path.join(tmp, '20260510-1015-older.md');
+    writePriorReview(older, {
+      mode: 'plan-review',
+      cwd: process.cwd(),
+      'plan-path': planPath,
+      'template-version': 3,
+      'codex-thread-id': 'tid-shared',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-6-astra',
+    });
+    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath }, 'gpt-6-astra');
+    assert.equal(
+      r.error,
+      `no matching artifact in ${tmp} (20260601-0000-newest.md ran under "gpt-5.6-sol"; this run resolves to "gpt-6-astra")`
     );
   } finally {
     rmSync(tmp, { recursive: true, force: true });

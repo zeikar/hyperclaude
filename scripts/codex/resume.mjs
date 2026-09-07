@@ -41,17 +41,29 @@ async function templateVersionGateError(mode, fm) {
 }
 
 // loadResumeContext: validates a prior artifact and extracts thread-id.
-// Returns either { threadId, frontmatter } or { error: <reason> }.
+// Returns { threadId, frontmatter } on success. On failure it returns
+// { error }, EXCEPT for the one case where every other check already
+// confirmed the artifact is about the CURRENT scan's subject and only its
+// resume-status (step 8, last) disqualifies it — that case also returns
+// { threadId, frontmatter } alongside the error, so a caller can still read
+// this artifact's thread/model PROVENANCE (e.g. cross-artifact thread
+// exclusion in discoverResumeArtifact) without treating it as a resume
+// candidate. Every earlier failure means identity was never confirmed, so
+// threadId/frontmatter stay absent there — using them would risk excluding
+// an unrelated artifact that merely happens to reuse a thread id.
 //
 // Validations (in order, first failure wins):
 //  1. file readable + parses
 //  2. mode field equals expectedMode
 //  3. cwd matches process.cwd() under path.resolve()
 //  4. codex-thread-id is truthy
-//  5. codex-resume-status is fresh or resumed (not fallback / resume-failed)
-//  6. template-version matches the mode's current fresh template
-//  7. mode-specific identity (plan-path for plan-review; docs-target+diff-base
+//  5. template-version matches the mode's current fresh template
+//  6. mode-specific identity (plan-path for plan-review; docs-target+diff-base
 //     for docs-review; base-ref/commit/uncommitted for code-review)
+//  7. requested model/effort override matches current args
+//  8. codex-resume-status is fresh or resumed (not fallback / resume-failed) —
+//     checked LAST, after every identity check, precisely so a failure here
+//     still carries confirmed provenance (see above)
 export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   let text;
   try {
@@ -74,10 +86,6 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   const threadId = fm['codex-thread-id'];
   if (!threadId || typeof threadId !== 'string') {
     return { error: 'prior artifact has no codex-thread-id' };
-  }
-  const status = fm['codex-resume-status'];
-  if (status !== 'fresh' && status !== 'resumed') {
-    return { error: `prior artifact has resume-status "${status ?? ''}"; only fresh/resumed eligible` };
   }
   const gateError = await templateVersionGateError(expectedMode, fm);
   if (gateError) {
@@ -170,6 +178,12 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   if (prevModel !== curModel || prevEffort !== curEffort) {
     return { error: 'prior artifact requested model/effort override differs from current' };
   }
+  // Eligibility (not identity) — checked last so a failure here still carries
+  // confirmed threadId/frontmatter provenance; see the function docstring.
+  const status = fm['codex-resume-status'];
+  if (status !== 'fresh' && status !== 'resumed') {
+    return { error: `prior artifact has resume-status "${status ?? ''}"; only fresh/resumed eligible`, threadId, frontmatter: fm };
+  }
   return { threadId, frontmatter: fm };
 }
 
@@ -227,17 +241,45 @@ export async function discoverResumeArtifact(mode, args, currentEffectiveModel =
       return b.localeCompare(a);
     });
   const isNonEmptyString = (v) => typeof v === 'string' && v.length > 0;
-  let modelSkip = null; // { name, priorModel } of the newest candidate skipped on the model rule
+  let modelSkip = null; // { name, priorModel } of the newest candidate directly skipped on the model rule
+  // excludedThreadIds: thread ids confirmed to have run under a model other
+  // than currentEffectiveModel. Populated from ANY candidate that exposes
+  // real provenance, not just resume-ELIGIBLE ones: loadResumeContext returns
+  // threadId/frontmatter both on success and on its one ineligible-but-
+  // identity-confirmed failure — a bad codex-resume-status (fallback /
+  // resume-failed) — because every other identity check already had to pass
+  // first (see loadResumeContext's docstring). This matters because a failed
+  // cross-model resume can still add real turns to a thread before erroring
+  // out, and that thread id is the SAME one an older, otherwise-eligible
+  // artifact also carries; without this, discovery would skip the ineligible
+  // artifact on status alone (ctx.error, but never examining its metadata)
+  // and silently resume the older artifact into that now cross-model-
+  // contaminated thread. Any OTHER rejection reason (mode/cwd/template-
+  // version/mode-specific-identity/requested-override mismatch) leaves
+  // ctx.threadId undefined — that artifact was never confirmed to be about
+  // THIS scan's subject, so using its thread id here would risk excluding an
+  // unrelated one. A 'fallback' artifact's own thread id is always a fresh
+  // spawn's brand-new thread (fallback means the run never resumed anything),
+  // so it can never coincide with another artifact's thread id in practice —
+  // adding it here is a no-op, not a risk.
+  const excludedThreadIds = new Set();
   for (const name of candidates) {
     const candidatePath = path.join(dir, name);
     const ctx = await loadResumeContext(candidatePath, mode, args);
-    if (ctx.error) continue;
+    if (!ctx.threadId) continue;
     const priorModel = ctx.frontmatter['codex-model-effective'];
-    if (isNonEmptyString(priorModel) && isNonEmptyString(currentEffectiveModel)
-        && priorModel !== currentEffectiveModel) {
-      if (!modelSkip) modelSkip = { name, priorModel };
+    const modelMismatch = isNonEmptyString(priorModel) && isNonEmptyString(currentEffectiveModel)
+      && priorModel !== currentEffectiveModel;
+    if (modelMismatch || excludedThreadIds.has(ctx.threadId)) {
+      // Either this candidate itself ran under a different model, or an
+      // already-seen NEWER candidate for the same thread did — either way,
+      // resuming this thread would continue turns recorded under a model
+      // other than currentEffectiveModel.
+      excludedThreadIds.add(ctx.threadId);
+      if (modelMismatch && !modelSkip) modelSkip = { name, priorModel };
       continue;
     }
+    if (ctx.error) continue; // resume-ineligible (fallback/resume-failed), no model conflict — not selectable
     return { path: candidatePath };
   }
   if (modelSkip) {
