@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, mkdtempSync, rmSync, writeFileSync, chmodSync, existsSync, readdirSync } from 'node:fs';
 import os from 'node:os';
 import { parseFrontmatter, runCodexResume, buildCodexSelectionArgs } from '../scripts/codex-bridge.mjs';
-import { BRIDGE, MOCK_CODEX_SUCCESS, MOCK_CODEX_REVIEW_SUCCESS, MOCK_CODEX_REVIEW_FAILURE, MOCK_CODEX_DOCS_REVIEW_SUCCESS, MOCK_CODEX_DOCS_REVIEW_FAILURE } from './helpers/fixtures.mjs';
+import { BRIDGE, MOCK_CODEX_SUCCESS, MOCK_CODEX_REVIEW_SUCCESS, MOCK_CODEX_REVIEW_FAILURE, MOCK_CODEX_DOCS_REVIEW_SUCCESS, MOCK_CODEX_DOCS_REVIEW_FAILURE, MOCK_CODEX_PROBES } from './helpers/fixtures.mjs';
 
 // ---------------------------------------------------------------------------
 // Task 3: runCodexResume tests
@@ -19,7 +19,7 @@ if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'
   exit 0
 fi
-printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+${MOCK_CODEX_PROBES}printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
 last_path=""
 prev=""
 for arg in "$@"; do
@@ -42,7 +42,7 @@ if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'
   exit 0
 fi
-printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+${MOCK_CODEX_PROBES}printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
 last_path=""
 prev=""
 for arg in "$@"; do

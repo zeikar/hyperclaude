@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCodexJsonl } from '../scripts/codex-bridge.mjs';
+import { parseCodexJsonl, parseCodexDoctorConfigModel, parseCodexCatalogDefault } from '../scripts/codex-bridge.mjs';
 
 // parseCodexJsonl is a pure function over the codex `--json` stdout stream.
 // It tallies the events the bridge cares about: thread.started, turn.completed,
@@ -135,4 +135,94 @@ test('parseCodexJsonl: empty / non-string input returns empty diagnostics', () =
   const nullish = parseCodexJsonl(null);
   assert.equal(nullish.threadId, null);
   assert.equal(nullish.hasTurnCompleted, false);
+});
+
+// parseCodexDoctorConfigModel is a pure parser over `codex doctor --json`
+// stdout. `config.load` is a LITERAL key in the top-level `checks` object,
+// NOT a nesting `checks.config.load`.
+
+test('parseCodexDoctorConfigModel: real-shaped report — literal "config.load" key returns the model string', () => {
+  const stdout = JSON.stringify({ checks: { 'config.load': { details: { model: 'gpt-6-astra' } } } });
+  assert.equal(parseCodexDoctorConfigModel(stdout), 'gpt-6-astra');
+});
+
+test('parseCodexDoctorConfigModel: <default> placeholder returned verbatim', () => {
+  const stdout = JSON.stringify({ checks: { 'config.load': { details: { model: '<default>' } } } });
+  assert.equal(parseCodexDoctorConfigModel(stdout), '<default>');
+});
+
+test('parseCodexDoctorConfigModel: nested checks.config.load (wrong shape) returns null', () => {
+  const stdout = JSON.stringify({ checks: { config: { load: { details: { model: 'gpt-6-astra' } } } } });
+  assert.equal(parseCodexDoctorConfigModel(stdout), null);
+});
+
+test('parseCodexDoctorConfigModel: missing model returns null', () => {
+  const stdout = JSON.stringify({ checks: { 'config.load': { details: {} } } });
+  assert.equal(parseCodexDoctorConfigModel(stdout), null);
+});
+
+test('parseCodexDoctorConfigModel: non-string model returns null', () => {
+  const stdout = JSON.stringify({ checks: { 'config.load': { details: { model: 42 } } } });
+  assert.equal(parseCodexDoctorConfigModel(stdout), null);
+});
+
+test('parseCodexDoctorConfigModel: non-JSON input returns null', () => {
+  assert.equal(parseCodexDoctorConfigModel('not json'), null);
+});
+
+test('parseCodexDoctorConfigModel: empty input returns null', () => {
+  assert.equal(parseCodexDoctorConfigModel(''), null);
+});
+
+// parseCodexCatalogDefault is a pure parser over `codex debug models` stdout —
+// mirrors codex-rs's default_model_from_available + mark_default_by_picker_visibility:
+// sort by priority ascending (stable), first visibility==="list" wins, else the
+// first entry.
+
+test('parseCodexCatalogDefault: unsorted catalog picks the priority-5 "list" slug', () => {
+  const stdout = JSON.stringify({
+    models: [
+      { slug: 'mock-other', priority: 9, visibility: 'list' },
+      { slug: 'mock-hidden', priority: 0, visibility: 'hide' },
+      { slug: 'mock-default', priority: 5, visibility: 'list' },
+    ],
+  });
+  assert.equal(parseCodexCatalogDefault(stdout), 'mock-default');
+});
+
+test('parseCodexCatalogDefault: no "list" entries falls back to the lowest-priority slug', () => {
+  const stdout = JSON.stringify({
+    models: [
+      { slug: 'mock-other', priority: 9, visibility: 'hide' },
+      { slug: 'mock-hidden', priority: 0, visibility: 'hide' },
+    ],
+  });
+  assert.equal(parseCodexCatalogDefault(stdout), 'mock-hidden');
+});
+
+test('parseCodexCatalogDefault: empty models array returns null', () => {
+  assert.equal(parseCodexCatalogDefault(JSON.stringify({ models: [] })), null);
+});
+
+test('parseCodexCatalogDefault: non-array models returns null', () => {
+  assert.equal(parseCodexCatalogDefault(JSON.stringify({ models: 'nope' })), null);
+});
+
+test('parseCodexCatalogDefault: non-JSON input returns null', () => {
+  assert.equal(parseCodexCatalogDefault('not json'), null);
+});
+
+test('parseCodexCatalogDefault: a malformed entry is dropped, valid entries still pick a default', () => {
+  // Mixes an entry missing `slug` and one with a non-numeric `priority` in
+  // among two valid entries — distinguishes "drop the bad unit, keep going"
+  // (the actual rule) from "any malformed entry nulls the whole catalog".
+  const stdout = JSON.stringify({
+    models: [
+      { priority: 1, visibility: 'list' },              // missing slug
+      { slug: 'mock-bad-priority', priority: 'high', visibility: 'list' }, // non-numeric priority
+      { slug: 'mock-other', priority: 9, visibility: 'list' },
+      { slug: 'mock-default', priority: 5, visibility: 'list' },
+    ],
+  });
+  assert.equal(parseCodexCatalogDefault(stdout), 'mock-default');
 });

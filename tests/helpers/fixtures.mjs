@@ -27,6 +27,36 @@ export const BRIDGE = path.join(
 // --json; those mocks remain markdown-only.
 // ---------------------------------------------------------------------------
 
+// Shared "probe" branches for `codex doctor --json` and `codex debug models` —
+// the two read-only calls getCodexEffectiveModel() spawns before a real exec
+// (see scripts/codex/codex.mjs). Spliced into every mock immediately after the
+// `--version` branch and before the argv.log / stdin.log writes, so exec/resume
+// argv capture is untouched. Each branch appends its full argv to probe.log
+// (a marker for which probes ran) and, when MOCK_CODEX_PROBE_FAIL is set,
+// exits 1 with no stdout (simulates an unreadable/wedged probe). The doctor
+// branch reports the literal `checks["config.load"].details.model` shape
+// (MOCK_CODEX_CONFIG_MODEL, default the real `<default>` placeholder); the
+// catalog branch reports a deliberately unsorted three-entry catalog so only
+// the priority-ascending + visibility==="list" rule picks the right default
+// (MOCK_CODEX_CATALOG_DEFAULT).
+export const MOCK_CODEX_PROBES = `if [ "$1" = "doctor" ]; then
+  printf '%s\\n' "$@" >> "$(dirname "$0")/probe.log"
+  if [ -n "$MOCK_CODEX_PROBE_FAIL" ]; then
+    exit 1
+  fi
+  printf '{"checks":{"config.load":{"details":{"model":"%s"}}}}\\n' "\${MOCK_CODEX_CONFIG_MODEL:-<default>}"
+  exit 0
+fi
+if [ "$1" = "debug" ] && [ "$2" = "models" ]; then
+  printf '%s\\n' "$@" >> "$(dirname "$0")/probe.log"
+  if [ -n "$MOCK_CODEX_PROBE_FAIL" ]; then
+    exit 1
+  fi
+  printf '{"models":[{"slug":"mock-other","priority":9,"visibility":"list"},{"slug":"mock-hidden","priority":0,"visibility":"hide"},{"slug":"%s","priority":5,"visibility":"list"}]}\\n' "\${MOCK_CODEX_CATALOG_DEFAULT:-mock-default}"
+  exit 0
+fi
+`;
+
 // Mock codex script for `exec` success: emits JSONL stream + writes last message
 // to the path supplied via --output-last-message.
 //
@@ -38,7 +68,7 @@ if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'
   exit 0
 fi
-printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+${MOCK_CODEX_PROBES}printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
 last_path=""
 prev=""
 for arg in "$@"; do
@@ -60,7 +90,7 @@ if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'
   exit 0
 fi
-printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+${MOCK_CODEX_PROBES}printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
 last_path=""
 prev=""
 for arg in "$@"; do
@@ -81,7 +111,7 @@ if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'
   exit 0
 fi
-printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+${MOCK_CODEX_PROBES}printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
 last_path=""
 prev=""
 for arg in "$@"; do
@@ -103,7 +133,7 @@ if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'
   exit 0
 fi
-printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+${MOCK_CODEX_PROBES}printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
 last_path=""
 prev=""
 for arg in "$@"; do
@@ -124,7 +154,7 @@ if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'
   exit 0
 fi
-printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+${MOCK_CODEX_PROBES}printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
 last_path=""
 prev=""
 for arg in "$@"; do
@@ -146,7 +176,7 @@ if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'
   exit 0
 fi
-printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
+${MOCK_CODEX_PROBES}printf '%s\\n' "$@" > "$(dirname "$0")/argv.log"
 last_path=""
 prev=""
 for arg in "$@"; do

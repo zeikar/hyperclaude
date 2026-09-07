@@ -90,6 +90,79 @@ export function parseCodexJsonl(stdoutText) {
   return out;
 }
 
+// Pure parser over `codex doctor --json` stdout. `config.load` is a LITERAL
+// key inside the top-level `checks` object — NOT a nesting `checks.config.load`
+// — Codex's doctor report uses dotted check names as flat keys. Returns the
+// configured model verbatim, so the placeholder `<default>` (printed when
+// neither config.toml nor a profile names a model — codex-rs/cli/src/doctor.rs)
+// reaches the resolver unchanged. Any throw, missing key, or non-string value
+// yields null.
+export function parseCodexDoctorConfigModel(stdoutText) {
+  let parsed;
+  try {
+    parsed = JSON.parse(stdoutText);
+  } catch {
+    return null;
+  }
+  const model = parsed?.checks?.['config.load']?.details?.model;
+  return typeof model === 'string' && model.length > 0 ? model : null;
+}
+
+// Pure parser over `codex debug models` stdout — the catalog Codex itself
+// selects a default from. Mirrors `default_model_from_available` +
+// `mark_default_by_picker_visibility` in codex-rs (models-manager / protocol
+// crates): sort entries by `priority` ascending (stable), return the first
+// whose `visibility === "list"`, else the first entry. A malformed individual
+// entry (missing string `slug` or numeric `priority`) is dropped and parsing
+// continues — same "skip the bad unit, keep going" convention as
+// parseCodexJsonl's malformed-line handling above. Only non-JSON input, a
+// missing/non-array `models`, or zero surviving entries yields null.
+export function parseCodexCatalogDefault(stdoutText) {
+  let parsed;
+  try {
+    parsed = JSON.parse(stdoutText);
+  } catch {
+    return null;
+  }
+  if (!parsed || !Array.isArray(parsed.models)) return null;
+  const entries = parsed.models.filter(
+    (e) => e && typeof e === 'object' && typeof e.slug === 'string' && typeof e.priority === 'number'
+  );
+  if (entries.length === 0) return null;
+  const sorted = [...entries].sort((a, b) => a.priority - b.priority); // Array#sort is stable (ES2019+)
+  const listed = sorted.find((e) => e.visibility === 'list');
+  return (listed ?? sorted[0]).slug;
+}
+
+// Bounded so a wedged probe degrades to unknown rather than hanging the bridge.
+const PROBE_TIMEOUT_MS = 15000;
+
+// getCodexEffectiveModel: resolves the model this invocation will actually use
+// (`--model` isn't handled here — that's a caller-side short-circuit; see the
+// bridge). Neither probe is a model turn, so no sandbox flag applies. Doctor's
+// exit status is ignored — an unrelated doctor check may fail while the
+// config.load block is still printed — but an unreadable/errored doctor call
+// yields null outright: the bridge can't tell whether config pins a model, so
+// it must not fall through and guess from the catalog.
+export function getCodexEffectiveModel() {
+  const doctor = spawnSync('codex', ['doctor', '--json'], { encoding: 'utf8', timeout: PROBE_TIMEOUT_MS });
+  // On a plain spawn failure stdout is undefined and the parser already
+  // returns null for that, so this guard is redundant there. It earns its
+  // keep on TIMEOUT: spawnSync sets .error (ETIMEDOUT) while stdout may still
+  // hold a truncated buffer captured before the kill — without this guard
+  // that partial JSON could parse "successfully" into a bogus answer.
+  if (doctor.error) return null;
+  const configModel = parseCodexDoctorConfigModel(doctor.stdout);
+  if (configModel === null) return null;
+  // Any `<…>`-wrapped value (not just the literal `<default>`) is a
+  // placeholder, never a real model — reject the whole bracketed family so a
+  // placeholder is never recorded or compared as a model.
+  if (!/^<.*>$/.test(configModel)) return configModel;
+  const catalog = spawnSync('codex', ['debug', 'models'], { encoding: 'utf8', timeout: PROBE_TIMEOUT_MS });
+  if (catalog.error) return null; // same truncated-timeout guard as above
+  return parseCodexCatalogDefault(catalog.stdout);
+}
+
 // Internal codex spawn helper. Returns a structured result with explicit
 // exit shape `{ status, signal }` so callers can tell "exited 7" from
 // "killed by a signal". There is no wall-clock deadline: the bridge lets a
