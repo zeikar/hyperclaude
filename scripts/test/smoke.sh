@@ -244,15 +244,15 @@ if command -v codex >/dev/null 2>&1; then
   else
     miss "codex --search exec --help rejected — --search global flag unavailable or wrong placement"
   fi
-  # Unlike the three exit-status probes above, these two judge stdout CONTENT,
-  # not exit status: getCodexEffectiveModel() (scripts/codex/codex.mjs)
-  # deliberately ignores doctor's exit code — an unrelated doctor check
-  # (network, auth, ~20 others) can fail while config.load still prints
-  # correctly — and parses only stdout. Gating on exit status here would
-  # false-negative on an offline or expired-auth machine even though
-  # production resolves fine. A real spawn failure or malformed/truncated
-  # output still fails loudly: there is nothing valid to parse, so the shape
-  # assertion below reports the same miss.
+  # Unlike the three exit-status probes above, the three below judge codex's
+  # stdout CONTENT, not codex's exit status: getCodexEffectiveModel()
+  # (scripts/codex/codex.mjs) deliberately ignores doctor's exit code — an
+  # unrelated doctor check (network, auth, ~20 others) can fail while
+  # config.load still prints correctly — and parses only stdout. Gating on
+  # codex's exit status here would false-negative on an offline or
+  # expired-auth machine even though production resolves fine. A real spawn
+  # failure or malformed/truncated output still fails loudly: there is nothing
+  # valid to parse, so the shape assertion below reports the same miss.
   out=$(codex doctor --json 2>/dev/null)
   if printf '%s' "$out" | node -e '
     const j = JSON.parse(require("fs").readFileSync(0,"utf8"));

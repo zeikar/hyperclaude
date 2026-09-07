@@ -137,3 +137,21 @@ Single-variable: same model, same tools, same read floor, and the 9-token prefix
 **Two traps that cost a first attempt.** *Identical prefixes collapse the A/B.* The first run spawned both arms in parallel from bodies that differed only in frontmatter; the second arm read the first's just-written prefix (`cache_read` 15,662 = 2,604 + 13,058) and wrote **0/0**, which reads as a clean negative. Give each arm a textually distinct system prompt and run them sequentially. *Agents are not hot-reloaded.* A `.claude/agents/*.md` added mid-session is invisible to the running session's `Agent` tool — `Agent type '…' not found`. Spawn from a fresh `claude -p` instead. This failure mode is loud, which is why both arms were new files rather than an edit to the installed `planner`: an edited definition could have silently kept serving the old frontmatter and produced a false negative.
 
 **Settled:** `agents/planner.md` carries the field and `scripts/planner-bridge.mjs` is retired — the bridge existed only to move the planner into the 1h bucket, and three lines of frontmatter do it. Overage is not a differentiator: `isUsingOverage` forces 5m on a `claude -p` session too. Scope is unchanged from the 2026-08-17 verdict — the field is set on the planner alone, because 1h loses wherever the cache is not read back across a slow boundary.
+
+## 2026-09-06 — `codex doctor` never resolves the default; the catalog rule does
+
+**Question.** Can a run's effective model be read from a documented Codex surface *before* the spawn, or does it need the session rollout file deferred in [decisions.md](decisions.md) as too version-fragile?
+
+**Method differs from the shared one above.** Not the transcript corpus but direct CLI probes on codex-cli 0.153.4, with a throwaway empty `CODEX_HOME` standing in for a machine whose `config.toml` names no model.
+
+| probe, empty `CODEX_HOME` | result |
+|---|---|
+| `codex doctor --json` | `checks["config.load"]` status `ok`, `details.model` `"<default>"` — the literal placeholder, never a resolved name |
+| flagless `codex exec` under the same home | 401 on auth, but the rollout is still written: `turn_context.model` = `gpt-6-astra` |
+| `codex debug models` | `gpt-6-astra` at `priority` 1, `visibility: "list"`; `gpt-reserve` at 3 is `hide` |
+
+So the catalog rule (lowest `priority` whose `visibility` is `list`) reproduces what the spawn actually used, and doctor alone cannot. Cost of the pair: doctor **~1s** (1.11s under the empty home, 0.86s under the real one), the catalog **under 0.1s** under either — it answers the same list from a cold empty home that writes no `models_cache.json`, so a warm cache is not what makes it fast.
+
+**A pinned config would have been caught by doctor alone.** This machine's reviews flipped `gpt-5.6-sol` (09:48 rollout) → `gpt-6-astra` (11:31), which looks like default drift and is not: `~/.codex/config.toml.bak` carries `model = "gpt-5.6-sol"` where the live `config.toml` now carries `model = "gpt-6-astra"`, and the 10:12 session's rollout carries both values — a pin changed mid-session. Doctor reports a pinned model directly; the catalog step exists for the unpinned case, which this was not.
+
+**Settled:** `codex-model-effective` is resolved from the doctor → catalog pair; the rollout path stays unused. The smoke script asserts both surfaces still have the shape the rule reads, since a Codex-side change would otherwise silently stop the recording.

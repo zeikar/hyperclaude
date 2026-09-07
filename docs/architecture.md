@@ -116,7 +116,7 @@ Direction:
 
 ## The bridge
 
-CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modules under [scripts/codex/](../scripts/codex/) (slug, frontmatter, git, templates, args, paths, codex spawn + JSONL, failure body, resume). The entry file owns the `main()` mode dispatch; everything else is pure-ish helpers. Four modes, exposed as positional subcommands:
+CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modules under [scripts/codex/](../scripts/codex/) (slug, frontmatter, git, templates, args, paths, codex spawn + JSONL + effective-model probes, failure body, resume). The entry file owns the `main()` mode dispatch; everything else is pure-ish helpers. Four modes, exposed as positional subcommands:
 
 | Mode          | Codex invocation                                  | Template                           | Output dir                       |
 |---------------|---------------------------------------------------|------------------------------------|----------------------------------|
@@ -149,6 +149,8 @@ Three cases, all read-only:
 Net result: Codex is a *critic*, never an *editor*, in every mode.
 
 Every spawn also prepends the global `--search` flag (before the subcommand): `codex --search exec …`. This enables live web search unconditionally across all modes, fresh and resume. `--search` does not relax `--sandbox read-only`; the filesystem invariant is unchanged.
+
+The bridge's non-model probes — `codex --version`, `codex doctor --json`, `codex debug models` — run outside `runCodexExec`, start no model turn, and so sit outside this matrix entirely (no sandbox flag applies to them).
 
 ### CLI surface
 
@@ -201,6 +203,7 @@ codex-resume-status: fresh | resumed | fallback | resume-failed  # always (resea
 codex-resumed-from: "<path>"           # when --resume was used and resume succeeded
 codex-model-requested: "<name>"        # only when --model was passed (omitted when not)
 codex-effort-requested: "<level>"      # only when --effort was passed (omitted when not)
+codex-model-effective: "<name>"        # the model this invocation resolves to (see below); omitted when unresolvable
 codex-input-tokens: <N>               # present when that specific usage field was non-null in turn.completed.usage (even on failure artifacts); omitted otherwise
 codex-cached-input-tokens: <N>        # same per-field gate
 codex-output-tokens: <N>              # same per-field gate
@@ -212,6 +215,8 @@ docs-target: "<path>" | [<path>, ...]  # docs-review — JSON string in `--docs-
 diff-base: "<ref>"                     # docs-review (when --diff-base passed)
 ---
 ```
+
+`codex-model-effective` is the model the invocation actually resolves to, in three steps: `--model` when passed (no probe runs at all); else the configured model from `codex doctor --json`; else — when doctor returns a `<…>` placeholder, today only `<default>` — the catalog default from `codex debug models`. It is omitted when neither probe yields a value. A resumed spawn records the same resolution as a fresh one: the bridge does not inspect what the prior thread was seeded with. Why this pair of probes rather than the session rollout file, and the limits of the catalog rule: [decisions.md](decisions.md).
 
 Filename: `<YYYYMMDD-HHMM>-<slug>.md` (UTC). Per-mode slug fallbacks:
 

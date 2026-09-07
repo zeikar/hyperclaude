@@ -56,12 +56,12 @@ Four modes, exposed as positional subcommands. The mode name maps 1:1 to the art
 
 ## Sandbox invariant
 
-Every Codex spawn must be read-only:
+Every Codex spawn that runs a model turn must be read-only:
 
 - Fresh `codex exec` (`research` / `plan-review` / `docs-review` / `code-review`) → `--sandbox read-only` flag. Fresh `code-review` is a regular `codex exec --sandbox read-only -` spawn (NOT the native `exec review` subcommand); the read-only sandbox still lets Codex run the target git commands the prompt instructs it to.
 - `codex exec resume` (any mode with `--resume`) → `-c sandbox_mode=read-only` config override (resume doesn't inherit the original session's sandbox; this was empirically verified).
 
-If you add a new spawn path, re-check both argv shapes. New flags must be added to `ALLOWED_FLAGS_PER_MODE` in `scripts/codex/args.mjs`; the parser rejects unknown flags per mode and tests cover this.
+The non-model probes — `codex --version`, `codex doctor --json`, `codex debug models` — are the exception: they run outside `runCodexExec` and take no sandbox argument. If you add a new turn-running spawn path, re-check both argv shapes above. New flags must be added to `ALLOWED_FLAGS_PER_MODE` in `scripts/codex/args.mjs`; the parser rejects unknown flags per mode and tests cover this.
 
 ## Layers
 
