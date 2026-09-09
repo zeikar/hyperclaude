@@ -155,3 +155,24 @@ So the catalog rule (lowest `priority` whose `visibility` is `list`) reproduces 
 **A pinned config would have been caught by doctor alone.** This machine's reviews flipped `gpt-5.6-sol` (09:48 rollout) → `gpt-6-astra` (11:31), which looks like default drift and is not: `~/.codex/config.toml.bak` carries `model = "gpt-5.6-sol"` where the live `config.toml` now carries `model = "gpt-6-astra"`, and the 10:12 session's rollout carries both values — a pin changed mid-session. Doctor reports a pinned model directly; the catalog step exists for the unpinned case, which this was not.
 
 **Settled:** `codex-model-effective` is resolved from the doctor → catalog pair; the rollout path stays unused. The smoke script asserts both surfaces still have the shape the rule reads, since a Codex-side change would otherwise silently stop the recording.
+## 2026-09-08 — changing effort mid-thread costs the whole resume cache
+
+**Question.** `--resume auto` gates on `codex-model-effective` because a model change breaks the prompt cache. Does a reasoning-effort change break it too — is the ungated effort path a real cost hole or a theoretical one?
+
+**Method.** Direct codex-cli 0.153.4 spawns mirroring the bridge's argv (`codex exec --json -c model_reasoning_effort=<v> --sandbox read-only -`; resume as `codex exec resume --json -c model_reasoning_effort=<v> -c sandbox_mode=read-only <tid> -`). Two structurally identical threads, one-word prompts, turn 2 differing only in effort. Numbers are `turn.completed.usage`.
+
+| run | input | cached | cache% |
+|---|---:|---:|---:|
+| A fresh (low) | 16,666 | 12,160 | 73.0% |
+| B fresh (low) | 16,667 | 12,160 | 73.0% |
+| A resume, low → low | 16,698 | 16,512 | **98.9%** |
+| B resume, low → high | 16,699 | 12,160 | **72.8%** |
+| B resume, high → high | 16,732 | 16,512 | **98.7%** |
+
+The changed-effort turn lands on exactly the fresh-run figure: the thread's own history stops being cached and only the shared instruction prefix survives. Uncached input goes 186 → 4,539 (24x) on a 16.7k thread. The last row is the control that rules out "high effort simply caches worse" — the next turn, effort unchanged, recovers to 98.7%. B also ran *after* A, so the treatment had the warmer cache of the two and still missed.
+
+**Not a prompt-text effect.** `codex debug prompt-input -c model_reasoning_effort=low|high` renders byte-identical input lists (only message ids and `create_time` differ), so the miss comes from the request-side parameter, not from effort-dependent prompt content. The surviving 12,160 (= 128x95, as 16,512 = 128x129) is the 128-token-block prefix both efforts share.
+
+**Scale.** What is lost is everything after that shared prefix, so it grows with the thread. This repo's 2026-09-07 code review recorded 610,477 input / 590,080 cached; an effort change on that round would have left ~12k cached rather than ~590k.
+
+**Settled: the hole is real, the probe is missing.** An effective-effort resume gate is justified on the same ground as the model gate, and effort is the easier of the two to change by accident — one `~/.codex/config.toml` line. It is not built because no local Codex surface reports the effective effort: `codex doctor --json` `checks["config.load"].details` carries `model` and `model provider` but no effort key (verified on a machine with `model_reasoning_effort = "high"` set), and `debug prompt-input` is identical across efforts as above. Recording it would mean the bridge parsing `~/.codex/config.toml` itself plus profile layering (`-p`) and env overrides — exactly the surface the model path was designed to avoid. Deferred pending an upstream field; see [decisions.md](decisions.md).

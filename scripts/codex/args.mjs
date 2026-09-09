@@ -11,7 +11,7 @@ const ALLOWED_FLAGS_PER_MODE = {
   'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--resume', '--model', '--effort']),
 };
 
-const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh']);
+const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
 
 export function parseArgs(argv) {
   const [mode, ...rest] = argv;
@@ -150,7 +150,7 @@ export function parseArgs(argv) {
       }
       case '--effort': {
         const v = next();
-        if (!ALLOWED_EFFORTS.has(v)) throw new Error(`--effort must be one of low|medium|high|xhigh, got: "${v}"`);
+        if (!ALLOWED_EFFORTS.has(v)) throw new Error(`--effort must be one of low|medium|high|xhigh|max|ultra, got: "${v}"`);
         out.effort = v;
         break;
       }

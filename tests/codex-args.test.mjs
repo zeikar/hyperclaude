@@ -1165,7 +1165,7 @@ test('parseArgs: --model/--effort default to null when omitted', () => {
   assert.equal(a.effort, null);
 });
 
-test('parseArgs: --effort rejects values outside low|medium|high|xhigh', () => {
+test('parseArgs: --effort rejects values outside low|medium|high|xhigh|max|ultra', () => {
   assert.throws(
     () => parseArgs(['research', '--task', 'x', '--effort', 'banana']),
     /--effort must be one of/
@@ -1187,6 +1187,11 @@ test('parseArgs: --effort rejects values outside low|medium|high|xhigh', () => {
   assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--effort', 'medium']));
   assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--effort', 'high']));
   assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--effort', 'xhigh']));
+  // max/ultra appear in the Codex model catalog's supported_reasoning_levels
+  // (on some models, not all); the allowlist is syntactic, so which model
+  // accepts which level stays Codex's call.
+  assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--effort', 'max']));
+  assert.doesNotThrow(() => parseArgs(['research', '--task', 'x', '--effort', 'ultra']));
 });
 
 test('parseArgs: --model rejects empty / leading-dash but accepts arbitrary charset', () => {
