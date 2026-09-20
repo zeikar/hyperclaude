@@ -176,3 +176,28 @@ The changed-effort turn lands on exactly the fresh-run figure: the thread's own 
 **Scale.** What is lost is everything after that shared prefix, so it grows with the thread. This repo's 2026-09-07 code review recorded 610,477 input / 590,080 cached; an effort change on that round would have left ~12k cached rather than ~590k.
 
 **Settled: the hole is real, the probe is missing.** An effective-effort resume gate is justified on the same ground as the model gate, and effort is the easier of the two to change by accident — one `~/.codex/config.toml` line. It is not built because no *pre-spawn* surface reports the effective effort, which is what the resume decision needs. `codex doctor --json` `checks["config.load"].details` carries `model` and `model provider` but no effort key (verified on a machine with `model_reasoning_effort = "high"` set), and `debug prompt-input` is identical across efforts as above. Two surfaces do report it, both too late: `codex exec`'s human-readable startup banner prints a `reasoning effort:` line beside `model:` — but only without `--json`, which drops the banner entirely (`thread.started` carries `thread_id` alone, stderr is empty) — and the rollout's `turn_context.effort` records it per turn afterwards (verified: thread B's file reads `low`, `high`, `high`, matching the runs above). Recording it would mean the bridge parsing `~/.codex/config.toml` itself plus profile layering (`-p`) and env overrides — exactly the surface the model path was designed to avoid. Deferred pending an upstream field; see [decisions.md](decisions.md).
+
+## 2026-09-20 — Codex forks itself mid-review, and the bridge never sees the bill
+
+**Question.** Codex review spend on the `iki` repo felt disproportionate. Where does it actually go?
+
+**Method.** Two sources. (a) Bridge artifact frontmatter across `.hyperclaude/{code-reviews,plan-reviews,research}/` in `iki` and this repo — `codex-input-tokens`, `codex-cached-input-tokens`, `codex-output-tokens`. (b) The codex rollout corpus, `~/.codex/sessions/<Y>/<M>/<D>/rollout-*.jsonl`: `session_meta.payload.cwd` for the project, `source.subagent.thread_spawn.parent_thread_id` to tell a forked child session from a root one, and the last `token_count` record's `payload.info.total_token_usage` for the session total.
+
+| repo | runs (artifacts) | avg input/run | worst run |
+|---|---:|---:|---:|
+| iki | 41 | 2.28M | 12.73M |
+| hyperclaude | 61 | 1.42M | 5.89M |
+
+The artifact numbers understate it, because a review session can spawn children. September 2026 rollouts, by cwd:
+
+| project | root sessions | forked children | input |
+|---|---:|---:|---:|
+| iki | 19 | **21** | 48.2M root + **29.6M forked** = 77.8M |
+| charivo | 23 | 0 | 61.2M |
+| hyperclaude | 10 | 0 | 13.9M |
+
+**What the forks are.** `~/.codex/config.toml` had `[features] multi_agent = true`, and `~/.codex/AGENTS.md` was a verbatim copy of the user's Claude Code `CLAUDE.md` — including *"## 6. Delegate What Pays … fork when the work needs what you already know"*, a rule written for Claude Code's `Agent` tool. Codex reads that `AGENTS.md` on every bridge spawn and obeys it. In the 2026-09-19 `vs-cdc364c` review (thread `01a0bbe5`), it issued three `spawn_agent` calls with `fork_turns: "all"` — `/root/fresh_review` 5.07M, `/root/fix_round_review` 2.16M, `/root/fit_fix_review` 3.58M. The artifact recorded the root session's 12.73M; the true cost was **23.5M**, a 46% under-report. `fork_turns: "all"` is the multiplier: the child re-bills the parent's whole accumulated context.
+
+**Two compounding effects, not fixed here.** That one slice took three `--resume` rounds costing 5.5M → 10.0M → 12.7M recorded — resume re-sends the prior transcript every turn *and* the turn count grows, so per-round cost rises super-linearly and a fresh round can be the cheaper one (weigh against the convergence benefit in [decisions.md](decisions.md)). And the worst run hit compaction mid-review: per-turn context climbed 16k → 215k over ~80 `exec` calls, reset to 47k, climbed again to 91k. `iki`'s `auto-rig.ts` is 3,774 lines with a 5,112-line test file, and the reviewer re-reads them; the same review in this repo spawns nothing.
+
+**Settled: suppress the fan-out at the bridge, not in the user's config.** `codex -c features.multi_agent=false doctor --json` returns `overallStatus: ok` on codex-cli 0.154.0, so the key is accepted as a per-spawn override. `buildCodexSelectionArgs` emits it unconditionally and every spawn path routes through there, so fresh and resume are both covered and interactive codex keeps its sub-agents.

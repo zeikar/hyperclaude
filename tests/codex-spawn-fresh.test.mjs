@@ -41,7 +41,7 @@ test('mock codex: bridge spawns codex exec with --json + --output-last-message i
     assert.ok(argv[4] && argv[4].length > 0, 'fifth arg (tempfile path) should be non-empty');
     assert.deepEqual(
       argv.slice(5),
-      ['--sandbox', 'read-only', '-'],
+      ['-c', 'features.multi_agent=false', '--sandbox', 'read-only', '-'],
       `tail after injected flags should be [--sandbox, read-only, -], got: ${JSON.stringify(argv.slice(5))}`,
     );
 
@@ -159,7 +159,7 @@ test('mock codex: code-review --base main spawns codex exec --sandbox read-only 
     assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
     assert.deepEqual(
       argv.slice(5),
-      ['--sandbox', 'read-only', '-'],
+      ['-c', 'features.multi_agent=false', '--sandbox', 'read-only', '-'],
       `tail should be [--sandbox, read-only, -], got: ${JSON.stringify(argv.slice(5))}`,
     );
     assert.ok(!argv.includes('review'), 'fresh code-review must not contain the native review subcommand token');
@@ -422,7 +422,7 @@ test('mock codex: code-review --uncommitted spawns codex exec --sandbox read-onl
     assert.equal(argv[2], '--json');
     assert.equal(argv[3], '--output-last-message');
     assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
-    assert.deepEqual(argv.slice(5), ['--sandbox', 'read-only', '-']);
+    assert.deepEqual(argv.slice(5), ['-c', 'features.multi_agent=false', '--sandbox', 'read-only', '-']);
     assert.ok(!argv.includes('review'), 'fresh code-review must not contain the native review subcommand token');
     assert.equal(argv[argv.length - 1], '-', 'argv ends with positional - (stdin prompt)');
 
@@ -473,7 +473,7 @@ test('mock codex: code-review --commit <real sha> spawns codex exec --sandbox re
     assert.equal(argv[2], '--json');
     assert.equal(argv[3], '--output-last-message');
     assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
-    assert.deepEqual(argv.slice(5), ['--sandbox', 'read-only', '-']);
+    assert.deepEqual(argv.slice(5), ['-c', 'features.multi_agent=false', '--sandbox', 'read-only', '-']);
     assert.ok(!argv.includes('review'), 'fresh code-review must not contain the native review subcommand token');
     assert.equal(argv[argv.length - 1], '-', 'argv ends with positional - (stdin prompt)');
 
@@ -521,7 +521,7 @@ test('mock codex: code-review --title is not passed to codex argv but still driv
     assert.equal(argv[2], '--json');
     assert.equal(argv[3], '--output-last-message');
     assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
-    assert.deepEqual(argv.slice(5), ['--sandbox', 'read-only', '-']);
+    assert.deepEqual(argv.slice(5), ['-c', 'features.multi_agent=false', '--sandbox', 'read-only', '-']);
     assert.ok(!argv.includes('review'), 'fresh code-review must not contain the native review subcommand token');
     assert.ok(!argv.includes('--title'), 'title no longer passed to codex argv');
     assert.equal(argv[argv.length - 1], '-', 'argv ends with positional - (stdin prompt)');
@@ -684,7 +684,7 @@ test('mock codex: docs-review --docs-path spawns codex exec --sandbox read-only 
       assert.equal(argv[2], '--json');
       assert.equal(argv[3], '--output-last-message');
       assert.ok(argv[4] && argv[4].length > 0, 'tempfile path arg should be non-empty');
-      assert.deepEqual(argv.slice(5), ['--sandbox', 'read-only', '-']);
+      assert.deepEqual(argv.slice(5), ['-c', 'features.multi_agent=false', '--sandbox', 'read-only', '-']);
 
       // stdin.log must contain the doc content AND a file marker so Codex
       // can attribute findings to the path.

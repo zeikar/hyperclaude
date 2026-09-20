@@ -216,14 +216,27 @@ function spawnCodex(spawnArgs, { stdinPayload = null, stdinMode = 'pipe' } = {})
   });
 }
 
-// buildCodexSelectionArgs: returns semantic argv tokens for model/effort selection.
+// buildCodexSelectionArgs: returns semantic argv tokens for model/effort selection
+// plus the always-on sub-agent suppression override.
 // Tokens go into the SEMANTIC argv (after the subcommand, before --sandbox/-c/-),
 // so injectJsonAndOutputFlags's subcommand-index math is unaffected.
 // model tokens come first; effort config override follows.
+//
+// `features.multi_agent=false` is unconditional, and every spawn path routes
+// through here, so it covers fresh and resume alike. When the user's codex config
+// enables multi_agent, a review session that reads a delegation-encouraging
+// AGENTS.md will `spawn_agent` with `fork_turns: "all"` — each fork re-bills the
+// whole accumulated context in a session the bridge never accounts for. Measured
+// on iki, 2026-09: 21 forked sub-sessions, 29.6M input tokens, 38% of that repo's
+// monthly Codex spend; one code review recorded 12.7M while actually costing 23.5M.
+// The critic is a single read-only reviewer by design, so it has nothing to gain
+// from fanning out. Suppressing it here rather than in the user's config keeps
+// interactive codex untouched.
 export function buildCodexSelectionArgs({ model, effort }) {
   const tokens = [];
   if (model != null) tokens.push('--model', model);
   if (effort != null) tokens.push('-c', `model_reasoning_effort=${effort}`);
+  tokens.push('-c', 'features.multi_agent=false');
   return tokens;
 }
 
