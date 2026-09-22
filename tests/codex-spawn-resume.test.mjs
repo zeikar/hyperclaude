@@ -180,15 +180,15 @@ test('resume happy path: docs-review --resume <prev> spawns exec resume and writ
       assert.equal(json.resumeStatus, 'resumed');
       assert.ok(typeof json.threadId === 'string' && json.threadId.length > 0, 'threadId should be present');
 
-      // argv: --search prepended (global flag), then exec resume --json --output-last-message <tmp> -c features.multi_agent=false -c sandbox_mode=read-only <threadId> -
+      // argv: --search prepended (global flag), then exec resume --json --output-last-message <tmp> -c sandbox_mode=read-only <threadId> -
       const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
       const argv = argvLog.split('\n').filter((l) => l.length > 0);
       assert.equal(argv[0], '--search');
       assert.equal(argv[1], 'exec');
       assert.equal(argv[2], 'resume');
-      assert.equal(argv[8], '-c');
-      assert.equal(argv[9], 'sandbox_mode=read-only');
-      assert.equal(argv[10], 'thread-resume-1');
+      assert.equal(argv[6], '-c');
+      assert.equal(argv[7], 'sandbox_mode=read-only');
+      assert.equal(argv[8], 'thread-resume-1');
 
       // Output frontmatter should reflect resume.
       const outputContent = readFileSync(json.path, 'utf8');
@@ -438,7 +438,7 @@ test('resume auto honors --out: discovers prior under custom dir, not the defaul
       // argv must include the discovered thread id (passed to codex resume).
       const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
       const argv = argvLog.split('\n').filter((l) => l.length > 0);
-      assert.equal(argv[10], 'thread-from-custom-dir', 'argv[10] should be the thread id discovered from custom --out dir');
+      assert.equal(argv[8], 'thread-from-custom-dir', 'argv[8] should be the thread id discovered from custom --out dir');
 
       // Frontmatter records resumed-from with the customDir path.
       const outputContent = readFileSync(json.path, 'utf8');
@@ -492,14 +492,14 @@ test('resume happy path: plan-review --resume <prev> spawns exec resume', () => 
       assert.equal(json.resumeStatus, 'resumed');
       assert.ok(typeof json.threadId === 'string' && json.threadId.length > 0, 'threadId should be present');
 
-      // argv shape: --search exec resume ... -c features.multi_agent=false -c sandbox_mode=read-only <threadId> -
+      // argv shape: --search exec resume ... -c sandbox_mode=read-only <threadId> -
       // The threadId passed to codex must be the prior artifact's id (knownThreadId).
       const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
       const argv = argvLog.split('\n').filter((l) => l.length > 0);
       assert.equal(argv[0], '--search');
       assert.equal(argv[1], 'exec');
       assert.equal(argv[2], 'resume');
-      assert.equal(argv[10], 'thread-rev-resume');
+      assert.equal(argv[8], 'thread-rev-resume');
 
       // Resumed prompt must mention the plan path.
       const stdinLog = readFileSync(path.join(tmpdir, 'stdin.log'), 'utf8');
@@ -554,11 +554,11 @@ test('resume happy path: code-review --resume <prev> spawns exec resume and writ
       assert.equal(json.ok, true);
       assert.equal(json.resumeStatus, 'resumed');
 
-      // argv shape: --search exec resume --json --output-last-message <tmp> -c features.multi_agent=false -c sandbox_mode=read-only <threadId> -
+      // argv shape: --search exec resume --json --output-last-message <tmp> -c sandbox_mode=read-only <threadId> -
       const argvLog = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8');
       const argv = argvLog.split('\n').filter((l) => l.length > 0);
       assert.equal(argv[2], 'resume', `argv[2] should be resume, got: ${argv[2]}`);
-      assert.equal(argv[10], 'thread-cr-1', `argv[10] (thread-id) should be thread-cr-1, got: ${argv[10]}`);
+      assert.equal(argv[8], 'thread-cr-1', `argv[8] (thread-id) should be thread-cr-1, got: ${argv[8]}`);
 
       // Parse new artifact frontmatter via parseFrontmatter helper.
       const outputContent = readFileSync(json.path, 'utf8');
@@ -1017,26 +1017,25 @@ test('resume fallback survival: --review-brief still reaches the FRESH prompt wh
 // ---------------------------------------------------------------------------
 
 test('buildCodexSelectionArgs: model+effort / model-only / effort-only / none', () => {
-  const noFanOut = ['-c', 'features.multi_agent=false'];
   assert.deepEqual(
     buildCodexSelectionArgs({ model: 'gpt-5', effort: 'high' }),
-    ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high', ...noFanOut],
+    ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high'],
     'both model+effort'
   );
   assert.deepEqual(
     buildCodexSelectionArgs({ model: 'gpt-5', effort: null }),
-    ['--model', 'gpt-5', ...noFanOut],
+    ['--model', 'gpt-5'],
     'model-only'
   );
   assert.deepEqual(
     buildCodexSelectionArgs({ model: null, effort: 'low' }),
-    ['-c', 'model_reasoning_effort=low', ...noFanOut],
+    ['-c', 'model_reasoning_effort=low'],
     'effort-only'
   );
   assert.deepEqual(
     buildCodexSelectionArgs({ model: null, effort: null }),
-    noFanOut,
-    'neither — the sub-agent suppression override is unconditional'
+    [],
+    'neither'
   );
 });
 
@@ -1071,7 +1070,7 @@ test('mock codex: research --model/--effort inserts selection tokens before --sa
     assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
     assert.deepEqual(
       argv.slice(5),
-      ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high', '-c', 'features.multi_agent=false', '--sandbox', 'read-only', '-'],
+      ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high', '--sandbox', 'read-only', '-'],
       `tail should include selection tokens then --sandbox read-only -, got: ${JSON.stringify(argv.slice(5))}`
     );
 
@@ -1115,7 +1114,7 @@ test('mock codex: code-review --model/--effort retains --sandbox read-only', () 
     assert.ok(argv[4] && argv[4].length > 0, 'argv[4] should be the tempfile path');
     assert.deepEqual(
       argv.slice(5),
-      ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high', '-c', 'features.multi_agent=false', '--sandbox', 'read-only', '-'],
+      ['--model', 'gpt-5', '-c', 'model_reasoning_effort=high', '--sandbox', 'read-only', '-'],
       `tail should include selection tokens then --sandbox read-only -, got: ${JSON.stringify(argv.slice(5))}`
     );
 
