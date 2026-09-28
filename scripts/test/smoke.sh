@@ -455,6 +455,35 @@ else
   miss "SessionStart hook snapshot footer: missing or malformed"
 fi
 
+# A Claude reviewer-seat artifact (reviewer: claude-adversarial) must not be
+# mistaken for a Codex review — the snapshot line gets a "(Claude seat)"
+# suffix. Hermetic: scratch project dir via CLAUDE_PROJECT_DIR, not the repo's
+# real .hyperclaude/.
+if node -e '
+  const { execSync } = require("child_process");
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sshr-seat-"));
+  const dir = path.join(tmp, ".hyperclaude", "plan-reviews");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "20260101-0000-x.md"),
+    "---\nmode: plan-review\nreviewer: claude-adversarial\nslug: x\ngenerated: 20260101-0000\ncwd: \"/tmp/x\"\ngit-head: \"deadbeef\"\n---\n\n### Verdict\n\nShip as-is.\n"
+  );
+  const raw = execSync(
+    "printf \x27{\"session_id\":\"smoke\",\"source\":\"startup\"}\x27 | node hooks/session-start-reminder.mjs",
+    { encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: tmp } }
+  );
+  fs.rmSync(tmp, { recursive: true, force: true });
+  const j = JSON.parse(raw);
+  const additionalContext = j.hookSpecificOutput.additionalContext;
+  process.exit(additionalContext.includes("(Claude seat)") ? 0 : 1);
+' 2>/dev/null; then
+  ok "SessionStart hook snapshot footer: Claude-seat plan-review flagged with (Claude seat)"
+else
+  miss "SessionStart hook snapshot footer: Claude-seat flag missing or malformed"
+fi
+
 out=$(node <<'NODE_EOF' 2>&1
 const plugin = JSON.parse(require("fs").readFileSync(".claude-plugin/plugin.json","utf8"));
 const hooksConfig = JSON.parse(require("fs").readFileSync("hooks/hooks.json","utf8"));

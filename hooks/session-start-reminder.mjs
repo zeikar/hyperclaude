@@ -8,6 +8,8 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { parseFrontmatter } from '../scripts/codex/frontmatter.mjs';
+
 const templatePath = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'templates', 'hooks', 'session-start-reminder.md');
 
 const SNAPSHOT_SECTIONS = [
@@ -15,9 +17,9 @@ const SNAPSHOT_SECTIONS = [
   { dir: 'epics', label: 'Active epic roadmap' },
   { dir: 'specs', label: 'Recent spec' },
   { dir: 'research', label: 'Recent research' },
-  { dir: 'plan-reviews', label: 'Recent plan-review' },
-  { dir: 'code-reviews', label: 'Recent code-review' },
-  { dir: 'docs-reviews', label: 'Recent docs-review' },
+  { dir: 'plan-reviews', label: 'Recent plan-review', flagClaudeSeat: true },
+  { dir: 'code-reviews', label: 'Recent code-review', flagClaudeSeat: true },
+  { dir: 'docs-reviews', label: 'Recent docs-review', flagClaudeSeat: true },
 ];
 
 async function newestMarkdown(dir) {
@@ -55,6 +57,17 @@ async function countUncheckedTasks(filePath) {
   }
 }
 
+// Fail-open like countUncheckedTasks: any read/parse error yields false rather
+// than throwing, so a broken artifact never disables the SessionStart hook.
+async function isClaudeSeatArtifact(filePath) {
+  try {
+    const content = await readFile(filePath, 'utf8');
+    return parseFrontmatter(content).reviewer === 'claude-adversarial';
+  } catch {
+    return false;
+  }
+}
+
 async function buildSnapshotFooter(projectDir) {
   const hcRoot = resolve(projectDir, '.hyperclaude');
   try {
@@ -74,6 +87,9 @@ async function buildSnapshotFooter(projectDir) {
       if (unchecked > 0) {
         suffix = ` (${unchecked} unchecked task${unchecked === 1 ? '' : 's'})`;
       }
+    }
+    if (section.flagClaudeSeat && (await isClaudeSeatArtifact(newest.path))) {
+      suffix += ' (Claude seat)';
     }
     lines.push(`- ${section.label}: \`.hyperclaude/${section.dir}/${newest.name}\`${suffix}`);
   }

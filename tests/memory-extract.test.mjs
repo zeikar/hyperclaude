@@ -259,6 +259,17 @@ test('buildCandidatesForArtifact: ship-as-is plan-review → anchors [] and evid
   assert.equal(cands[0].sourceArtifact, '.hyperclaude/plan-reviews/20260101-0900-rev.md');
 });
 
+test('buildCandidatesForArtifact: Claude-seat plan-review (reviewer: claude-adversarial) → zero candidates even when Ship as-is', () => {
+  const artifact = {
+    mode: 'plan-review',
+    name: '20260101-0900-rev.md',
+    relPath: '.hyperclaude/plan-reviews/20260101-0900-rev.md',
+    frontmatter: { slug: 'rev', reviewer: 'claude-adversarial' },
+    content: '### Verdict\n\nShip as-is.\n',
+  };
+  assert.equal(buildCandidatesForArtifact(artifact, 'unknown').length, 0);
+});
+
 test('buildCandidatesForArtifact: non-ship-as-is plan-review → zero candidates', () => {
   const artifact = {
     mode: 'plan-review',

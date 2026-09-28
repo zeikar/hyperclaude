@@ -27,7 +27,10 @@ export { parseFrontmatter };
 // ---------- corpus enumeration ----------
 
 // `mode` is assigned BY DIR, not read from frontmatter: plans/done files carry
-// only a `plugin-version` line (no `mode:` scalar).
+// only a `plugin-version` line (no `mode:` scalar). A `plan-reviews/` entry
+// written by the Claude reviewer seat (`reviewer: claude-adversarial`) is
+// still enumerated here but yields zero candidates — see the check in
+// buildCandidatesForArtifact().
 export const SOURCE_DIRS = [
   { dir: 'plans/done', mode: 'plan' },
   { dir: 'plan-reviews', mode: 'plan-review' },
@@ -294,6 +297,10 @@ export function buildCandidatesForArtifact(artifact, currentHead) {
   }
 
   if (mode === 'plan-review') {
+    // A Claude-seat review (reviewer: claude-adversarial) is not a Codex
+    // ratification — the claim text below literally says "per Codex
+    // plan-review", so recording one from the Claude seat would be false.
+    if (artifact.frontmatter.reviewer === 'claude-adversarial') return out;
     if (!isShipAsIs(artifact.content)) return out;
     const verdict = extractVerdict(artifact.content);
     out.push({
