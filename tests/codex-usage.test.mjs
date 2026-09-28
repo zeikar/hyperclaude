@@ -1,13 +1,21 @@
 // Unit tests: usage-based reviewer seat selection — parseRateLimitsReply,
 // monthlyWindowStart, normalizeWindows, decideWindow, decideSeat,
-// formatUsageSummary.
+// formatUsageSummary, buildUsageEnvelope — plus the app-server probe
+// (readCodexRateLimits) and the
+// bridge's `usage` CLI mode, both driven by a mock `codex` on PATH.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
+import os from 'node:os';
+import { pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync, chmodSync, readFileSync, existsSync } from 'node:fs';
 import {
   FLOOR_PCT, MARGIN, CEILING_PCT,
   parseRateLimitsReply, monthlyWindowStart, normalizeWindows,
-  decideWindow, decideSeat, formatUsageSummary,
+  decideWindow, decideSeat, formatUsageSummary, buildUsageEnvelope,
 } from '../scripts/codex-bridge.mjs';
+import { BRIDGE } from './helpers/fixtures.mjs';
 
 // ── parseRateLimitsReply ─────────────────────────────────────────────────────
 
@@ -20,6 +28,17 @@ test('parseRateLimitsReply: picks the JSON-RPC reply whose id is 1, skipping oth
   const r = parseRateLimitsReply(lines);
   assert.equal(r.ok, true);
   assert.deepEqual(r.result, { rateLimits: { primary: null, secondary: null, individualLimit: null } });
+});
+
+test('parseRateLimitsReply: a server-to-client request carrying id 1 is not our reply', () => {
+  // JSON-RPC ids are per direction; only a message without `method` is a reply.
+  const lines = [
+    JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'item/tool/requestUserInput', params: {} }),
+    JSON.stringify({ jsonrpc: '2.0', id: 1, result: { rateLimits: { planType: 'plus' } } }),
+  ].join('\n');
+  const r = parseRateLimitsReply(lines);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.result, { rateLimits: { planType: 'plus' } });
 });
 
 test('parseRateLimitsReply: JSON-RPC error reply yields ok:false', () => {
@@ -299,4 +318,195 @@ test('formatUsageSummary: a pace-unknown window renders elapsed ? pace ?', () =>
 test('formatUsageSummary: zero windows renders usage unknown with the given reason', () => {
   const summary = formatUsageSummary([], 'codex', 'timeout');
   assert.equal(summary, 'usage unknown (timeout) ⇒ seat codex');
+});
+
+// ── buildUsageEnvelope ───────────────────────────────────────────────────────
+
+test('buildUsageEnvelope: a reply without rateLimits → usage unknown with that reason', () => {
+  const probe = { ok: true, stdout: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { accountId: 'x' } }) + '\n' };
+  const e = buildUsageEnvelope(probe, Date.now());
+  assert.deepEqual(e, {
+    ok: true,
+    seat: 'codex',
+    usage: 'unknown',
+    summary: 'usage unknown (rate-limits reply missing rateLimits) ⇒ seat codex',
+    windows: [],
+    plan: null,
+    reason: 'rate-limits reply missing rateLimits',
+  });
+});
+
+test('buildUsageEnvelope: rateLimits with no usable window → usage unknown, plan still reported', () => {
+  const reply = {
+    jsonrpc: '2.0',
+    id: 1,
+    result: { rateLimits: { primary: null, secondary: null, individualLimit: null, planType: 'plus' } },
+  };
+  const e = buildUsageEnvelope({ ok: true, stdout: JSON.stringify(reply) + '\n' }, Date.now());
+  assert.deepEqual(e, {
+    ok: true,
+    seat: 'codex',
+    usage: 'unknown',
+    summary: 'usage unknown (no usage windows reported) ⇒ seat codex',
+    windows: [],
+    plan: 'plus',
+    reason: 'no usage windows reported',
+  });
+});
+
+// ── readCodexRateLimits + `usage` CLI (mock codex app-server on PATH) ────────
+
+// Mock `codex`: logs its argv to argv.log; on an `app-server` argv it reads
+// JSON-RPC lines from stdin until EOF (like the real server), answers the
+// initialize request (id 0), emits a notification and a server-to-client
+// request that also carries id 1 — so the probe must pick the id:1 REPLY, not
+// the first line or the first id:1 — then prints reply.json (when present)
+// for the id:1 request.
+// With MOCK_GRANDCHILD set it also backgrounds a `sleep` that inherits the
+// stdout pipe, standing in for an npm-wrapper descendant that outlives it.
+const MOCK_APP_SERVER = `#!/usr/bin/env bash
+dir="$(dirname "$0")"
+printf '%s\\n' "$@" > "$dir/argv.log"
+is_app=""
+for a in "$@"; do
+  if [ "$a" = "app-server" ]; then is_app=1; fi
+done
+if [ -z "$is_app" ]; then exit 1; fi
+if [ -n "$MOCK_GRANDCHILD" ]; then
+  sleep 30 &
+  echo $! > "$dir/grandchild.pid"
+fi
+while IFS= read -r line; do
+  case "$line" in
+    *'"id":0'*)
+      printf '%s\\n' '{"id":0,"result":{"userAgent":"mock"}}'
+      printf '%s\\n' '{"method":"account/updated","params":{"planType":"plus"}}'
+      printf '%s\\n' '{"id":1,"method":"item/tool/requestUserInput","params":{}}'
+      ;;
+    *'"id":1'*)
+      if [ -f "$dir/reply.json" ]; then cat "$dir/reply.json"; fi
+      ;;
+  esac
+done
+`;
+
+// Raw captured Plus-plan reply: resetsAt in Unix seconds, durations in minutes.
+const PLUS_REPLY = {
+  jsonrpc: '2.0',
+  id: 1,
+  result: {
+    rateLimits: {
+      primary: { usedPercent: 38, windowDurationMins: 300, resetsAt: 1790592447 },
+      secondary: { usedPercent: 81, windowDurationMins: 10080, resetsAt: 1791110872 },
+      individualLimit: null,
+      planType: 'plus',
+    },
+  },
+};
+
+function withMockAppServer(reply, fn) {
+  const tmpdir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-usage-'));
+  const mockCodexPath = path.join(tmpdir, 'codex');
+  writeFileSync(mockCodexPath, MOCK_APP_SERVER);
+  chmodSync(mockCodexPath, 0o755);
+  if (reply !== null) writeFileSync(path.join(tmpdir, 'reply.json'), JSON.stringify(reply) + '\n');
+  try {
+    return fn({ tmpdir, env: { ...process.env, PATH: `${tmpdir}:${process.env.PATH}` } });
+  } finally {
+    rmSync(tmpdir, { recursive: true, force: true });
+  }
+}
+
+// `timeout` turns a process held open by the probe's pipes into a test
+// failure (signal set) instead of a hung `node --test`.
+function runUsageCli(env) {
+  return spawnSync(process.execPath, [BRIDGE, 'usage'], { encoding: 'utf8', env, timeout: 10000 });
+}
+
+function parseSingleLine(stdout) {
+  assert.ok(stdout.endsWith('\n'), `stdout must end with a newline: ${JSON.stringify(stdout)}`);
+  const lines = stdout.slice(0, -1).split('\n');
+  assert.equal(lines.length, 1, `expected exactly one stdout line, got: ${JSON.stringify(stdout)}`);
+  return JSON.parse(lines[0]);
+}
+
+test('cli usage: mock app-server Plus reply → one-line known envelope, exits 0 on its own', () => {
+  withMockAppServer(PLUS_REPLY, ({ tmpdir, env }) => {
+    const r = runUsageCli(env);
+    assert.equal(r.signal, null, `bridge was held open past the timeout; stderr: ${r.stderr}`);
+    assert.equal(r.status, 0, r.stderr);
+    const j = parseSingleLine(r.stdout);
+    assert.equal(j.ok, true);
+    assert.equal(j.usage, 'known');
+    assert.equal(j.windows.length, 2);
+    assert.deepEqual(j.windows.map((w) => w.name), ['5h', 'weekly']);
+    assert.ok(['codex', 'claude'].includes(j.seat), `unexpected seat: ${j.seat}`);
+    assert.equal(typeof j.summary, 'string');
+    assert.equal(j.plan, 'plus');
+    assert.equal('reason' in j, false, 'reason is only carried when usage is unknown');
+    // Pinned spawn shape: app-server honors only `-c` overrides (root -s/-a never
+    // reach it), so read-only + approvals-never must ride as -c pairs.
+    const argv = readFileSync(path.join(tmpdir, 'argv.log'), 'utf8').split('\n').filter(Boolean);
+    assert.deepEqual(argv, ['-c', 'sandbox_mode=read-only', '-c', 'approval_policy=never', 'app-server']);
+  });
+});
+
+test('cli usage: JSON-RPC error reply → usage unknown, seat codex, reason set, exit 0', () => {
+  const errorReply = { jsonrpc: '2.0', id: 1, error: { code: -32600, message: 'not logged in' } };
+  withMockAppServer(errorReply, ({ env }) => {
+    const r = runUsageCli(env);
+    assert.equal(r.signal, null, `bridge was held open past the timeout; stderr: ${r.stderr}`);
+    assert.equal(r.status, 0, r.stderr);
+    const j = parseSingleLine(r.stdout);
+    assert.equal(j.ok, true);
+    assert.equal(j.usage, 'unknown');
+    assert.equal(j.seat, 'codex');
+    assert.match(j.reason, /not logged in/);
+    assert.deepEqual(j.windows, []);
+    assert.equal(j.summary, `usage unknown (${j.reason}) ⇒ seat codex`);
+  });
+});
+
+test('readCodexRateLimits: a server that never replies times out fast and leaves nothing holding the process open', () => {
+  withMockAppServer(null, ({ tmpdir, env }) => {
+    // Runs in a child process so "not held open" is observable: the child must
+    // exit on its own (no forced exit) even though the mock's backgrounded
+    // grandchild still holds the stdout pipe for 30 s.
+    const script = [
+      `import { readCodexRateLimits } from ${JSON.stringify(pathToFileURL(BRIDGE).href)};`,
+      `const t0 = Date.now();`,
+      `const r = await readCodexRateLimits({ clientVersion: 'test', timeoutMs: 300 });`,
+      `process.stdout.write(JSON.stringify({ ...r, elapsedMs: Date.now() - t0 }) + '\\n');`,
+    ].join('\n');
+    const pidPath = path.join(tmpdir, 'grandchild.pid');
+    let pid = null;
+    try {
+      const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+        encoding: 'utf8',
+        env: { ...env, MOCK_GRANDCHILD: '1' },
+        timeout: 5000,
+      });
+      // Guard against a vacuous pass: the pipe-holding grandchild must exist and
+      // still be alive, or "exited on its own" proves nothing about the teardown.
+      assert.ok(existsSync(pidPath), 'mock never forked its pipe-holding grandchild');
+      pid = Number(readFileSync(pidPath, 'utf8'));
+      assert.ok(Number.isInteger(pid) && pid > 0, `bad grandchild pid: ${pid}`);
+      assert.doesNotThrow(() => process.kill(pid, 0), 'pipe-holding grandchild already exited');
+      assert.equal(r.signal, null, `probe process was held open past the timeout; stderr: ${r.stderr}`);
+      assert.equal(r.status, 0, r.stderr);
+      const out = JSON.parse(r.stdout);
+      assert.equal(out.ok, false);
+      assert.match(out.reason, /timeout/);
+      assert.ok(out.elapsedMs < 2000, `probe took ${out.elapsedMs} ms to time out`);
+    } finally {
+      // The backgrounded sleep would otherwise outlive the test by 30 s.
+      if (pid) {
+        try {
+          process.kill(pid);
+        } catch (err) {
+          if (err.code !== 'ESRCH') throw err; // already gone
+        }
+      }
+    }
+  });
 });

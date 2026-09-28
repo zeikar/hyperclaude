@@ -1,5 +1,5 @@
 // Argv parsing for the codex bridge.
-// One parseArgs() handles all four modes; mode is the first positional, and
+// One parseArgs() handles every mode; mode is the first positional, and
 // the rest is mode-dispatched flag handling with strict allow-listing.
 
 import path from 'node:path';
@@ -9,13 +9,15 @@ const ALLOWED_FLAGS_PER_MODE = {
   'plan-review': new Set(['--plan-path', '--slug', '--out', '--dry-run', '--resume', '--model', '--effort', '--review-brief']),
   'code-review': new Set(['--base', '--uncommitted', '--commit', '--title', '--background', '--out', '--dry-run', '--resume', '--model', '--effort', '--review-brief']),
   'docs-review': new Set(['--docs-path', '--docs-dir', '--diff-base', '--out', '--dry-run', '--resume', '--model', '--effort']),
+  // No flags: a read-only probe with nothing to configure or dry-run.
+  usage:         new Set(),
 };
 
 const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
 
 export function parseArgs(argv) {
   const [mode, ...rest] = argv;
-  if (mode !== 'research' && mode !== 'plan-review' && mode !== 'code-review' && mode !== 'docs-review') {
+  if (mode !== 'research' && mode !== 'plan-review' && mode !== 'code-review' && mode !== 'docs-review' && mode !== 'usage') {
     throw new Error(`unknown mode: ${mode}`);
   }
   const allowed = ALLOWED_FLAGS_PER_MODE[mode];

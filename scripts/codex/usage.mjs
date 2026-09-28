@@ -2,7 +2,7 @@
 // reply into a decision between the Codex reviewer seat (default) and an
 // adversarial Claude reviewer (when usage is running ahead of the window's
 // elapsed time). Pure math/parsing only — the app-server spawn that produces
-// the reply text lives in a later task, not here.
+// the reply text is readCodexRateLimits in codex.mjs.
 
 // FLOOR_PCT: below this usage there is no signal to act on yet — stay codex
 // even if a window's pace looks high (percentages are noisy at low usage).
@@ -17,7 +17,9 @@ export const CEILING_PCT = 90;
 // per line) for the reply to OUR request (id 1) and returns its `result`.
 // Non-JSON lines and JSON-RPC messages with a different id (notifications,
 // other requests) are skipped, not treated as errors — the app-server may
-// interleave other traffic before our reply arrives.
+// interleave other traffic before our reply arrives. JSON-RPC ids are per
+// direction, so a server-to-client request can also carry id 1: only a
+// message with no `method` member counts as our reply.
 export function parseRateLimitsReply(stdoutText) {
   if (typeof stdoutText !== 'string' || stdoutText.length === 0) {
     return { ok: false, reason: 'empty stdout' };
@@ -32,7 +34,7 @@ export function parseRateLimitsReply(stdoutText) {
     } catch {
       continue;
     }
-    if (!evt || typeof evt !== 'object' || evt.id !== 1) continue;
+    if (!evt || typeof evt !== 'object' || evt.id !== 1 || 'method' in evt) continue;
     if (evt.error) {
       const msg = typeof evt.error.message === 'string' ? evt.error.message : JSON.stringify(evt.error);
       return { ok: false, reason: `rate-limits RPC error: ${msg}` };
@@ -191,4 +193,35 @@ export function formatUsageSummary(windows, seat, reason) {
     return `${w.name}: used ${used}% elapsed ${elapsed} pace ${pace} → ${w.decision}`;
   });
   return `${parts.join('; ')} ⇒ seat ${seat}`;
+}
+
+// buildUsageEnvelope: the bridge's `usage` stdout answer, built from a
+// readCodexRateLimits() result. Always ok:true — a failed probe is an answer
+// ("unknown ⇒ codex"), not a bridge error, so a loop can read the seat without
+// a failure branch. Reason precedence: probe/RPC failure, then a reply with no
+// rateLimits, then a rateLimits object that yields no usable window. `reason`
+// is carried only when usage is unknown.
+export function buildUsageEnvelope(probe, nowMs) {
+  const reply = probe.ok ? parseRateLimitsReply(probe.stdout) : probe;
+  let rateLimits = null;
+  let reason = null;
+  if (!reply.ok) {
+    reason = reply.reason;
+  } else if (reply.result.rateLimits && typeof reply.result.rateLimits === 'object') {
+    rateLimits = reply.result.rateLimits;
+  } else {
+    reason = 'rate-limits reply missing rateLimits';
+  }
+  const windows = rateLimits ? normalizeWindows(rateLimits, nowMs).map(decideWindow) : [];
+  if (rateLimits && windows.length === 0) reason = 'no usage windows reported';
+  const { seat, usage } = decideSeat(windows);
+  return {
+    ok: true,
+    seat,
+    usage,
+    summary: formatUsageSummary(windows, seat, reason),
+    windows,
+    plan: rateLimits?.planType ?? null,
+    ...(usage === 'unknown' ? { reason } : {}),
+  };
 }

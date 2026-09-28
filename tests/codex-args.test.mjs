@@ -50,6 +50,15 @@ test('parseArgs: rejects unknown mode', () => {
   assert.throws(() => parseArgs(['banana', '--task', 'x']), /unknown mode/);
 });
 
+test('parseArgs: usage mode accepted with no flags', () => {
+  const a = parseArgs(['usage']);
+  assert.equal(a.mode, 'usage');
+});
+
+test('parseArgs: usage mode rejects every flag (no --dry-run)', () => {
+  assert.throws(() => parseArgs(['usage', '--dry-run']), /unknown flag for mode usage/);
+});
+
 test('parseArgs: research requires --task or --task-file', () => {
   assert.throws(() => parseArgs(['research']), /--task or --task-file is required/);
 });

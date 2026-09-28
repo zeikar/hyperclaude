@@ -28,7 +28,7 @@ import { renderFailureBody } from './codex/failure.mjs';
 import {
   getCodexVersion, parseCodexJsonl, runCodexExec, runCodexResume,
   buildCodexSelectionArgs, parseCodexDoctorConfigModel, parseCodexCatalogDefault,
-  getCodexEffectiveModel,
+  getCodexEffectiveModel, readCodexRateLimits,
 } from './codex/codex.mjs';
 import { getPluginVersion } from './codex/plugin.mjs';
 import {
@@ -37,7 +37,7 @@ import {
 import {
   FLOOR_PCT, MARGIN, CEILING_PCT,
   parseRateLimitsReply, monthlyWindowStart, normalizeWindows,
-  decideWindow, decideSeat, formatUsageSummary,
+  decideWindow, decideSeat, formatUsageSummary, buildUsageEnvelope,
 } from './codex/usage.mjs';
 
 export {
@@ -52,12 +52,12 @@ export {
   renderFailureBody,
   getCodexVersion, parseCodexJsonl, runCodexExec, runCodexResume,
   buildCodexSelectionArgs, parseCodexDoctorConfigModel, parseCodexCatalogDefault,
-  getCodexEffectiveModel,
+  getCodexEffectiveModel, readCodexRateLimits,
   getPluginVersion,
   defaultModeDir, loadResumeContext, discoverResumeArtifact,
   FLOOR_PCT, MARGIN, CEILING_PCT,
   parseRateLimitsReply, monthlyWindowStart, normalizeWindows,
-  decideWindow, decideSeat, formatUsageSummary,
+  decideWindow, decideSeat, formatUsageSummary, buildUsageEnvelope,
   buildTargetInstruction,
 };
 
@@ -138,6 +138,15 @@ async function main(argv) {
     process.stdout.write(JSON.stringify({ ok: false, error: err.message }) + '\n');
     process.exit(2);
   }
+
+  // usage: live Codex usage → reviewer seat (envelope rules: buildUsageEnvelope).
+  // Returns rather than exiting so the stdout pipe is flushed by the normal exit.
+  if (args.mode === 'usage') {
+    const probe = await readCodexRateLimits({ clientVersion: PLUGIN_VERSION });
+    process.stdout.write(JSON.stringify(buildUsageEnvelope(probe, Date.now())) + '\n');
+    return;
+  }
+
   if (args.taskFile) {
     try {
       args.task = (await readFile(args.taskFile, 'utf8')).trim();

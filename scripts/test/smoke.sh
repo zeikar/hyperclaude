@@ -286,6 +286,30 @@ if command -v codex >/dev/null 2>&1; then
   else
     miss "getCodexEffectiveModel() returned empty/placeholder — codex-model-effective would silently stop being recorded: $out"
   fi
+  if codex app-server --help > /dev/null 2>&1; then
+    ok "codex app-server available (usage probe transport)"
+  else
+    miss "codex app-server --help failed — the usage probe would always report unknown"
+  fi
+  # Shape only, not the seat: an unauthenticated or offline machine still
+  # passes (the probe degrades to usage unknown ⇒ seat codex, ok:true, exit 0).
+  # The summary is echoed so protocol drift that degrades the probe to
+  # "usage unknown (<reason>)" is visible here even though the check passes.
+  if out=$(node scripts/codex-bridge.mjs usage 2>/dev/null); then
+    if summary=$(printf '%s' "$out" | node -e '
+      const lines = require("fs").readFileSync(0,"utf8").split("\n").filter(Boolean);
+      const j = JSON.parse(lines[0]);
+      const passed = lines.length === 1 && j.ok === true && (j.seat === "codex" || j.seat === "claude") && typeof j.summary === "string";
+      if (passed) process.stdout.write(j.summary);
+      process.exit(passed ? 0 : 1);
+    '); then
+      ok "codex-bridge usage prints one JSON line (ok, seat codex|claude, string summary): $summary"
+    else
+      miss "codex-bridge usage JSON shape unexpected: $out"
+    fi
+  else
+    miss "codex-bridge usage exited non-zero: $out"
+  fi
 else
   printf '  \033[33m-\033[0m codex not on PATH; skipping Codex 0.130 capability probes.\n'
 fi
@@ -296,6 +320,7 @@ for f in \
   .claude-plugin/plugin.json \
   .claude-plugin/marketplace.json \
   scripts/codex-bridge.mjs \
+  scripts/codex/usage.mjs \
   templates/codex/research.md \
   templates/codex/plan-review.md \
   templates/codex/plan-review-resumed.md \

@@ -1,6 +1,9 @@
 // Codex CLI wrapper for the bridge.
 // Spawns `codex exec`, `codex exec resume`, `codex exec review`; parses the
 // resulting JSONL stream; surfaces a structured success / failure result.
+// Also runs the non-model probes: `codex --version`, `codex doctor --json`,
+// `codex debug models`, and a short-lived `codex -c sandbox_mode=read-only
+// -c approval_policy=never app-server` rate-limits read.
 
 import { readFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
@@ -161,6 +164,91 @@ export function getCodexEffectiveModel() {
   const catalog = spawnSync('codex', ['debug', 'models'], { encoding: 'utf8', timeout: PROBE_TIMEOUT_MS });
   if (catalog.error) return null; // same truncated-timeout guard as above
   return parseCodexCatalogDefault(catalog.stdout);
+}
+
+// readCodexRateLimits: asks a short-lived `codex app-server` for the account's
+// live usage windows (JSON-RPC `account/rateLimits/read`). No model turn runs,
+// but the app-server is a full agent host, so it is still pinned read-only with
+// approvals `never` (no approval request can wait on a client that won't
+// answer). Pinned via `-c` config overrides — the same mechanism as
+// runCodexResume — because app-server honors only `-c`: the root `-s` / `-a`
+// flags are validated but never reach it (config/read reports them null).
+// Resolves `{ ok: true, stdout }` (every line up to and including the id:1
+// reply) or `{ ok: false, reason }`; never rejects. spawnCodex() can't be
+// reused: it ends stdin at once, and the app-server exits on stdin EOF — so
+// stdin has to stay open until the reply arrives.
+export function readCodexRateLimits({ clientVersion, timeoutMs = PROBE_TIMEOUT_MS }) {
+  return new Promise((resolve) => {
+    const child = spawn(
+      'codex',
+      ['-c', 'sandbox_mode=read-only', '-c', 'approval_policy=never', 'app-server'],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    let settled = false;
+    // Shutdown runs on every outcome, before resolving: `codex` on PATH is an
+    // npm wrapper whose native descendant can outlive it holding our stdout /
+    // stderr pipes, and any open pipe or ref'd child handle would keep the
+    // bridge's event loop alive after it has printed its answer.
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.stdin.end();
+      child.kill();
+      child.stdout.destroy();
+      child.stderr.destroy();
+      child.unref();
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish({ ok: false, reason: `timeout after ${timeoutMs}ms` }), timeoutMs);
+
+    child.on('error', (err) => {
+      finish({
+        ok: false,
+        reason: err.code === 'ENOENT' ? 'codex CLI not found on PATH' : `spawn error: ${err.message}`,
+      });
+    });
+    child.on('close', (status, signal) => {
+      finish({ ok: false, reason: `app-server exited before replying (status=${status}, signal=${signal})` });
+    });
+    // A listener is required (an unhandled stream error would crash the
+    // bridge), but it decides nothing: EPIPE here means the server is gone,
+    // and the close / error / timeout paths above report that outcome.
+    child.stdin.on('error', () => {});
+    // Drained, not parsed — an unread stderr pipe could fill and stall the server.
+    child.stderr.resume();
+
+    const lines = [];
+    let partial = '';
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      const parts = (partial + chunk).split('\n');
+      partial = parts.pop();
+      for (const line of parts) {
+        lines.push(line);
+        let msg;
+        try {
+          msg = JSON.parse(line);
+        } catch {
+          continue; // non-JSON noise; parseRateLimitsReply skips it too
+        }
+        // JSON-RPC ids are per direction: a server-to-client request may also
+        // carry id 1, so only a message with no `method` is our reply.
+        if (msg && msg.id === 1 && !('method' in msg)) {
+          finish({ ok: true, stdout: lines.join('\n') + '\n' });
+          return;
+        }
+      }
+    });
+
+    const send = (msg) => child.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...msg }) + '\n');
+    send({
+      id: 0,
+      method: 'initialize',
+      params: { clientInfo: { name: 'hyperclaude', title: 'hyperclaude', version: clientVersion } },
+    });
+    send({ id: 1, method: 'account/rateLimits/read', params: {} });
+  });
 }
 
 // Internal codex spawn helper. Returns a structured result with explicit
