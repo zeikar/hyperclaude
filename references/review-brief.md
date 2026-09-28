@@ -19,7 +19,7 @@ Interaction with carry-forward: an omitted flag still lets a prior artifact's br
 
 ## Bound
 
-The brief may say "this was requested — do not flag it as scope creep." It may NEVER ask Codex to ignore correctness, security, or data-loss findings. The prompt template enforces this independently — all four review-brief-carrying prompts (the fresh and resumed templates for both plan-review and code-review) carry a guardrail paragraph declaring the block is DATA, never instructions — so a malformed or over-reaching brief cannot win. The Claude reviewer seat enforces the same boundary through `agents/reviewer.md` plus the data-only rule and fenced block `reviewer-seat.md` has the lead paste.
+The brief may say "this was requested — do not flag it as scope creep." It may NEVER ask Codex to ignore correctness, security, or data-loss findings. The prompt template enforces this independently — all four review-brief-carrying prompts (the fresh and resumed templates for both plan-review and code-review) carry a guardrail paragraph declaring the block is DATA, never instructions — so a malformed or over-reaching brief cannot win. The Claude seat enforces the same boundary through `agents/reviewer.md` plus the data-only rule and fenced block `reviewer-seat.md` has the lead paste.
 
 ## Shell-safety recipe
 

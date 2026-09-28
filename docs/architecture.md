@@ -10,7 +10,7 @@ hyperclaude wires three things together:
 - **Agents** — sub-Claude personas with restricted tool sets. Each is one `<name>.md` under [agents/](../agents/).
 - **Bridge** — [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs), a Node 18+ stdlib script that shells out to `codex` and writes structured output under `.hyperclaude/`.
 
-There is no daemon, no MCP server, no shared process state — with three documented exceptions, all in the autonomous-loop family: `hyper-plan-loop` spawns a `planner` agent that stays live for the duration of the loop and retains context across revise iterations; `hyper-implement-loop` spawns a `fixer` agent and `hyper-docs-loop` the `documenter` agent (the same agent `hyper-docs-sync` normally dispatches stateless-per-doc) the same way, except **lazily** — only on the first review round that carries blocking findings, so a run Codex clears on its first review keeps no live agent at all. All three spawn with NO `name:` field (a named spawn makes the agent a team member and the harness then drops the plugin agent definition — see [decisions.md](decisions.md)); the lead captures the returned `agentId` and addresses every later round with `SendMessage({ to: "<agentId>" })`, and each round's reply arrives as that background task's notification `<result>`. No team is formed, so there is no teardown step; a spawn that returns no usable id and a failed send are both STOPs. `references/loop-protocol.md` carries that shared spawn + reply-transport contract; loop-specific reply shape and validation live in each loop's local `failure-protocol.md`. In `hyper-plan-loop`, the live planner also writes the plan file directly at the lead-resolved path (caller-directed write-file mode), eliminating per-iteration plan-body round-trips. It is also the one agent whose definition carries `experimental.cacheTtl: 1h`: its rounds are separated by a Codex plan-review that outlives the 5-minute default cache bucket, which is the boundary the other two loops do not have to cross ([gates-and-agents.md](gates-and-agents.md#planner)). This write-file behavior is scoped to `hyper-plan-loop`; the fixer in `hyper-implement-loop` and the documenter in `hyper-docs-loop` apply edits in place (no canonical output file) and report through their reply — they do NOT use caller-directed write-file mode. Other agents' existing tool permissions and dispatch semantics are unchanged; stock `hyper-plan` still has the skill own the Write, and `hyper-docs-sync` still dispatches `documenter` stateless-per-doc in its UPDATE/CREATE mode. All other skills and agents are stateless and fresh-per-task. The bridge runs on demand; skills and agents are static markdown. The primary persisted state is `.hyperclaude/` artifacts — individual bridge invocations produce one markdown file each, read back by `--resume` for thread-id discovery; the default `hyper-research` invocation produces a Codex+Claude pair sharing one `slug:`, and loop skills accumulate multiple per-iteration artifacts.
+There is no daemon, no MCP server, no shared process state — with three documented exceptions, all in the autonomous-loop family: `hyper-plan-loop` spawns a `planner` agent that stays live for the duration of the loop and retains context across revise iterations; `hyper-implement-loop` spawns a `fixer` agent and `hyper-docs-loop` the `documenter` agent (the same agent `hyper-docs-sync` normally dispatches stateless-per-doc) the same way, except **lazily** — only on the first review round that carries blocking findings, so a run Codex clears on its first review keeps no live agent at all. All three spawn with NO `name:` field (a named spawn makes the agent a team member and the harness then drops the plugin agent definition — see [decisions.md](decisions.md)); the lead captures the returned `agentId` and addresses every later round with `SendMessage({ to: "<agentId>" })`, and each round's reply arrives as that background task's notification `<result>`. No team is formed, so there is no teardown step; a spawn that returns no usable id and a failed send are both STOPs. `references/loop-protocol.md` carries that shared spawn + reply-transport contract; loop-specific reply shape and validation live in each loop's local `failure-protocol.md`. In `hyper-plan-loop`, the live planner also writes the plan file directly at the lead-resolved path (caller-directed write-file mode), eliminating per-iteration plan-body round-trips. It is also the one agent whose definition carries `experimental.cacheTtl: 1h`: its rounds are separated by a Codex plan-review that outlives the 5-minute default cache bucket, which is the boundary the other two loops do not have to cross ([gates-and-agents.md](gates-and-agents.md#planner)). This write-file behavior is scoped to `hyper-plan-loop`; the fixer in `hyper-implement-loop` and the documenter in `hyper-docs-loop` apply edits in place (no canonical output file) and report through their reply — they do NOT use caller-directed write-file mode. Other agents' existing tool permissions and dispatch semantics are unchanged; stock `hyper-plan` still has the skill own the Write, and `hyper-docs-sync` still dispatches `documenter` stateless-per-doc in its UPDATE/CREATE mode. In the Claude seat a loop also keeps the `reviewer` agent live across its rounds the same way ([reviewer-seat.md](../references/reviewer-seat.md)); all other skills and agents are stateless and fresh-per-task. The bridge runs on demand; skills and agents are static markdown. The primary persisted state is `.hyperclaude/` artifacts — individual bridge invocations produce one markdown file each, read back by `--resume` for thread-id discovery; the default `hyper-research` invocation produces a Codex+Claude pair sharing one `slug:`, and loop skills accumulate multiple per-iteration artifacts.
 
 ## Directory layout
 
@@ -36,8 +36,8 @@ hyperclaude/
 │   ├── hyper-implement/         helper — plan execution loop
 │   ├── hyper-tdd/               helper — TDD discipline
 │   └── hyper-debug/             helper — debugging discipline
-├── agents/                      sub-Claude personas (planner, implementer, verifier, documenter, researcher, fixer)
-├── references/                  plugin-wide reference content not owned by any single skill. loop-protocol.md — Step-0 base for hyper-plan-loop, hyper-implement-loop, and hyper-docs-loop; carries the shared spawn contract (no `name:`, address by returned agentId), the reply transport (the task notification's `<result>`), the corrective/transport-failure rules, and the cross-loop anti-patterns. review-brief.md — shared `--review-brief` composition rules (source/omission/bound/shell-safety), pointed at by hyper-plan-review, hyper-code-review, hyper-plan-loop, and hyper-implement-loop. bridge-review-calls.md — shared bridge stdout JSON envelope + `--resume` semantics + invocation mode (standalone gates background the spawn, loops don't), pointed at by hyper-plan-review, hyper-code-review, hyper-plan-loop, hyper-implement-loop, hyper-docs-review, and hyper-docs-loop
+├── agents/                      sub-Claude personas (planner, implementer, verifier, documenter, researcher, fixer, reviewer)
+├── references/                  plugin-wide reference content not owned by any single skill. loop-protocol.md — Step-0 base for hyper-plan-loop, hyper-implement-loop, and hyper-docs-loop; carries the shared spawn contract (no `name:`, address by returned agentId), the reply transport (the task notification's `<result>`), the corrective/transport-failure rules, and the cross-loop anti-patterns. review-brief.md — shared `--review-brief` composition rules (source/omission/bound/shell-safety), pointed at by hyper-plan-review, hyper-code-review, hyper-plan-loop, and hyper-implement-loop. bridge-review-calls.md — shared bridge stdout JSON envelope + `--resume` semantics + invocation mode (standalone gates background the spawn, loops don't), pointed at by hyper-plan-review, hyper-code-review, hyper-plan-loop, hyper-implement-loop, hyper-docs-review, and hyper-docs-loop. reviewer-seat.md — Step-0 rule for the three loops: who reviews the run, and how the lead drives the Claude seat
 ├── hooks/                       event-bound hook scripts
 │   ├── hooks.json               hook manifest (registered SessionStart + PostToolUse hooks)
 │   ├── session-start-reminder.mjs  SessionStart reminder (injects workflow-router template)
@@ -46,7 +46,8 @@ hyperclaude/
 │   ├── codex-bridge.mjs         CLI entry; re-exports the helpers below
 │   ├── setup-doctor.mjs         standalone local probe (non-bridge; never spawns Codex)
 │   ├── codex/                   bridge modules (slug, frontmatter, git, templates,
-│   │                            args, paths, codex spawn + JSONL, failure, resume)
+│   │                            args, paths, codex spawn + JSONL, failure, resume,
+│   │                            usage pace/seat math)
 │   ├── memory/extract.mjs       hyper-memory extraction module (non-bridge; never spawns Codex)
 │   └── test/smoke.sh            acceptance smoke checks
 ├── templates/codex/             prompt templates rendered into Codex stdin
@@ -79,7 +80,7 @@ Functional runtime surface stops at the directory above. Zero npm dependencies; 
    ┌──────────────────────────────────┐
    │ Agents (planner / implementer /  │  ← fresh sub-Claude per task,
    │   verifier / documenter /        │    restricted tool set
-   │   researcher / fixer)            │    (exceptions: hyper-plan-loop keeps
+   │   researcher / fixer / reviewer) │    (exceptions: hyper-plan-loop keeps
    │                                  │    planner live across rounds, addressed
    │                                  │    by its returned agentId; the planner
    │                                  │    also writes the plan file directly in
@@ -90,14 +91,17 @@ Functional runtime surface stops at the directory above. Zero npm dependencies; 
    │                                  │    place, no canonical output file.
    │                                  │    hyper-docs-loop keeps documenter live
    │                                  │    the same way; documenter edits in
-   │                                  │    place, no canonical output file)
+   │                                  │    place, no canonical output file.
+   │                                  │    In the Claude seat, any of the
+   │                                  │    three loops also keeps reviewer
+   │                                  │    live the same way)
    └──────────┬───────────────────────┘
               │ skills (not agents) shell out
               ▼
    ┌──────────────────────────────────┐
    │ Bridge — scripts/codex-bridge.mjs│  ← Node 18+ stdlib script,
    └──────────┬───────────────────────┘    spawns `codex exec` / `codex exec resume`
-              │
+              │                            (+ `codex app-server` for the usage probe)
               ▼
    ┌──────────────────────────────────┐
    │ Codex CLI (>= 0.130.0)           │  ← read-only sandbox; critic, never editor
@@ -116,7 +120,7 @@ Direction:
 
 ## The bridge
 
-CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modules under [scripts/codex/](../scripts/codex/) (slug, frontmatter, git, templates, args, paths, codex spawn + JSONL + effective-model probes, failure body, resume). The entry file owns the `main()` mode dispatch; everything else is pure-ish helpers. Four modes, exposed as positional subcommands:
+CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modules under [scripts/codex/](../scripts/codex/) (slug, frontmatter, git, templates, args, paths, codex spawn + JSONL + effective-model and rate-limits probes, failure body, resume, usage pace/seat math). The entry file owns the `main()` mode dispatch; everything else is pure-ish helpers. Four modes plus the `usage` probe, exposed as positional subcommands:
 
 | Mode          | Codex invocation                                  | Template                           | Output dir                       |
 |---------------|---------------------------------------------------|------------------------------------|----------------------------------|
@@ -124,10 +128,13 @@ CLI entry [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modu
 | `plan-review` | `codex --search exec --sandbox read-only -` (stdin prompt) | [templates/codex/plan-review.md](../templates/codex/plan-review.md)         | `.hyperclaude/plan-reviews/`     |
 | `code-review` | `codex --search exec --sandbox read-only -` (stdin prompt; Codex runs the target git commands itself) | fresh: [templates/codex/code-review.md](../templates/codex/code-review.md); resume: [templates/codex/code-review-resumed.md](../templates/codex/code-review-resumed.md) | `.hyperclaude/code-reviews/`     |
 | `docs-review` | `codex --search exec --sandbox read-only -` (stdin prompt) | [templates/codex/docs-review.md](../templates/codex/docs-review.md)    | `.hyperclaude/docs-reviews/`     |
+| `usage`       | `codex -c sandbox_mode=read-only -c approval_policy=never app-server` (JSON-RPC, no model turn) | none | none — stdout only |
+
+The `usage` probe ([reviewer-seat.md](../references/reviewer-seat.md)) sends `initialize` + `account/rateLimits/read` to a short-lived app-server, bounded at 15 s, and prints the seat envelope ([CLI surface](#cli-surface)).
 
 ### SessionStart hook
 
-The [SessionStart hook](../hooks/session-start-reminder.mjs) is template-driven: it reads the loop-first workflow-router template [templates/hooks/session-start-reminder.md](../templates/hooks/session-start-reminder.md) at runtime — the single template, hardcoded — and injects its contents as `additionalContext`. The autonomous `*-loop` / `hyper-auto` skills are its default recommendation for non-trivial multi-step work, with single-step work still routed direct. If the template file is missing, the hook fails open and does not raise an error. This design allows the workflow reminder text to be edited without touching code.
+The [SessionStart hook](../hooks/session-start-reminder.mjs) is template-driven: it reads the loop-first workflow-router template [templates/hooks/session-start-reminder.md](../templates/hooks/session-start-reminder.md) at runtime — the single template, hardcoded — and injects its contents as `additionalContext`, plus an optional `.hyperclaude/` snapshot footer naming the newest artifact per dir (a Claude-seat review gets a ` (Claude seat)` suffix). The autonomous `*-loop` / `hyper-auto` skills are its default recommendation for non-trivial multi-step work, with single-step work still routed direct. If the template file is missing, the hook fails open and does not raise an error. This design allows the workflow reminder text to be edited without touching code.
 
 ### PostToolUse stamp hook
 
@@ -152,7 +159,7 @@ Every spawn also prepends the global `--search` flag (before the subcommand): `c
 
 The bridge does not govern Codex's own sub-agent tools (`spawn_agent` and kin). They come from the model catalog, no feature flag or `agents.*` limit removes them, and Codex uses them only when an instruction it reads explicitly asks for delegation — so a delegation rule in any `AGENTS.md` Codex loads turns a review into a fan-out whose child sessions the artifact's token counts never include. Why the bridge leaves this alone: [decisions.md](decisions.md).
 
-The bridge's non-model probes — `codex --version`, `codex doctor --json`, `codex debug models` — run outside `runCodexExec`, start no model turn, and so sit outside this matrix entirely (no sandbox flag applies to them).
+The bridge's non-model probes — `codex --version`, `codex doctor --json`, `codex debug models`, and `usage`'s `app-server` probe — run outside `runCodexExec`, start no model turn, and so sit outside this matrix. The first three take no sandbox argument; the app-server is a full agent host, so it is still pinned read-only with approvals `never` — via `-c` overrides, because app-server validates but ignores the root `-s` / `-a` flags.
 
 ### CLI surface
 
@@ -166,6 +173,9 @@ node scripts/codex-bridge.mjs <mode> [flags]
 | `plan-review` | `--plan-path <path>`                                       | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--review-brief <text>` (allowed with `--resume`), `--slug`, `--out`, `--dry-run` |
 | `code-review` | none — defaults to `--base main`                           | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`; one of `--base <ref>`, `--uncommitted`, `--commit <sha>`; plus `--resume <path\|auto>`, `--background <text>` (fresh only — rejected with `--resume`), `--review-brief <text>` (allowed with `--resume`), `--title`, `--out`, `--dry-run` |
 | `docs-review` | `--docs-path <file>` (repeatable — append multiple files) OR `--docs-dir <dir>` | `--model <name>`, `--effort <low\|medium\|high\|xhigh>`, `--resume <path\|auto>`, `--diff-base <ref>`, `--out`, `--dry-run` |
+| `usage`       | none                                                       | none — every flag, `--dry-run` included, is an argv error (exit 2)                   |
+
+`usage` prints one JSON line and exits 0: `{"ok":true,"seat":"codex"|"claude","usage":"known"|"unknown","summary":"…","windows":[{name,usedPercent,elapsedPercent,note,pace,decision}],"plan":<planType|null>}`, plus `reason` only when usage is `unknown`. Every reported window decides — `5h` / `weekly` / `<N>m` from `primary` / `secondary`, and `monthly` from a Business/Enterprise `individualLimit`: under 20% used → `codex`; at ≥ 90% → `claude`; otherwise `claude` when used% exceeds 1.1× elapsed% (a window without a reset time keeps only the floor and ceiling). Any `claude` window seats Claude. A failed probe or no usable window is `usage: "unknown"`, `seat: "codex"` — still `ok:true`.
 
 Defaults:
 
@@ -184,7 +194,7 @@ When either flag is passed the selection tokens are inserted into the semantic a
 
 ### Output contract
 
-Every non-dry-run successful run writes a single markdown file with YAML frontmatter. (`--dry-run` skips the write and prints `{"ok":true,"dryRun":true,"mode":"…","slug":"…","outputPath":"…","timestamp":"…"}` instead.)
+Every non-dry-run successful run of the four modes writes a single markdown file with YAML frontmatter. (`--dry-run` skips the write and prints `{"ok":true,"dryRun":true,"mode":"…","slug":"…","outputPath":"…","timestamp":"…"}` instead.)
 
 The frontmatter shape:
 
@@ -288,6 +298,8 @@ The `specs/` artifact is **Claude-authored** (from `hyper-interview`, like plans
 
 The `recaps/` artifact is likewise **Claude-authored** (from `hyper-recap`) — not a bridge output. Filename `<timestamp>[-<slug>].md`: timestamp-only with a bare empty `slug:` for an empty-slug / no-ASCII cycle, exactly like `specs/`. Frontmatter is the skill-defined set `mode: recap`, `slug`, `generated`, `context: live|artifacts-only`, `plan` (double-quoted path), plus the PostToolUse-hook-added `plugin-version`. It does NOT carry the bridge's `codex-*` / `template-version` keys.
 
+The `*-reviews/` dirs may also hold **Claude-seat** artifacts, written by the `reviewer` agent under the same filename rule, not by the bridge. Frontmatter: `mode`, `reviewer: claude-adversarial`, `slug`, `generated`, the mode's identity key in the bridge's exact shape (`plan-path` / `base-ref: "main"` / `docs-target`), `cwd`, `git-head`, plus the hook-added `plugin-version`; no `codex-*` / `template-version` keys ([reviewer-seat.md](../references/reviewer-seat.md#artifact)). One for the same target breaks the Codex resume chain ([workflow.md](workflow.md#resuming-a-review)).
+
 ### `memory/` — repo-local knowledge candidates
 
 `.hyperclaude/memory/` is written on-demand by `hyper-memory` (`scripts/memory/extract.mjs`), not by a bridge mode — it spawns NO Codex. Layout:
@@ -309,7 +321,7 @@ For the per-artifact frontmatter shapes of the bridge-authored gates, see "Outpu
 ## External dependencies
 
 - **Claude Code plugin runtime** — distribution channel, slash command resolution, agent dispatch.
-- **`codex-cli >= 0.130.0`** — version-checked via `codex --version` before spawning Codex on non-dry-run calls. Argv parsing always runs first; subsequent ordering is mode-specific. `docs-review` reads the docs payload and runs the 200KB guard before the version check; `--diff-base` diff capture and its 500KB guard happen after the version check. `plan-review` reads the plan file after the version check, so a missing plan path surfaces *after* the version-check error if both are wrong simultaneously. Older Codex versions fail fast with an upgrade hint.
+- **`codex-cli >= 0.130.0`** — version-checked via `codex --version` before spawning Codex on non-dry-run calls (not `usage`, where any probe failure already reads as seat `codex`). Argv parsing always runs first; subsequent ordering is mode-specific. `docs-review` reads the docs payload and runs the 200KB guard before the version check; `--diff-base` diff capture and its 500KB guard happen after the version check. `plan-review` reads the plan file after the version check, so a missing plan path surfaces *after* the version-check error if both are wrong simultaneously. Older Codex versions fail fast with an upgrade hint.
 - **Node 18+** — bridge uses `node:fs/promises`, `node:fs` (`existsSync`), `node:child_process`, `node:path`, `node:url`, `node:os`, `node:crypto`. No npm packages.
 - **`git`** — required for diff-backed gates: `code-review` (always), `docs-review` (when `--diff-base` is passed), and `hyper-docs-sync` (always — the skill uses git diff to determine what changed).
 

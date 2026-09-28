@@ -1,6 +1,6 @@
 # hyper-docs-loop — failure & recovery protocol
 
-Operational backstops for `hyper-docs-loop`. The shared cross-loop protocol (spawn contract, reply transport, corrective/transport-failure skeleton, shared anti-patterns) lives in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`. This file is the docs-loop's binding layer: the agent role (`documenter`), the structured per-finding reply schema, the schema-gate accept rule, the semantic finding-map post-acceptance validation, the named reports, what a transport failure preserves, the Claude reviewer seat's bindings, and the docs-loop-specific anti-patterns. SKILL.md Step 0 Reads both files plus `${CLAUDE_PLUGIN_ROOT}/references/reviewer-seat.md`.
+Operational backstops for `hyper-docs-loop`. The shared cross-loop protocol (spawn contract, reply transport, corrective/transport-failure skeleton, shared anti-patterns) lives in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`. This file is the docs-loop's binding layer: the agent role (`documenter`), the structured per-finding reply schema, the schema-gate accept rule, the semantic finding-map post-acceptance validation, the named reports, what a transport failure preserves, the Claude seat's bindings, and the docs-loop-specific anti-patterns. SKILL.md Step 0 Reads both files plus `${CLAUDE_PLUGIN_ROOT}/references/reviewer-seat.md`.
 
 ## Binding declarations
 

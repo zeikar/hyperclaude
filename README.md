@@ -10,7 +10,7 @@
 A Claude Code plugin built around a deliberate division of labor between two AI coding agents:
 
 - **Claude** implements — planning, coding, subagents, persistent background agents
-- **Codex** reviews — plan critique, code review, documentation accuracy review
+- **Codex** reviews — plan critique, code review, documentation accuracy review; autonomous loops switch to Claude's `reviewer` agent when you ask or Codex usage runs ahead of its rate-limit window
 
 Thesis: **Claude is the builder, Codex is the critic.** Better software with a smarter cost split.
 
@@ -24,7 +24,7 @@ research → plan → plan-review → implement → code-review → docs-sync �
 Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex        user
 ```
 
-When the *idea itself* is vague (not just un-planned), an optional `hyper-interview` front-end clarifies it into a spec before `research` / `plan` — a short one-question-at-a-time interview, Claude-only (no Codex; clarity is its job, review happens downstream). The `refine` / `fix` arcs are what `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop` automate — a persistent Claude-side agent (`planner` / `fixer` / `documenter`) revises while Codex stays the reviewer, looping until no blocking findings remain. Gates write trace artifacts under `.hyperclaude/` (gitignore-friendly); `hyper-docs-sync`, `hyper-docs-loop`, and `hyper-implement` edit the working tree directly. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, slug/artifact conventions, and `--resume`.
+When the *idea itself* is vague (not just un-planned), an optional `hyper-interview` front-end clarifies it into a spec before `research` / `plan` — a short one-question-at-a-time interview, Claude-only (no Codex; clarity is its job, review happens downstream). The `refine` / `fix` arcs are what `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop` automate — a persistent Claude-side agent (`planner` / `fixer` / `documenter`) revises while Codex reviews (or Claude's `reviewer` agent, as above), looping until no blocking findings remain. Gates write trace artifacts under `.hyperclaude/` (gitignore-friendly); `hyper-docs-sync`, `hyper-docs-loop`, and `hyper-implement` edit the working tree directly. Skip any step a small change doesn't need — only `code-review` is non-negotiable for behavioral changes. See [docs/workflow.md](docs/workflow.md) for triggers, skip rules, slug/artifact conventions, and `--resume`.
 
 ## Full automation: `hyper-auto`
 
@@ -34,7 +34,7 @@ One gesture, end-to-end:
 /hyperclaude:hyper-auto add OAuth login to the API
 ```
 
-`hyper-auto` chains `hyper-plan-loop → hyper-implement-loop`. Claude plans, Codex critiques the plan until no blockers remain, Claude implements, Codex code-reviews until no blocking findings remain (style/nits are reported, never gating) — all hands-off. A clean composed exit closes with an auto-run `hyper-recap` write-up (Claude-only, no Codex). It's not a new layer, just composition over the two loops, so the same gates and artifacts apply.
+`hyper-auto` chains `hyper-plan-loop → hyper-implement-loop`. Claude plans, Codex critiques the plan until no blockers remain, Claude implements, Codex code-reviews until no blocking findings remain (style/nits are reported, never gating) — all hands-off, with each loop seating its own reviewer as above. A clean composed exit closes with an auto-run `hyper-recap` write-up (Claude-only, no Codex). It's not a new layer, just composition over the two loops, so the same gates and artifacts apply.
 
 ## Architecture
 
@@ -46,7 +46,7 @@ One gesture, end-to-end:
       Skills ─────────────────► Agents
  hyper-setup (invoke-only),    planner / implementer
  gates, orchestrators,         verifier / documenter
- autonomous loops, auto        researcher / fixer
+ autonomous loops, auto        researcher / fixer / reviewer
         │
         ▼
    codex-bridge.mjs

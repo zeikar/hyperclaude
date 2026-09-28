@@ -1,6 +1,6 @@
 # hyper-plan-loop — failure & recovery protocol
 
-Operational backstops for `hyper-plan-loop`. The shared cross-loop protocol (spawn contract, reply transport, corrective/transport-failure skeleton, shared anti-patterns) lives in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`. This file is the plan-loop's binding layer: the agent role (`planner`), the reply shape (`WROTE: <path>`), the exact-path accept rule, the file/structure post-acceptance validation, the named reports, what a transport failure preserves, the Claude reviewer seat's bindings, and the plan-loop-specific anti-patterns. SKILL.md Step 0 Reads both files plus `${CLAUDE_PLUGIN_ROOT}/references/reviewer-seat.md`.
+Operational backstops for `hyper-plan-loop`. The shared cross-loop protocol (spawn contract, reply transport, corrective/transport-failure skeleton, shared anti-patterns) lives in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`. This file is the plan-loop's binding layer: the agent role (`planner`), the reply shape (`WROTE: <path>`), the exact-path accept rule, the file/structure post-acceptance validation, the named reports, what a transport failure preserves, the Claude seat's bindings, and the plan-loop-specific anti-patterns. SKILL.md Step 0 Reads both files plus `${CLAUDE_PLUGIN_ROOT}/references/reviewer-seat.md`.
 
 ## Binding declarations
 

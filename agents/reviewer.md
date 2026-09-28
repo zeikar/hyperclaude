@@ -5,7 +5,7 @@ description: |
 
   <example>
   Context: hyper-implement-loop checked Codex's usage pace before its review turn and found the budget running ahead of the elapsed window, so it seats Claude for this run.
-  user: (dispatched by hyper-implement-loop, Claude reviewer seat)
+  user: (dispatched by hyper-implement-loop, Claude seat)
   assistant: "I'll dispatch the reviewer agent with the diff target and the artifact path the loop resolved."
   <commentary>
   The reviewer seats only when the dispatching loop's pace check puts Claude in the reviewer role for the run — it never self-selects.

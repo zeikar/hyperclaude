@@ -134,7 +134,8 @@ Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex   
           <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">hyper-docs-loop</code> automate &mdash; a persistent Claude-side agent
           (<code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">planner</code> /
           <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">fixer</code> /
-          <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">documenter</code>) revises while Codex stays the reviewer,
+          <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">documenter</code>) revises while Codex reviews
+          (or Claude&rsquo;s <code class="text-indigo-300 bg-gray-800 px-1.5 py-0.5 rounded text-sm">reviewer</code> agent, when you ask for it or Codex usage is running ahead of its rate-limit window),
           looping until no blocking findings remain.
         </p>
       </div>
@@ -175,7 +176,8 @@ Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex   
               <code class="text-indigo-300 bg-gray-800 px-1 rounded">verifier</code>,
               <code class="text-indigo-300 bg-gray-800 px-1 rounded">documenter</code>,
               <code class="text-indigo-300 bg-gray-800 px-1 rounded">researcher</code>,
-              <code class="text-indigo-300 bg-gray-800 px-1 rounded">fixer</code>.
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">fixer</code>,
+              <code class="text-indigo-300 bg-gray-800 px-1 rounded">reviewer</code>.
               Sub-Claude personas with restricted tool lists; used by skills, never the other way around.
             </p>
           </div>
@@ -252,9 +254,9 @@ Codex+Claude  Claude   Codex   Claude(+agents)  Codex      Claude       Codex   
 /hyperclaude:hyper-docs-review                            # Codex accuracy gate on docs
 
 # Or let the autonomous loops self-converge in one gesture:
-/hyperclaude:hyper-plan-loop add OAuth login to the API   # plan → Codex review → revise, looped
-/hyperclaude:hyper-implement-loop &lt;plan path&gt;             # implement → Codex code-review → fix, looped
-/hyperclaude:hyper-docs-loop                              # docs → Codex review → fix, looped (default: docs/)
+/hyperclaude:hyper-plan-loop add OAuth login to the API   # plan → review → revise, looped
+/hyperclaude:hyper-implement-loop &lt;plan path&gt;             # implement → code-review → fix, looped
+/hyperclaude:hyper-docs-loop                              # docs → review → fix, looped (default: docs/)
 /hyperclaude:hyper-auto add OAuth login to the API        # plan-loop → implement-loop, end-to-end
 
 # On-demand, outside the cycle:

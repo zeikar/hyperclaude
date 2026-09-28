@@ -227,3 +227,24 @@ The artifact numbers understate it, because a review session can spawn children.
 **Why Codex spawned at all.** Its v2 base instructions read: *"Do not spawn sub-agents unless the user or applicable AGENTS.md/skill instructions explicitly ask for sub-agents, delegation, or parallel agent work."* The global `AGENTS.md`'s "Delegate What Pays" section is that explicit ask.
 
 **Settled: fix the trigger, not the tool list.** The patched catalog is the only hard lever found, but it costs a probe per run, a resume gate for pre-patch threads, and a dependency on an internal field a codex update could rename without error. Removing the delegation rule from the `AGENTS.md` Codex reads restores Codex's own default; the bridge carries no sub-agent override. Method gotcha: check that an override *changes behavior*, not that codex *accepts* it.
+
+## 2026-09-28 — live usage vs rollout snapshot; pace vs absolute
+
+**Question.** The reviewer seat needs Codex's current usage. Which source is live, which reading decides, and how is the read pinned read-only?
+
+**Method differs from the shared one above.** Direct probes: a short-lived `codex app-server` sent JSON-RPC `initialize` + `account/rateLimits/read` (no model turn), compared against a local rollout's `token_count.rate_limits` (`~/.codex/sessions/**/rollout-*.jsonl`); `config/read` on the same server for the effective sandbox and approval. codex-cli 0.154.0, then 0.156.1.
+
+**Rollout snapshot vs live.** A two-day-old rollout showed the weekly window at **67%** while the live RPC read **81%** — a rollout reflects only this machine's last Codex turn.
+
+**Pace vs absolute.** One reading, Plus plan:
+
+| window | used | elapsed | pace | decision |
+|---|---:|---:|---:|---|
+| 5h | 38% | 38% | 1.00 | codex |
+| weekly | 81% | 65% | **1.25** | claude |
+
+A first-window-only rule would have seated Codex against the binding window.
+
+**Probe shape.** The rate-limits reply arrived in **0.8 s** on 0.154.0 and **0.64 s** on 0.156.1. `app-server` accepts root `-s`/`-a` but ignores them — `config/read` returned sandbox and approval both null for `-s workspace-write -a on-request app-server`, sandbox `workspace-write` for `-c sandbox_mode=workspace-write app-server`, and `read-only` / `never` for `-c sandbox_mode=read-only -c approval_policy=never app-server`.
+
+**Settled:** read usage live over the RPC, never from a rollout; decide on pace across every reported window, not the first window's absolute figure; pin the probe with `-c` overrides, since root `-s`/`-a` never reach `app-server`. At under a second with no model turn, one probe per run costs nothing measurable.

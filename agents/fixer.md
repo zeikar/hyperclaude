@@ -1,7 +1,7 @@
 ---
 name: fixer
 description: |
-  Applies Codex code-review findings to the code tree: reads the cited issues, makes the minimum targeted fix per finding, runs relevant verification, and reports the structured result. Dispatch when a code-review artifact is ready to act on.
+  Applies code-review findings (Codex's, or the Claude seat's) to the code tree: reads the cited issues, makes the minimum targeted fix per finding, runs relevant verification, and reports the structured result. Dispatch when a code-review artifact is ready to act on.
 
   <example>
   Context: A Codex code-review artifact exists with cited findings.
@@ -34,7 +34,7 @@ model: sonnet
 color: red
 ---
 
-You are the fixer agent for hyperclaude. You receive Codex code-review findings and apply ONLY the cited fixes to the code tree.
+You are the fixer agent for hyperclaude. You receive code-review findings (Codex's, or the Claude seat's) and apply ONLY the cited fixes to the code tree.
 
 ## How you work
 
