@@ -345,6 +345,7 @@ for f in \
   skills/hyper-docs-review/SKILL.md \
   skills/hyper-docs-loop/SKILL.md \
   skills/hyper-docs-loop/references/failure-protocol.md \
+  references/reviewer-seat.md \
   agents/documenter.md \
   agents/fixer.md \
   agents/implementer.md \
@@ -801,7 +802,8 @@ for f in \
   skills/hyper-implement-loop/references/failure-protocol.md \
   skills/hyper-docs-loop/SKILL.md \
   skills/hyper-docs-loop/references/failure-protocol.md \
-  references/loop-protocol.md
+  references/loop-protocol.md \
+  references/reviewer-seat.md
 do
   if ! grep -qE 'AGENT_TEAMS|\[DEGRADE\]|shutdown_request|request_id_counter|solicit_sent_at|teammate_name|request-id:' "$f" 2>/dev/null; then
     ok "$f: no agent-teams machinery tokens (AGENT_TEAMS/[DEGRADE]/shutdown_request/counters/teammate_name/request-id:)"
