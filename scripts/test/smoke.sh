@@ -350,6 +350,7 @@ for f in \
   agents/implementer.md \
   agents/planner.md \
   agents/researcher.md \
+  agents/reviewer.md \
   agents/verifier.md \
   hooks/hooks.json \
   hooks/session-start-reminder.mjs \
