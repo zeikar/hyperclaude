@@ -174,7 +174,11 @@ export function getCodexEffectiveModel() {
 // runCodexResume — because app-server honors only `-c`: the root `-s` / `-a`
 // flags are validated but never reach it (config/read reports them null).
 // Resolves `{ ok: true, stdout }` (every line up to and including the id:1
-// reply) or `{ ok: false, reason }`; never rejects. spawnCodex() can't be
+// reply) or `{ ok: false, reason }`, the latter plus `unavailable: true` when
+// the failure reliably means codex cannot run at all — currently only ENOENT
+// (the `codex` binary itself is missing) — so buildUsageEnvelope (usage.mjs)
+// can act on that structured flag rather than matching the reason text; never
+// rejects. spawnCodex() can't be
 // reused: it ends stdin at once, and the app-server exits on stdin EOF — so
 // stdin has to stay open until the reply arrives.
 export function readCodexRateLimits({ clientVersion, timeoutMs = PROBE_TIMEOUT_MS }) {
@@ -203,10 +207,9 @@ export function readCodexRateLimits({ clientVersion, timeoutMs = PROBE_TIMEOUT_M
     const timer = setTimeout(() => finish({ ok: false, reason: `timeout after ${timeoutMs}ms` }), timeoutMs);
 
     child.on('error', (err) => {
-      finish({
-        ok: false,
-        reason: err.code === 'ENOENT' ? 'codex CLI not found on PATH' : `spawn error: ${err.message}`,
-      });
+      finish(err.code === 'ENOENT'
+        ? { ok: false, reason: 'codex CLI not found on PATH', unavailable: true }
+        : { ok: false, reason: `spawn error: ${err.message}` });
     });
     child.on('close', (status, signal) => {
       finish({ ok: false, reason: `app-server exited before replying (status=${status}, signal=${signal})` });

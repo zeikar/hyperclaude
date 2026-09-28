@@ -354,8 +354,8 @@ test('buildUsageEnvelope: rateLimits with no usable window → usage unknown, pl
   });
 });
 
-test('buildUsageEnvelope: codex CLI not found on PATH (ENOENT) → seat claude, usage unavailable', () => {
-  const probe = { ok: false, reason: 'codex CLI not found on PATH' };
+test('buildUsageEnvelope: probe failure carrying unavailable:true → seat claude, usage unavailable', () => {
+  const probe = { ok: false, reason: 'codex CLI not found on PATH', unavailable: true };
   const e = buildUsageEnvelope(probe, Date.now());
   assert.deepEqual(e, {
     ok: true,
@@ -368,10 +368,18 @@ test('buildUsageEnvelope: codex CLI not found on PATH (ENOENT) → seat claude, 
   });
 });
 
-test('buildUsageEnvelope: a probe failure NOT in the known-unavailable set still seats codex as unknown', () => {
-  // Guards against broadening the ENOENT-only match to other spawn/RPC
-  // failures (timeout, app-server exit, RPC error) that are not a reliable
-  // "codex cannot run" signal.
+test('buildUsageEnvelope: same reason text WITHOUT the unavailable flag still seats codex as unknown', () => {
+  // The seat is keyed on the structured `unavailable` flag, never on reason
+  // text — a probe failure that merely happens to share the ENOENT wording
+  // (or any other reason) but did not set the flag must not seat claude.
+  const probe = { ok: false, reason: 'codex CLI not found on PATH' };
+  const e = buildUsageEnvelope(probe, Date.now());
+  assert.equal(e.seat, 'codex');
+  assert.equal(e.usage, 'unknown');
+  assert.equal(e.summary, 'usage unknown (codex CLI not found on PATH) ⇒ seat codex');
+});
+
+test('buildUsageEnvelope: a probe failure with a different reason and no flag still seats codex as unknown', () => {
   const probe = { ok: false, reason: 'timeout after 15000ms' };
   const e = buildUsageEnvelope(probe, Date.now());
   assert.equal(e.seat, 'codex');
