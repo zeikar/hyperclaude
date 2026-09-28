@@ -34,6 +34,11 @@ import { getPluginVersion } from './codex/plugin.mjs';
 import {
   defaultModeDir, loadResumeContext, resolveResume, discoverResumeArtifact,
 } from './codex/resume.mjs';
+import {
+  FLOOR_PCT, MARGIN, CEILING_PCT,
+  parseRateLimitsReply, monthlyWindowStart, normalizeWindows,
+  decideWindow, decideSeat, formatUsageSummary,
+} from './codex/usage.mjs';
 
 export {
   slugify, slugifyRef, extractSlugFromPlanFilename,
@@ -50,6 +55,9 @@ export {
   getCodexEffectiveModel,
   getPluginVersion,
   defaultModeDir, loadResumeContext, discoverResumeArtifact,
+  FLOOR_PCT, MARGIN, CEILING_PCT,
+  parseRateLimitsReply, monthlyWindowStart, normalizeWindows,
+  decideWindow, decideSeat, formatUsageSummary,
   buildTargetInstruction,
 };
 
