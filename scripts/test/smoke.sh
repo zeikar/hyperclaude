@@ -730,6 +730,12 @@ else
   miss "hyper-plan-loop SKILL.md: does not reference shared loop-protocol"
 fi
 
+if grep -q '\${CLAUDE_PLUGIN_ROOT}/references/reviewer-seat.md' skills/hyper-plan-loop/SKILL.md 2>/dev/null; then
+  ok "hyper-plan-loop SKILL.md: references shared reviewer-seat protocol"
+else
+  miss "hyper-plan-loop SKILL.md: does not reference shared reviewer-seat protocol"
+fi
+
 echo
 echo "==> hyper-implement-loop shared loop-protocol reference"
 

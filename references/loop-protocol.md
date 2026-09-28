@@ -8,7 +8,7 @@ Spawn with the `Agent` tool: `Agent({ subagent_type: "hyperclaude:<role>", promp
 
 **Why `name:` is forbidden.** A named spawn makes the agent a team member, and the harness then drops the plugin agent definition (anthropics/claude-code #78234 / #81746): the `tools:` allowlist is lost, an ~18KB skill listing is re-attached on every round, and the prompt cache is invalidated mid-array — so cost grows quadratically in round count. A spawn without `name:` keeps the definition and the cache.
 
-`agent_id` is the only run-state this contract defines; `reviewer_agent_id`, the Claude seat's equivalent, is declared in `reviewer-seat.md`. `review_iteration` (bridge re-invocation count) and every other counter are loop-local, named in each SKILL.
+`agent_id` is the only run-state this contract defines; `reviewer_agent_id`, the Claude seat's equivalent, is declared in `reviewer-seat.md`. `review_iteration` (review count, either seat) and every other counter are loop-local, named in each SKILL.
 
 ## Reply transport
 

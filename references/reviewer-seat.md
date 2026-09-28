@@ -8,7 +8,7 @@ The seat is decided **once per run, immediately before the first review**, and n
 
 ## Decide the seat
 
-1. A user request made for this run — "review with Claude" or "use Codex" — wins for this run only; no probe runs.
+1. A user request made for this run — "review with Claude" or "use Codex" — wins for this run only; no probe runs. Strip the override phrase from the task text when the loop resolves its task — before the slug, the review brief, or any spawn; the override itself still applies here.
 2. Otherwise probe via foreground Bash (the bridge bounds the probe at 15 s):
 
    ```bash
@@ -18,7 +18,7 @@ The seat is decided **once per run, immediately before the first review**, and n
    Parse stdout strictly as a single JSON line and take `seat` from it. Any non-`ok:true`, timeout, or parse failure → seat `codex`, with a short diagnostic on the seat line.
 3. State one line: `Reviewer seat: <seat> — <summary>` — the envelope's `summary`, or on an override the user's request followed by `(user override)`.
 
-Retain run-state `seat` (`codex` | `claude`) and `reviewer_agent_id` (`null` until the Claude-seat spawn).
+Retain run-state `seat` (`codex` | `claude`), `reviewer_agent_id` (`null` until the Claude-seat spawn), and the run's dropped findings (**The lead verifies before acting**).
 
 In the Codex seat the loop runs unchanged. In the Claude seat each review runs: mint the path (**Artifact**) → spawn or `SendMessage` → validate the reply → Read → the loop's severity gate → verify blocking findings → forward confirmed ones.
 
@@ -125,7 +125,7 @@ Re-send the brief only if it changed.
 
 ## The lead verifies before acting
 
-Before a Claude-seat finding reaches the worker, Read each cited `file:line`, only the cited lines (Read offset/limit), and confirm the claim holds there; a docs finding's `Code evidence` citation counts as a cited line too. A finding that cites no `file:line` — a section name or a bare quote — is unverifiable and counts as unconfirmed. Only confirmed findings reach the worker or block the loop. Every report that ends the run (clean, cap, or STOP) lists each dropped finding with its severity and reason (refuted at the cited line, or unverifiable); a dropped Blocker is named in the report's first line, and a relaying caller (`hyper-auto`) relays the list.
+Before a Claude-seat finding reaches the worker, Read each cited `file:line` — the cited line plus the context its claim needs: the enclosing task block, function, or doc section, never the whole file — and confirm the claim holds there; a docs finding's `Code evidence` citation counts as a cited line too. A finding that cites no `file:line` — a section name or a bare quote — is unverifiable and counts as unconfirmed. Only confirmed findings reach the worker or block the loop. Every report that ends the run (clean, cap, or STOP) lists every finding dropped this run with its severity and reason (refuted at the cited line, or unverifiable); a dropped Blocker is named in the report's first line, and a relaying caller (`hyper-auto`) relays the list.
 
 ## Cap, resume, mid-run failure
 

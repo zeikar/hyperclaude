@@ -1,6 +1,6 @@
 # hyper-plan-loop — failure & recovery protocol
 
-Operational backstops for `hyper-plan-loop`. The shared cross-loop protocol (spawn contract, reply transport, corrective/transport-failure skeleton, shared anti-patterns) lives in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`. This file is the plan-loop's binding layer: the agent role (`planner`), the reply shape (`WROTE: <path>`), the exact-path accept rule, the file/structure post-acceptance validation, the named reports, what a transport failure preserves, and the plan-loop-specific anti-patterns. SKILL.md Step 0 Reads BOTH files.
+Operational backstops for `hyper-plan-loop`. The shared cross-loop protocol (spawn contract, reply transport, corrective/transport-failure skeleton, shared anti-patterns) lives in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`. This file is the plan-loop's binding layer: the agent role (`planner`), the reply shape (`WROTE: <path>`), the exact-path accept rule, the file/structure post-acceptance validation, the named reports, what a transport failure preserves, the Claude reviewer seat's bindings, and the plan-loop-specific anti-patterns. SKILL.md Step 0 Reads both files plus `${CLAUDE_PLUGIN_ROOT}/references/reviewer-seat.md`.
 
 ## Binding declarations
 
@@ -8,9 +8,10 @@ Operational backstops for `hyper-plan-loop`. The shared cross-loop protocol (spa
 - **Reply shape:** exactly `WROTE: <path>` — a single line, nothing else.
 - **Accept rule:** the trimmed reply must match `^WROTE: <exact resolved plan path from Step 1>\s*$` (path = the entire remaining string, verbatim) plus the no-prose / no-preamble / no-body-echo rule. On any body echo, added prose, preamble, or a different path → the corrective + escalation below.
 - **Post-acceptance validation:** the file/structure check — `[ -s "<resolved plan path>" ]` for existence + the `node -e ...^##\s*Task\s` regex one-liner from SKILL.md Step 6.
-- **Named-loop-report strings:** `hyper-plan-loop reply-contract failure`, `hyper-plan-loop planner-write failure`, `hyper-plan-loop planner format, iter N`, `hyper-plan-loop transport failure`.
+- **Named-loop-report strings:** `hyper-plan-loop reply-contract failure`, `hyper-plan-loop planner-write failure`, `hyper-plan-loop planner format, iter N`, `hyper-plan-loop transport failure`, `hyper-plan-loop reviewer-seat failure, iter N`.
+- **Reviewer seat (Claude):** the `reviewer` agent at `reviewer_agent_id`, driven per `reviewer-seat.md` **Reply and validation** — accept rule `^WROTE: <exact minted artifact path>\s*$`, then `[ -s "<minted path>" ]`, then the artifact check's plan-review form, with ONE corrective for the whole pipeline (its reply re-enters at the accept rule). A second failure, or a reviewer spawn / `SendMessage` transport failure, STOPs with **"hyper-plan-loop reviewer-seat failure, iter N"**: the plan stays as the planner last wrote it, and the report surfaces the minted path (renamed `<path>.rejected` on a validation STOP).
 - **Transport failure:** covers both halves of the shared transport-failure rule, which differ only in what ran.
-  - A Step 2 spawn that **returns no usable `agent_id`**, or a later round's **failed `SendMessage`**, is a STOP with **"hyper-plan-loop transport failure"**. The planner ran, so the plan is left exactly as it last wrote it — no restore, no re-spawn — and the report surfaces the resolved plan path from Step 1 so the user can inspect whatever was written.
+  - A Step 2 spawn that **returns no usable `agent_id`**, or a later round's **failed `SendMessage`** to the planner, is a STOP with **"hyper-plan-loop transport failure"**. The planner ran, so the plan is left exactly as it last wrote it — no restore, no re-spawn — and the report surfaces the resolved plan path from Step 1 so the user can inspect whatever was written.
   - A Step 2 spawn that **fails outright** is the same STOP under the same report name, but nothing was spawned and so nothing was written this run: state that plainly instead of surfacing a path this run did not produce, and name the manual fallback (`/hyperclaude:hyper-plan + /hyperclaude:hyper-plan-review`).
 
   SKILL.md's spawn and revise failure branches point here rather than restating either half.
@@ -57,11 +58,11 @@ There is no no-op / unchanged-plan detection. A planner that replies `WROTE:` bu
 
 If `bad` (the planner clobbered the canonical path with malformed content, OR the file is missing/unreadable): send ONE corrective `SendMessage` to `agent_id` instructing the planner to redo the revision and re-Write (or Edit) the exact resolved plan path, requiring a reply of exactly `WROTE: <that exact path>`. That corrective's reply re-enters the FULL pipeline: accept rule → structure `ok`/`bad` check. If the redo is still `bad` at the structure step → STOP (**"hyper-plan-loop planner format, iter N"**), surfacing the resolved plan path for manual triage. The loop does NOT auto-restore — the plan file is left as the planner last wrote it; `/hyperclaude:hyper-plan` regenerates it in one step. Only Read the full file into lead context for that human-facing failure diagnostic — never on the success path.
 
-On `ok`: Step 6 increments the iteration, re-invokes the bridge with `--resume auto`, then loops back to Step 5.
+On `ok`: Step 6 increments the iteration, re-reviews in the run's seat, then loops back to Step 5.
 
 ## Anti-patterns (plan-loop specific)
 
-The cross-loop anti-patterns (passing `name:` at spawn, re-spawning fresh each round, reviewer-as-agent, inlining the shared contract) live in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`.
+The cross-loop anti-patterns (passing `name:` at spawn, re-spawning fresh each round, seating a Claude reviewer outside the seat rule, inlining the shared contract) live in `${CLAUDE_PLUGIN_ROOT}/references/loop-protocol.md`; the seat's own list lives in `reviewer-seat.md`.
 
 Plan-loop-specific:
 
@@ -69,9 +70,9 @@ Plan-loop-specific:
 - Writing `<plan>-v2.md` (or any) sibling files. Always overwrite the same plan path; `--resume` keys on it.
 - Reading the plan body into lead context each revise round. Use the quiet `ok`/`bad` check — Read-caching the body reintroduces the token cost this skill removes.
 - Accepting any non-`WROTE:` reply (body echo, prose, preamble, wrong path) as success. The accept rule is exact-match only.
-- Proceeding to Codex review on a `bad` (malformed) just-written file instead of running the revise-validation corrective + terminal STOP first.
+- Proceeding to review on a `bad` (malformed) just-written file instead of running the revise-validation corrective + terminal STOP first.
 - Writing the wrong base path. The resolved plan path is a Step 1 concept — the spawn passes it to the planner verbatim; never re-derive it in a later step.
-- Treating non-blocking findings as revise targets. SKILL.md Step 5 classifies by **meaning** (correctness, wrong paths, broken ordering, unverifiable steps, missing required behavior) — pure style nits, vague "consider X" suggestions, and prose-polish do NOT gate the loop regardless of which severity word Codex attached. Trust the meaning judgment; do not invent revisions for non-blocking findings.
-- Omitting `--plan-path` or `--resume auto` on iteration 2+. `--plan-path` is required every iteration; `--resume auto` from iteration 2 onward.
+- Treating non-blocking findings as revise targets. SKILL.md Step 5 classifies by **meaning** (correctness, wrong paths, broken ordering, unverifiable steps, missing required behavior) — pure style nits, vague "consider X" suggestions, and prose-polish do NOT gate the loop regardless of which severity word the reviewer attached. Trust the meaning judgment; do not invent revisions for non-blocking findings.
+- Omitting `--plan-path` or `--resume auto` on iteration 2+ (Codex seat). `--plan-path` is required every iteration; `--resume auto` from iteration 2 onward.
 - Stopping silently at the cap. Always emit the named cap report.
 - Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.
