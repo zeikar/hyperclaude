@@ -354,6 +354,31 @@ test('buildUsageEnvelope: rateLimits with no usable window → usage unknown, pl
   });
 });
 
+test('buildUsageEnvelope: codex CLI not found on PATH (ENOENT) → seat claude, usage unavailable', () => {
+  const probe = { ok: false, reason: 'codex CLI not found on PATH' };
+  const e = buildUsageEnvelope(probe, Date.now());
+  assert.deepEqual(e, {
+    ok: true,
+    seat: 'claude',
+    usage: 'unavailable',
+    summary: 'codex unavailable (codex CLI not found on PATH) ⇒ seat claude',
+    windows: [],
+    plan: null,
+    reason: 'codex CLI not found on PATH',
+  });
+});
+
+test('buildUsageEnvelope: a probe failure NOT in the known-unavailable set still seats codex as unknown', () => {
+  // Guards against broadening the ENOENT-only match to other spawn/RPC
+  // failures (timeout, app-server exit, RPC error) that are not a reliable
+  // "codex cannot run" signal.
+  const probe = { ok: false, reason: 'timeout after 15000ms' };
+  const e = buildUsageEnvelope(probe, Date.now());
+  assert.equal(e.seat, 'codex');
+  assert.equal(e.usage, 'unknown');
+  assert.equal(e.summary, 'usage unknown (timeout after 15000ms) ⇒ seat codex');
+});
+
 // ── readCodexRateLimits + `usage` CLI (mock codex app-server on PATH) ────────
 
 // Mock `codex`: logs its argv to argv.log; on an `app-server` argv it reads
@@ -465,6 +490,27 @@ test('cli usage: JSON-RPC error reply → usage unknown, seat codex, reason set,
     assert.deepEqual(j.windows, []);
     assert.equal(j.summary, `usage unknown (${j.reason}) ⇒ seat codex`);
   });
+});
+
+test('cli usage: codex not on PATH (ENOENT) → seat claude, usage unavailable, exit 0', () => {
+  // PATH pinned to an empty dir (no fallback to the real environment PATH) so
+  // spawn('codex', ...) ENOENTs deterministically regardless of what's
+  // installed on the test machine.
+  const emptyDir = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-usage-nopath-'));
+  try {
+    const r = runUsageCli({ ...process.env, PATH: emptyDir });
+    assert.equal(r.signal, null, `bridge was held open past the timeout; stderr: ${r.stderr}`);
+    assert.equal(r.status, 0, r.stderr);
+    const j = parseSingleLine(r.stdout);
+    assert.equal(j.ok, true);
+    assert.equal(j.usage, 'unavailable');
+    assert.equal(j.seat, 'claude');
+    assert.equal(j.reason, 'codex CLI not found on PATH');
+    assert.deepEqual(j.windows, []);
+    assert.equal(j.summary, 'codex unavailable (codex CLI not found on PATH) ⇒ seat claude');
+  } finally {
+    rmSync(emptyDir, { recursive: true, force: true });
+  }
 });
 
 test('readCodexRateLimits: a server that never replies times out fast and leaves nothing holding the process open', () => {

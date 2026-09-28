@@ -32,6 +32,8 @@ Agent({ subagent_type: "hyperclaude:reviewer", prompt: "<allowlist below>" })
 
 Pass NO `name:`; capture the returned `agentId` verbatim as `reviewer_agent_id`. It is a live agent alongside the worker — never a fork of the lead — under the same spawn, reply-transport, and transport-failure rules (`loop-protocol.md`); a transport failure STOPs with the loop's `reviewer-seat failure, iter N` report. One reviewer for the whole run lets its findings converge across rounds; a fresh one each round re-samples instead.
 
+Every `reviewer-seat failure, iter N` STOP quarantines the minted artifact when it exists — this spawn's transport failure, a later round's `SendMessage` transport failure, and the validation pipeline's second `bad` (**Reply and validation**) all count: `mv "<path>" "<path>.rejected"`. The agent may have written a partial `.md` before the reply was lost, and an unquarantined file is indistinguishable from a completed review to any later `.md`-filtered reader, including `--resume auto` discovery.
+
 The prompt carries only:
 
 - the task text, verbatim;
@@ -109,7 +111,7 @@ Every reviewer reply — spawn, corrective, later round — passes this ordered 
 
    code-review / docs-review: swap in that mode's `mode:` and identity line(s) — each dictated line one single-quoted argument (an embedded `'` becomes `'\''`) — and require `'### Verdict'` only.
 
-`bad` at any stage → ONE corrective `SendMessage` to `reviewer_agent_id` restating the path, the exact frontmatter block, the sections, and the reply rule; its reply re-enters the full pipeline at stage 1. A second failure → STOP with the loop's `reviewer-seat failure, iter N` report, and `mv "<path>" "<path>.rejected"` when the file exists, so no `.md`-filtered reader takes it for a review. Only an `ok` artifact is Read and enters the loop's severity gate.
+`bad` at any stage → ONE corrective `SendMessage` to `reviewer_agent_id` restating the path, the exact frontmatter block, the sections, and the reply rule; its reply re-enters the full pipeline at stage 1. A second failure → STOP with the loop's `reviewer-seat failure, iter N` report, quarantining the minted artifact per **Claude seat — spawn**. Only an `ok` artifact is Read and enters the loop's severity gate.
 
 ## Later rounds
 

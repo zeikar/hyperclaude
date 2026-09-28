@@ -166,12 +166,28 @@ export function decideWindow(window) {
 // decideSeat: takes windows already run through decideWindow. Any window
 // deciding claude hands off the whole reviewer seat to claude. Zero kept
 // windows means no usage signal at all, not "usage looked fine" — reported
-// separately as usage:'unknown' so a caller can log why it fell back.
+// separately as usage:'unknown' so a caller can log why it fell back. This is
+// the genuinely-unknown case (RPC error, empty reply, no usable window) —
+// seating codex on it is a guess, but an informed one: codex answered, just
+// not usefully. A codex-unavailable probe failure (CODEX_UNAVAILABLE_REASONS
+// below) never reaches this function — buildUsageEnvelope seats claude for
+// it before windows are even computed.
 export function decideSeat(windows) {
   if (windows.length === 0) return { seat: 'codex', usage: 'unknown' };
   const seat = windows.some((w) => w.decision === 'claude') ? 'claude' : 'codex';
   return { seat, usage: 'known' };
 }
+
+// CODEX_UNAVAILABLE_REASONS: exact readCodexRateLimits() failure reasons that
+// reliably mean codex cannot run at all, as opposed to a probe that merely
+// failed to answer usefully (RPC error, timeout, malformed reply — genuinely
+// unknown, and codex may well be fine). ENOENT (codex.mjs's spawn 'error'
+// handler, `err.code === 'ENOENT'`) is the only case verified so far: the
+// `codex` binary is not on PATH, so every later spawn in the run would fail
+// too. A "not logged in" signal was considered but dropped — codex has no
+// documented, stable JSON-RPC error code for it, and matching on the human
+// message text would be fragile; that case still falls through to unknown.
+const CODEX_UNAVAILABLE_REASONS = new Set(['codex CLI not found on PATH']);
 
 // formatPercent: display-only rounding (whole number when integral, else one
 // decimal) — the window objects themselves keep unrounded floats, since
@@ -196,11 +212,15 @@ export function formatUsageSummary(windows, seat, reason) {
 }
 
 // buildUsageEnvelope: the bridge's `usage` stdout answer, built from a
-// readCodexRateLimits() result. Always ok:true — a failed probe is an answer
-// ("unknown ⇒ codex"), not a bridge error, so a loop can read the seat without
-// a failure branch. Reason precedence: probe/RPC failure, then a reply with no
-// rateLimits, then a rateLimits object that yields no usable window. `reason`
-// is carried only when usage is unknown.
+// readCodexRateLimits() result. Always ok:true — a failed probe is an answer,
+// not a bridge error, so a loop can read the seat without a failure branch.
+// Reason precedence: probe/RPC failure, then a reply with no rateLimits, then
+// a rateLimits object that yields no usable window. `reason` is carried only
+// when usage is unknown or unavailable. A probe failure whose reason is in
+// CODEX_UNAVAILABLE_REASONS seats claude directly ("codex unavailable ⇒ seat
+// claude") — every OTHER failure (RPC error, timeout, malformed reply, no
+// usable window) still seats codex as genuinely unknown, unchanged from
+// before.
 export function buildUsageEnvelope(probe, nowMs) {
   const reply = probe.ok ? parseRateLimitsReply(probe.stdout) : probe;
   let rateLimits = null;
@@ -211,6 +231,17 @@ export function buildUsageEnvelope(probe, nowMs) {
     rateLimits = reply.result.rateLimits;
   } else {
     reason = 'rate-limits reply missing rateLimits';
+  }
+  if (!rateLimits && reason && CODEX_UNAVAILABLE_REASONS.has(reason)) {
+    return {
+      ok: true,
+      seat: 'claude',
+      usage: 'unavailable',
+      summary: `codex unavailable (${reason}) ⇒ seat claude`,
+      windows: [],
+      plan: null,
+      reason,
+    };
   }
   const windows = rateLimits ? normalizeWindows(rateLimits, nowMs).map(decideWindow) : [];
   if (rateLimits && windows.length === 0) reason = 'no usage windows reported';
