@@ -93,7 +93,7 @@ Body: the heading, then the sections, with finding bullets in the mode's Codex-t
 |---|---|---|---|
 | `plan-review` | `# Plan review: <plan basename>` | `### Issues`, `### Verdict` | `- **<Severity>** — <plan_path>:<line> — what's wrong, then what to do instead` (plus the repo `file:line` the claim is about, when there is one) |
 | `code-review` | `# Code review: vs main` | `### Findings` (omitted when clean), `### Verdict` | `- **<Severity>** — <file>:<line> — <problem>`, sub-bullets `**Why it matters:**`, `**Fix:**` |
-| `docs-review` | `# Docs review: <target basename, or "<N> files" for several --docs-path>` | `### Findings` (omitted when clean), `### Verdict` | `- **<Severity>** — <doc path>:<line> — <problem>`, sub-bullets `**Stale claim:**`, `**Code evidence:**` (its own `file:line`), `**Recommended edit:**`; for redundancy `**Duplicated claim:**` + `**Locations:**` (each a `path:line`) |
+| `docs-review` | `# Docs review: <target basename, or "<N> files" for several --docs-path>` | `### Findings` (omitted when clean); optional, one bullet per item: `### Gaps` (gap + suggested doc location), `### Broken Or Suspect Links` (doc path + link), `### Cross-Doc Inconsistencies` (every doc involved); `### Verdict` | `- **<Severity>** — <doc path>:<line> — <problem>`, sub-bullets `**Stale claim:**`, `**Code evidence:**` (its own `file:line`), `**Recommended edit:**`; for redundancy `**Duplicated claim:**` + `**Locations:**` (each a `path:line`) |
 
 ## Reply and validation
 

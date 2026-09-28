@@ -764,6 +764,12 @@ else
   miss "hyper-docs-loop SKILL.md: does not reference shared loop-protocol"
 fi
 
+if grep -q '\${CLAUDE_PLUGIN_ROOT}/references/reviewer-seat.md' "$dl_skill" 2>/dev/null; then
+  ok "hyper-docs-loop SKILL.md: references shared reviewer-seat protocol"
+else
+  miss "hyper-docs-loop SKILL.md: does not reference shared reviewer-seat protocol"
+fi
+
 echo
 echo "==> no-name agentId spawn invariants"
 
