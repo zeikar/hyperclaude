@@ -1,14 +1,14 @@
 # Loop protocol — shared reference
 
-The cross-loop spawn and reply-transport contract, read at Step 0 by `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop` alongside each loop's own `failure-protocol.md`. Everything loop-bound — the agent role, the reply shape, the accept rule, the validation stages, the named reports, the review cap — is declared in that local file, never here.
+The cross-loop spawn and reply-transport contract, read at Step 0 by `hyper-plan-loop`, `hyper-implement-loop`, and `hyper-docs-loop` alongside `reviewer-seat.md` and each loop's own `failure-protocol.md`. Everything loop-bound — the agent role, the reply shape, the accept rule, the validation stages, the named reports, the review cap — is declared in that local file, never here.
 
 ## Spawn contract
 
-Spawn with the `Agent` tool: `Agent({ subagent_type: "hyperclaude:<role>", prompt: <role contract + this round's work> })`. Pass NO `name:` field. Capture the returned `agentId` verbatim (never parse it) into run-state — each loop stores it as `agent_id` and addresses every later round with it. At most one spawn per run — some loops spawn lazily and a clean run may spawn none — and the same agent handles every later round.
+Spawn with the `Agent` tool: `Agent({ subagent_type: "hyperclaude:<role>", prompt: <role contract + this round's work> })`. Pass NO `name:` field. Capture the returned `agentId` verbatim (never parse it) into run-state — each loop stores it as `agent_id` and addresses every later round with it. At most one worker spawn per run — some loops spawn lazily and a clean run may spawn none — and the same agent handles every later round. The Claude seat, when active, is a separate live agent under these same no-`name:` / returned-`agentId` rules — declared in `reviewer-seat.md`, never a second worker.
 
 **Why `name:` is forbidden.** A named spawn makes the agent a team member, and the harness then drops the plugin agent definition (anthropics/claude-code #78234 / #81746): the `tools:` allowlist is lost, an ~18KB skill listing is re-attached on every round, and the prompt cache is invalidated mid-array — so cost grows quadratically in round count. A spawn without `name:` keeps the definition and the cache.
 
-`agent_id` is the only run-state this contract defines. `review_iteration` (bridge re-invocation count) and every other counter are loop-local, named in each SKILL.
+`agent_id` is the only run-state this contract defines; `reviewer_agent_id`, the Claude seat's equivalent, is declared in `reviewer-seat.md`. `review_iteration` (bridge re-invocation count) and every other counter are loop-local, named in each SKILL.
 
 ## Reply transport
 
@@ -35,5 +35,5 @@ On either STOP the agent may already have done mutating work — the spawn promp
 
 1. **Passing `name:` at spawn** — costs the agent definition, the tool allowlist, and the prompt cache (see the spawn contract above).
 2. **Re-spawning the agent fresh each round** — context reuse via the one live agent is the entire reason every loop in this family exists.
-3. **Making the reviewer an agent.** The Codex bridge IS the reviewer — this preserves the "Claude builds, Codex reviews" invariant.
+3. **Seating a Claude reviewer outside the seat rule** — the Codex bridge is the default reviewer; the adversarial `reviewer` agent takes the seat only when `reviewer-seat.md` says so, and never as a fork of the lead.
 4. **Inlining this contract into a SKILL.md.** SKILL.md is the always-loaded surface; a copy there bloats every trigger and the two copies drift. Point at this file instead.
