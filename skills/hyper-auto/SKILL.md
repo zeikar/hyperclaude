@@ -20,12 +20,14 @@ Single-gesture pipeline: `hyper-plan-loop` converges → `hyper-implement-loop` 
 
 ### Step 1 — Run hyper-plan-loop
 
-Invoke `/hyperclaude:hyper-plan-loop <task>` with the user's task description verbatim. Let it run to terminal state.
+Invoke `/hyperclaude:hyper-plan-loop <task>` with the user's task description verbatim, minus any seat override. Let it run to terminal state.
+
+Each inner loop seats its own reviewer per `${CLAUDE_PLUGIN_ROOT}/references/reviewer-seat.md`; a "review with Claude" / "use Codex" given to `hyper-auto` decides both loops' seats.
 
 ### Step 2 — Branch on plan-loop's terminal state
 
 - **Clean exit** (no blocking findings — plan-loop converged) → capture the plan path from the loop's report, proceed to Step 3.
-- **Cap reached** (plan-loop's "revise loop" report — blocking findings still open after the 10-review budget) → STOP. Surface plan-loop's terminal report verbatim. Do NOT proceed.
+- **Cap reached** (plan-loop's "revise loop" report — blocking findings still open after the seat's review budget) → STOP. Surface plan-loop's terminal report verbatim. Do NOT proceed.
 - **Any other terminal failure** (bridge failure, planner-write/format failure, reply-contract failure, unparseable review, etc.) → STOP, surface the underlying report verbatim.
 
 Implementing on a plan with unresolved blocking findings wastes the implement-loop budget on a known-broken input — this is the safety boundary.
@@ -58,15 +60,17 @@ Non-clean terminals NEVER auto-run recap, and the deleted recap-recommendation b
 **Plan-loop bullets to relay** (Step 8 of `hyper-plan-loop`, minus the suppressed Next-step):
 - The plan path.
 - Slug-source (research-reused vs freshly-derived).
-- Review iterations consumed.
-- The final Codex verdict.
+- The `Reviewer seat:` line and review iterations consumed.
+- The final review verdict.
 - Residual non-blocking findings (informational, never gating).
+- Claude seat: the dropped findings (a dropped Blocker leads the composed report) and the not-resumable note.
 
 **Implement-loop bullets to relay** (Step 7 of `hyper-implement-loop`, verbatim):
 - All `reviewArtifacts[]` paths.
-- Review iterations consumed.
-- The final Codex verdict.
+- The `Reviewer seat:` line and review iterations consumed.
+- The final review verdict.
 - Residual non-blocking findings.
+- Claude seat: the dropped findings (a dropped Blocker leads the composed report) and the not-resumable note.
 - Any `resume-failed` / `fallback` rounds noted.
 - Branch / working-tree state + the implement-loop's own Next-step (this is the actionable user guidance for the composed flow's exit).
 

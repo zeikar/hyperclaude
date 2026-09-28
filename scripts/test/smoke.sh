@@ -747,6 +747,12 @@ else
   miss "hyper-implement-loop SKILL.md: does not reference shared loop-protocol"
 fi
 
+if grep -q '\${CLAUDE_PLUGIN_ROOT}/references/reviewer-seat.md' "$il_skill" 2>/dev/null; then
+  ok "hyper-implement-loop SKILL.md: references shared reviewer-seat protocol"
+else
+  miss "hyper-implement-loop SKILL.md: does not reference shared reviewer-seat protocol"
+fi
+
 echo
 echo "==> hyper-docs-loop shared loop-protocol reference"
 

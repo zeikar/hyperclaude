@@ -125,13 +125,13 @@ Re-send the brief only if it changed.
 
 ## The lead verifies before acting
 
-Before a Claude-seat finding reaches the worker, Read each cited `file:line` — the cited line plus the context its claim needs: the enclosing task block, function, or doc section, never the whole file — and confirm the claim holds there; a docs finding's `Code evidence` citation counts as a cited line too. A finding that cites no `file:line` — a section name or a bare quote — is unverifiable and counts as unconfirmed. Only confirmed findings reach the worker or block the loop. Every report that ends the run (clean, cap, or STOP) lists every finding dropped this run with its severity and reason (refuted at the cited line, or unverifiable); a dropped Blocker is named in the report's first line, and a relaying caller (`hyper-auto`) relays the list.
+Before a Claude-seat finding reaches the worker, Read each cited `file:line` — the cited line plus the context its claim needs: the enclosing task block, function, or doc section, never the whole file — and confirm the claim holds there; a docs finding's `Code evidence` citation counts as a cited line too. A finding that cites no `file:line` — a section name or a bare quote — is unverifiable and counts as unconfirmed. Only confirmed findings reach the worker or block the loop, and the verdict direction sent with them carries no text arguing a dropped one. Every report that ends the run (clean, cap, or STOP) lists every finding dropped this run with its severity and reason (refuted at the cited line, or unverifiable); a dropped Blocker is named in the report's first line, and a relaying caller (`hyper-auto`) relays the list.
 
 ## Cap, resume, mid-run failure
 
 - **Cap:** 3 reviews in the Claude seat (1 + 2 re-reviews); the loop's cap report names the seat.
 - **No resume:** Claude-seat artifacts are never resumable and break the Codex chain for their target (`bridge-review-calls.md`); the next run starts fresh.
-- **Mid-run Codex failure:** the loop's existing bridge-failure STOP, never a seat switch; its report adds one line — re-run the loop with the user asking it to "review with Claude", an override for that run only.
+- **Mid-run Codex failure:** the loop's existing bridge-failure STOP, never a seat switch; its report adds one line — re-run the loop with the user asking it to "review with Claude", an override for that run only (a loop whose re-run would redo committed work names its own safe path instead).
 
 ## Anti-patterns
 
