@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
-import { loadResumeContext, discoverResumeArtifact, defaultModeDir } from '../scripts/codex-bridge.mjs';
+import { loadResumeContext, discoverResumeArtifact, defaultModeDir, resolveResume, reviewTargetMismatch } from '../scripts/codex-bridge.mjs';
 
 // ── Task 4: defaultModeDir ───────────────────────────────────────────────────
 
@@ -28,7 +28,7 @@ function writePriorReview(filePath, fields) {
     if (v === undefined) continue;
     if (k === 'codex-resume-status') {
       lines.push(`${k}: ${v}`);
-    } else if (k === 'mode') {
+    } else if (k === 'mode' || k === 'reviewer') {
       lines.push(`${k}: ${v}`);
     } else {
       lines.push(`${k}: ${JSON.stringify(v)}`);
@@ -1156,4 +1156,128 @@ test('discoverResumeArtifact: code-review --uncommitted skips newer non-uncommit
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+// ── Claude reviewer seat breaks the resume chain ─────────────────────────────
+
+// A Claude-seat artifact: same dir and identity keys as a Codex one, but
+// `reviewer: claude-adversarial` and no template-version / codex-* keys.
+function writeClaudeSeatReview(filePath, fields) {
+  writePriorReview(filePath, { reviewer: 'claude-adversarial', cwd: process.cwd(), 'git-head': 'abc1234', ...fields });
+}
+
+function writeCodexPlanReview(filePath, planPath, threadId) {
+  writePriorReview(filePath, {
+    mode: 'plan-review',
+    cwd: process.cwd(),
+    'plan-path': planPath,
+    'template-version': 3,
+    'codex-thread-id': threadId,
+    'codex-resume-status': 'fresh',
+  });
+}
+
+test('resolveResume: explicit --resume to a Claude reviewer-seat artifact is fatal and names the seat', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-rr-claude-explicit-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    const prior = path.join(tmp, '20260601-0000-claude.md');
+    writeClaudeSeatReview(prior, { mode: 'plan-review', 'plan-path': planPath });
+    const r = await resolveResume('plan-review', { resumeFrom: prior, planPath });
+    assert.equal(r.ok, false);
+    assert.equal(r.fatal, true);
+    assert.match(r.error, /Claude reviewer seat/);
+    // Named for the seat, not the generic thread-id / template-version rejection.
+    assert.doesNotMatch(r.error, /codex-thread-id|template-version/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: newer Claude-seat artifact for this plan stops the walk — the older Codex thread is NOT resumed', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-claude-break-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    writeClaudeSeatReview(path.join(tmp, '20260601-0000-claude.md'), { mode: 'plan-review', 'plan-path': planPath });
+    writeCodexPlanReview(path.join(tmp, '20260510-1015-codex.md'), planPath, 'tid-pre-break');
+    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath });
+    assert.equal(r.path, undefined);
+    assert.match(r.error, /breaks the resume chain/);
+    assert.match(r.error, /20260601-0000-claude\.md/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: newer eligible Codex artifact above the break still wins (a new chain started after the Claude run)', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-claude-newchain-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    const newest = path.join(tmp, '20260701-0000-codex-new.md');
+    writeCodexPlanReview(newest, planPath, 'tid-new-chain');
+    writeClaudeSeatReview(path.join(tmp, '20260601-0000-claude.md'), { mode: 'plan-review', 'plan-path': planPath });
+    writeCodexPlanReview(path.join(tmp, '20260510-1015-codex-old.md'), planPath, 'tid-pre-break');
+    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath });
+    assert.equal(r.error, undefined);
+    assert.equal(r.path, newest);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: Claude-seat artifacts for another plan or another cwd do not break this chain', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-claude-othertarget-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    writeClaudeSeatReview(path.join(tmp, '20260701-0000-claude-othercwd.md'), {
+      mode: 'plan-review', cwd: '/some/other/dir', 'plan-path': planPath,
+    });
+    writeClaudeSeatReview(path.join(tmp, '20260601-0000-claude-otherplan.md'), {
+      mode: 'plan-review', 'plan-path': path.join(tmp, 'other-plan.md'),
+    });
+    const older = path.join(tmp, '20260510-1015-codex.md');
+    writeCodexPlanReview(older, planPath, 'tid-this-plan');
+    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath });
+    assert.equal(r.error, undefined);
+    assert.equal(r.path, older);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: a lone Claude-seat artifact for this plan → chain-break error', async () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-claude-alone-'));
+  try {
+    const planPath = path.join(tmp, 'plan.md');
+    writeFileSync(planPath, '# plan');
+    writeClaudeSeatReview(path.join(tmp, '20260601-0000-claude.md'), { mode: 'plan-review', 'plan-path': planPath });
+    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath });
+    assert.equal(r.path, undefined);
+    assert.match(r.error, /breaks the resume chain/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('reviewTargetMismatch: per-mode target identity — null on match, the loadResumeContext error string on mismatch', () => {
+  assert.equal(reviewTargetMismatch('plan-review', { 'plan-path': '/tmp/p.md' }, { planPath: '/tmp/p.md' }), null);
+  assert.equal(
+    reviewTargetMismatch('plan-review', { 'plan-path': '/tmp/p.md' }, { planPath: '/tmp/q.md' }),
+    'prior artifact plan-path differs from current'
+  );
+  assert.equal(reviewTargetMismatch('docs-review', { 'docs-target': '/tmp/a.md' }, { docsPaths: ['/tmp/a.md'] }), null);
+  assert.equal(
+    reviewTargetMismatch('docs-review', { 'docs-target': '/tmp/a.md' }, { docsPaths: ['/tmp/a.md'], diffBase: 'main' }),
+    'prior artifact docs-target/diff-base differs from current'
+  );
+  assert.equal(reviewTargetMismatch('code-review', { 'base-ref': 'main' }, { reviewTarget: 'base', baseRef: 'main' }), null);
+  assert.equal(reviewTargetMismatch('code-review', {}, { reviewTarget: 'uncommitted' }), null);
+  assert.equal(
+    reviewTargetMismatch('code-review', { 'base-ref': 'main' }, { reviewTarget: 'uncommitted' }),
+    'prior artifact code-review target differs from current'
+  );
 });

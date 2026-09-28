@@ -33,6 +33,7 @@ import {
 import { getPluginVersion } from './codex/plugin.mjs';
 import {
   defaultModeDir, loadResumeContext, resolveResume, discoverResumeArtifact,
+  reviewTargetMismatch,
 } from './codex/resume.mjs';
 import {
   FLOOR_PCT, MARGIN, CEILING_PCT,
@@ -55,6 +56,7 @@ export {
   getCodexEffectiveModel, readCodexRateLimits,
   getPluginVersion,
   defaultModeDir, loadResumeContext, discoverResumeArtifact,
+  resolveResume, reviewTargetMismatch,
   FLOOR_PCT, MARGIN, CEILING_PCT,
   parseRateLimitsReply, monthlyWindowStart, normalizeWindows,
   decideWindow, decideSeat, formatUsageSummary, buildUsageEnvelope,

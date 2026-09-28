@@ -40,6 +40,80 @@ async function templateVersionGateError(mode, fm) {
   return null;
 }
 
+// reviewTargetMismatch: the mode-specific review-target identity rule
+// (loadResumeContext step 6). Lifted out so discoverResumeArtifact can apply the
+// same rule to a Claude reviewer-seat artifact, which has no thread to resume
+// but still needs a target match to count as a chain break. Returns the error
+// string, or null when the target matches (research has no identity rule).
+export function reviewTargetMismatch(mode, fm, currentArgs) {
+  if (mode === 'plan-review') {
+    const prevPlan = fm['plan-path'];
+    if (typeof prevPlan !== 'string' || path.resolve(prevPlan) !== path.resolve(currentArgs.planPath)) {
+      return 'prior artifact plan-path differs from current';
+    }
+  } else if (mode === 'docs-review') {
+    // prevList: normalize the on-disk docs-target — an array (new --docs-path
+    // list form), a legacy scalar string (wrapped to a 1-element array), or
+    // anything else (rejected below). curList: currentArgs.docsPaths (the
+    // canonical parsed field) else docsDir.
+    const rawTarget = fm['docs-target'];
+    const prevList = Array.isArray(rawTarget)
+      ? rawTarget
+      : (typeof rawTarget === 'string' ? [rawTarget] : null);
+    // Reject a malformed on-disk array (e.g. `[null]`, `[1]`) here rather than
+    // crashing on path.resolve — a single malformed --resume auto candidate
+    // must be skipped, not abort discoverResumeArtifact's scan of the rest.
+    const validPrevList = Array.isArray(prevList) && prevList.length > 0
+      && prevList.every((p) => typeof p === 'string' && p.length > 0);
+    if (!validPrevList) {
+      return 'prior artifact docs-target/diff-base differs from current';
+    }
+    const curList = currentArgs.docsPaths?.length
+      ? currentArgs.docsPaths
+      : (currentArgs.docsDir ? [currentArgs.docsDir] : []);
+    const prevSet = new Set(prevList.map((p) => path.resolve(p)));
+    const curSet = new Set(curList.map((p) => path.resolve(p)));
+    const setsMatch = prevSet.size === curSet.size && [...prevSet].every((p) => curSet.has(p));
+    if (!setsMatch) {
+      return 'prior artifact docs-target/diff-base differs from current';
+    }
+    const prevDiff = fm['diff-base'] ?? null;
+    const curDiff = currentArgs.diffBase ?? null;
+    if (prevDiff !== curDiff) {
+      return 'prior artifact docs-target/diff-base differs from current';
+    }
+  } else if (mode === 'code-review') {
+    // title is purely cosmetic — does NOT participate in identity (it does not
+    // affect what Codex reviewed, only the display label in the output file).
+    const hasPriorBaseRef = Object.prototype.hasOwnProperty.call(fm, 'base-ref');
+    const hasPriorCommit = Object.prototype.hasOwnProperty.call(fm, 'commit');
+    // Precheck: a well-formed prior artifact has at most one of base-ref/commit.
+    // Both present means malformed frontmatter — reject before target matching to
+    // prevent the absence-means-uncommitted inference from granting a false match.
+    if (hasPriorBaseRef && hasPriorCommit) {
+      return 'prior artifact code-review target differs from current';
+    }
+    const curTarget = currentArgs.reviewTarget;
+    if (curTarget === 'base') {
+      // Match on ref name string only (no SHA resolve).
+      if (!hasPriorBaseRef || fm['base-ref'] !== currentArgs.baseRef) {
+        return 'prior artifact code-review target differs from current';
+      }
+    } else if (curTarget === 'commit') {
+      // Match on exact SHA string.
+      if (!hasPriorCommit || fm['commit'] !== currentArgs.commit) {
+        return 'prior artifact code-review target differs from current';
+      }
+    } else {
+      // uncommitted: prior must lack both base-ref and commit keys.
+      if (hasPriorBaseRef || hasPriorCommit) {
+        return 'prior artifact code-review target differs from current';
+      }
+    }
+  }
+  return null;
+}
+
 // loadResumeContext: validates a prior artifact and extracts thread-id.
 // Returns { threadId, frontmatter } on success. On failure it returns
 // { error }, EXCEPT for the one case where every other check already
@@ -50,12 +124,18 @@ async function templateVersionGateError(mode, fm) {
 // exclusion in discoverResumeArtifact) without treating it as a resume
 // candidate. Every earlier failure means identity was never confirmed, so
 // threadId/frontmatter stay absent there — using them would risk excluding
-// an unrelated artifact that merely happens to reuse a thread id.
+// an unrelated artifact that merely happens to reuse a thread id. (Step 3b
+// returns frontmatter but never a threadId: discovery needs the frontmatter
+// to decide whether a Claude-seat artifact breaks THIS target's chain.)
 //
 // Validations (in order, first failure wins):
 //  1. file readable + parses
 //  2. mode field equals expectedMode
 //  3. cwd matches process.cwd() under path.resolve()
+//  3b. not a Claude reviewer-seat artifact (reviewer: claude-adversarial) —
+//     returns { error, reviewerSeat: 'claude', frontmatter }. Checked before
+//     the thread-id step so an explicit path gets a message naming the seat
+//     instead of the generic missing-thread-id rejection.
 //  4. codex-thread-id is truthy
 //  5. template-version matches the mode's current fresh template
 //  6. mode-specific identity (plan-path for plan-review; docs-target+diff-base
@@ -83,6 +163,13 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   if (path.resolve(prevCwd) !== path.resolve(here)) {
     return { error: `prior artifact cwd is "${prevCwd}"; current cwd is "${here}"` };
   }
+  if (fm.reviewer === 'claude-adversarial') {
+    return {
+      error: 'prior artifact was written by the Claude reviewer seat (reviewer: claude-adversarial); not resumable — run without --resume to start a new Codex chain',
+      reviewerSeat: 'claude',
+      frontmatter: fm,
+    };
+  }
   const threadId = fm['codex-thread-id'];
   if (!threadId || typeof threadId !== 'string') {
     return { error: 'prior artifact has no codex-thread-id' };
@@ -91,70 +178,9 @@ export async function loadResumeContext(prevPath, expectedMode, currentArgs) {
   if (gateError) {
     return { error: gateError };
   }
-  if (expectedMode === 'plan-review') {
-    const prevPlan = fm['plan-path'];
-    if (typeof prevPlan !== 'string' || path.resolve(prevPlan) !== path.resolve(currentArgs.planPath)) {
-      return { error: 'prior artifact plan-path differs from current' };
-    }
-  } else if (expectedMode === 'docs-review') {
-    // prevList: normalize the on-disk docs-target — an array (new --docs-path
-    // list form), a legacy scalar string (wrapped to a 1-element array), or
-    // anything else (rejected below). curList: currentArgs.docsPaths (the
-    // canonical parsed field) else docsDir.
-    const rawTarget = fm['docs-target'];
-    const prevList = Array.isArray(rawTarget)
-      ? rawTarget
-      : (typeof rawTarget === 'string' ? [rawTarget] : null);
-    // Reject a malformed on-disk array (e.g. `[null]`, `[1]`) here rather than
-    // crashing on path.resolve — a single malformed --resume auto candidate
-    // must be skipped, not abort discoverResumeArtifact's scan of the rest.
-    const validPrevList = Array.isArray(prevList) && prevList.length > 0
-      && prevList.every((p) => typeof p === 'string' && p.length > 0);
-    if (!validPrevList) {
-      return { error: 'prior artifact docs-target/diff-base differs from current' };
-    }
-    const curList = currentArgs.docsPaths?.length
-      ? currentArgs.docsPaths
-      : (currentArgs.docsDir ? [currentArgs.docsDir] : []);
-    const prevSet = new Set(prevList.map((p) => path.resolve(p)));
-    const curSet = new Set(curList.map((p) => path.resolve(p)));
-    const setsMatch = prevSet.size === curSet.size && [...prevSet].every((p) => curSet.has(p));
-    if (!setsMatch) {
-      return { error: 'prior artifact docs-target/diff-base differs from current' };
-    }
-    const prevDiff = fm['diff-base'] ?? null;
-    const curDiff = currentArgs.diffBase ?? null;
-    if (prevDiff !== curDiff) {
-      return { error: 'prior artifact docs-target/diff-base differs from current' };
-    }
-  } else if (expectedMode === 'code-review') {
-    // title is purely cosmetic — does NOT participate in identity (it does not
-    // affect what Codex reviewed, only the display label in the output file).
-    const hasPriorBaseRef = Object.prototype.hasOwnProperty.call(fm, 'base-ref');
-    const hasPriorCommit = Object.prototype.hasOwnProperty.call(fm, 'commit');
-    // Precheck: a well-formed prior artifact has at most one of base-ref/commit.
-    // Both present means malformed frontmatter — reject before target matching to
-    // prevent the absence-means-uncommitted inference from granting a false match.
-    if (hasPriorBaseRef && hasPriorCommit) {
-      return { error: 'prior artifact code-review target differs from current' };
-    }
-    const curTarget = currentArgs.reviewTarget;
-    if (curTarget === 'base') {
-      // Match on ref name string only (no SHA resolve).
-      if (!hasPriorBaseRef || fm['base-ref'] !== currentArgs.baseRef) {
-        return { error: 'prior artifact code-review target differs from current' };
-      }
-    } else if (curTarget === 'commit') {
-      // Match on exact SHA string.
-      if (!hasPriorCommit || fm['commit'] !== currentArgs.commit) {
-        return { error: 'prior artifact code-review target differs from current' };
-      }
-    } else {
-      // uncommitted: prior must lack both base-ref and commit keys.
-      if (hasPriorBaseRef || hasPriorCommit) {
-        return { error: 'prior artifact code-review target differs from current' };
-      }
-    }
+  const targetError = reviewTargetMismatch(expectedMode, fm, currentArgs);
+  if (targetError) {
+    return { error: targetError };
   }
   // Mode-INDEPENDENT model/effort match (applies to plan-review/code-review/
   // docs-review; research has no resume path so never reaches here). This is a
@@ -209,7 +235,16 @@ export async function resolveResume(mode, args, currentEffectiveModel = null) {
 
 // discoverResumeArtifact: searches the configured output directory for the
 // newest artifact whose frontmatter passes loadResumeContext. Returns either
-// { path } or { error: 'no matching artifact in <dir>' }.
+// { path } or { error }.
+//
+// Claude reviewer-seat break: a Claude-seat artifact for the same cwd and the
+// same review target STOPS the walk with { error } — its round is not in any
+// Codex thread, so resuming a thread older than it would skip that round.
+// Nothing older than the break is ever resumed. A newer eligible Codex
+// artifact above the break still wins (a plain Codex run after the Claude run
+// started a new chain), and a Claude artifact for a different target is
+// skipped like any other mismatch. The bridge records the break as an ordinary
+// `auto` miss: fresh run, `codex-resume-status: fallback`, stderr note.
 //
 // currentEffectiveModel: the resolved model this run will actually use
 // (args.model ?? getCodexEffectiveModel(), computed by the caller). A
@@ -266,6 +301,10 @@ export async function discoverResumeArtifact(mode, args, currentEffectiveModel =
   for (const name of candidates) {
     const candidatePath = path.join(dir, name);
     const ctx = await loadResumeContext(candidatePath, mode, args);
+    if (ctx.reviewerSeat === 'claude') {
+      if (reviewTargetMismatch(mode, ctx.frontmatter, args)) continue; // another target's review — not our break
+      return { error: `a Claude reviewer-seat artifact (${name}) for this review target breaks the resume chain; nothing older is resumed` };
+    }
     if (!ctx.threadId) continue;
     const priorModel = ctx.frontmatter['codex-model-effective'];
     const modelMismatch = isNonEmptyString(priorModel) && isNonEmptyString(currentEffectiveModel)
