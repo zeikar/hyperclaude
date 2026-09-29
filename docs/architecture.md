@@ -203,7 +203,7 @@ slug: <kebab-case>
 generated: <ISO-8601 timestamp>
 plugin-version: <hyperclaude version of the loaded copy that ran, or "unknown">
 codex-version: <semver from `codex --version`>
-template-version: <N>                  # from the fresh template's own frontmatter — research: 1, docs-review: 3, plan-review: 3, code-review: 5
+template-version: <N>                  # from the fresh template's own frontmatter — research: 1, docs-review: 4, plan-review: 3, code-review: 5
 task: |-                               # research / plan-review only — block scalar
   <task text or plan path>
 cwd: "<absolute path>"                 # always

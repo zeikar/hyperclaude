@@ -122,7 +122,7 @@ Do NOT produce a task breakdown here — decomposition into `## Task N:` blocks 
    - **Straight to planning** → `/hyperclaude:hyper-plan-loop <original idea>` (plan ↔ review until clean; `/hyperclaude:hyper-plan` when the user wants round-by-round control). The spec's resolved requirements (Goal / Constraints / Acceptance Criteria) are already in this conversation from Step 4 — feed them to the planner as context.
    - **Research first** (when prior-art / pitfalls matter) → `/hyperclaude:hyper-research <original idea>`, then `hyper-plan-loop`.
 
-   Default recommendation: `hyper-plan-loop`; prepend `hyper-research` when the approach has real unknowns.
+   Default recommendation: `hyper-plan-loop`; prepend `hyper-research` when the approach has real unknowns. When the spec is oversized (beyond ~10–12 tasks, or several independent milestones), recommend `hyper-plan` instead — the loop always produces one detailed plan, while `hyper-plan` splits an oversized task into an epic roadmap.
 
 ## Anti-patterns
 

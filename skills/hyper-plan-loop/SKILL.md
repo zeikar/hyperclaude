@@ -52,8 +52,8 @@ Read all three files before spawning: `${CLAUDE_PLUGIN_ROOT}/references/loop-pro
 
 Reuse the stock `hyper-plan` logic — see `skills/hyper-plan/SKILL.md` Steps 1–2; do not duplicate the rule text. In brief:
 
-1. Derive the canonical slug deterministically (lowercase, ASCII, alphanumerics + hyphen, first 5 words of the task joined by `-`). A task with no ASCII words gets an empty slug, a timestamp-only plan path, and no research scan — per `hyper-plan` Step 1.
-2. Scan **all** `.hyperclaude/research/*.md` frontmatter `slug:` fields (the canonical key — not the filename). If one OR MORE equals the derived slug (there may be a Codex + Claude pair), treat ALL matching files as the linked research artifacts and inline the full contents of ALL of them as context in Step 2.
+1. Derive the canonical slug deterministically (lowercase, ASCII, alphanumerics + hyphen, first 5 words of the task joined by `-`). A task with no ASCII words gets an empty slug, per `hyper-plan` Step 1.
+2. Unless the slug is empty (it would match every other no-ASCII artifact), scan **all** `.hyperclaude/research/*.md` frontmatter `slug:` fields (the canonical key — not the filename). If one OR MORE equals the derived slug (there may be a Codex + Claude pair), treat ALL matching files as the linked research artifacts and inline the full contents of ALL of them as context in Step 2.
 3. Resolve the plan path:
 
    ```bash
@@ -61,7 +61,7 @@ Reuse the stock `hyper-plan` logic — see `skills/hyper-plan/SKILL.md` Steps 1�
    date -u +%Y%m%d-%H%M
    ```
 
-   Base path: `.hyperclaude/plans/<timestamp>-<slug>.md`. If it exists, append `-2`, `-3`, … until free.
+   Base path: `.hyperclaude/plans/<timestamp>-<slug>.md` (`<timestamp>.md` when the slug is empty). If it exists, append `-2`, `-3`, … until free.
 
 4. **Compose the review brief (or record `null`).** Compose per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`. The admissible source here is `$ARGUMENTS` (the user's own task text) and decisions the user explicitly approved in this conversation — **never** the planner's plan output (Step 6 revises the plan every round; re-deriving the brief from it would let the planner bless its own scope additions). Record the resulting scratchpad path as `review_brief_file`, or `null` if no admissible source exists.
 
