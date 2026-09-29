@@ -27,10 +27,7 @@ The five checks:
 
 The inline probe above runs automatically; parse the single JSON line it emitted to stdout (do not run it again).
 
-Distinguish by shape before deciding how to report:
-
-- If the JSON has a `checks[]` array — render the per-check table and verdict. This includes the normal `ok:false` "prerequisites failing" case. Do NOT use the fallback for this shape.
-- ONLY if there is no parseable JSON at all, or the JSON has an `error` key (the `{ok:false,error:...}` probe-failure shape with no usable `checks[]`) — use the fallback sentence below; never the fallback for a normal `ok:false` result that has `checks[]`.
+The JSON's shape picks the report. A `checks[]` array — including the normal `ok:false` "prerequisites failing" case — gets steps 1–3. Only a probe that itself failed (no parseable JSON, or an `{ok:false,error:...}` object with no `checks[]`) gets the step 4 fallback.
 
 For the `checks[]` path:
 
@@ -43,7 +40,7 @@ For the `checks[]` path:
    - If `ok` is `false` (one or more hard FAILs): `N hard prerequisite(s) failing — hyperclaude will not work until fixed.` (N = count of `checks[]` entries with `severity:"hard"` and `status:"FAIL"`).
    - The Claude Code version WARN must never flip the overall verdict to fail.
 
-4. **Error fallback — ONLY when there is no parseable JSON, or the JSON has an `error` key (not merely `ok:false` with a `checks[]` array), the skill MUST print verbatim:** `Prerequisite probe could not complete: <error or "no parseable output">. hyperclaude prerequisites are UNKNOWN — re-run /hyperclaude:hyper-setup or run the doctor script directly.` — and MUST NOT fabricate a pass.
+4. **Error fallback** — print exactly this, and nothing that reads as a pass: `Prerequisite probe could not complete: <error or "no parseable output">. hyperclaude prerequisites are UNKNOWN — re-run /hyperclaude:hyper-setup or run the doctor script directly.`
 
 ## Anti-patterns
 

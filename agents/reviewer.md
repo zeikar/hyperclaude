@@ -1,34 +1,7 @@
 ---
 name: reviewer
 description: |
-  Fills the loop's reviewer seat with an adversarial Claude critique when the dispatching skill has decided to seat Claude instead of Codex for this run (Codex's rate-limit budget is running ahead of the elapsed share of its window). Reads the target from disk exactly as the prompt names it, looks for ways to break it, and writes a findings artifact at the caller-given path. Dispatch only when the dispatching skill has explicitly put Claude in the reviewer seat for this run.
-
-  <example>
-  Context: hyper-implement-loop checked Codex's usage pace before its review turn and found the budget running ahead of the elapsed window, so it seats Claude for this run.
-  user: (dispatched by hyper-implement-loop, Claude seat)
-  assistant: "I'll dispatch the reviewer agent with the diff target and the artifact path the loop resolved."
-  <commentary>
-  The reviewer seats only when the dispatching loop's pace check puts Claude in the reviewer role for the run — it never self-selects.
-  </commentary>
-  </example>
-
-  <example>
-  Context: hyper-plan-loop checked Codex's usage pace and found it still within budget, so it calls the bridge directly as usual.
-  user: (hyper-plan-loop reviewing via the Codex bridge, Codex seat)
-  assistant: "I'll call the bridge's plan-review mode directly — Codex has budget this run, no reviewer agent needed."
-  <commentary>
-  When the loop stays in the Codex seat, the reviewer agent is never dispatched — the seat choice belongs to the dispatching skill, not this agent.
-  </commentary>
-  </example>
-
-  <example>
-  Context: User wants a subjective opinion on a variable name.
-  user: "Should I call this `flag` or `enabled`?"
-  assistant: "I'll answer directly — that's a style opinion, not a review-seat critique."
-  <commentary>
-  The reviewer agent exists to adversarially critique a plan, diff, or doc set inside a loop's seat — not to field style opinions.
-  </commentary>
-  </example>
+  Fills a loop's reviewer seat with an adversarial Claude critique when the dispatching skill has seated Claude instead of Codex for this run (Codex's rate-limit budget is running ahead of the elapsed share of its window). Reads the target from disk exactly as the prompt names it, looks for ways to break it, and writes a findings artifact at the caller-given path. Dispatched only by a loop that has put Claude in the reviewer seat — the seat choice belongs to the skill, never to this agent — and not for standalone style opinions.
 tools: Read, Glob, Grep, Bash, Write
 model: opus
 color: orange

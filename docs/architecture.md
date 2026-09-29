@@ -33,9 +33,7 @@ hyperclaude/
 │   ├── hyper-docs-loop/         gate — autonomous docs-hardening loop (lazily spawned documenter agent)
 │   ├── hyper-auto/              gate — chain plan-loop into implement-loop in one gesture
 │   ├── hyper-memory/            orchestration-only — extracts repo-local knowledge candidates (no Codex)
-│   ├── hyper-implement/         helper — plan execution loop
-│   ├── hyper-tdd/               helper — TDD discipline
-│   └── hyper-debug/             helper — debugging discipline
+│   └── hyper-implement/         helper — plan execution loop
 ├── agents/                      sub-Claude personas (planner, implementer, verifier, documenter, researcher, fixer, reviewer)
 ├── references/                  plugin-wide reference content not owned by any single skill. loop-protocol.md — Step-0 base for hyper-plan-loop, hyper-implement-loop, and hyper-docs-loop; carries the shared spawn contract (no `name:`, address by returned agentId), the reply transport (the task notification's `<result>`), the corrective/transport-failure rules, and the cross-loop anti-patterns. review-brief.md — shared `--review-brief` composition rules (source/omission/bound/shell-safety), pointed at by hyper-plan-review, hyper-code-review, hyper-plan-loop, and hyper-implement-loop. bridge-review-calls.md — shared bridge stdout JSON envelope + `--resume` semantics + invocation mode (standalone gates background the spawn, loops don't), pointed at by hyper-plan-review, hyper-code-review, hyper-plan-loop, hyper-implement-loop, hyper-docs-review, and hyper-docs-loop. reviewer-seat.md — Step-0 rule for the three loops: who reviews the run, and how the lead drives the Claude seat
 ├── hooks/                       event-bound hook scripts
@@ -232,7 +230,7 @@ diff-base: "<ref>"                     # docs-review (when --diff-base passed)
 
 Filename: `<YYYYMMDD-HHMM>-<slug>.md` (UTC). Per-mode slug fallbacks:
 
-- `research` — when the task text is pure non-ASCII or otherwise yields no usable slug, the filename falls back to `<YYYYMMDD-HHMM>.md` (slug omitted entirely). Pass `--slug` to force a specific slug.
+- `research` — when the task text is pure non-ASCII or otherwise yields no usable slug, the filename falls back to `<YYYYMMDD-HHMM>.md` and the frontmatter carries a bare empty `slug: `, matching the Claude-authored artifacts. Pass `--slug` to force a specific slug.
 - `docs-review` — single file or `--docs-dir` uses the target's basename, falling back to the literal `docs` if it can't be slugified (`<YYYYMMDD-HHMM>-docs.md`). Multiple `--docs-path` files use `<first-file-slug>-plus-<n-1>` (e.g. two files → `-plus-1`); this is a human-readable label, not a unique key — resume identity is order-insensitive set-equality over the reviewed file set (not the slug).
 - `plan-review` and `code-review` — always derive a slug (from the plan filename or the diff target), so the timestamp-only fallback does not apply.
 

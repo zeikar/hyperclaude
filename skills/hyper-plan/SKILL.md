@@ -47,16 +47,16 @@ Otherwise, resolve task + slug in priority order:
 
    Read the latest file's frontmatter `task:` + `slug:` and use both. If no research file exists, fall back to the user's most recent build/implement intent in this conversation; if none, ask the user and stop.
 
-**Slug derivation rule** (used in branch 1, and matches what `hyper-research` writes into the artifact frontmatter): lowercase, ASCII only, alphanumerics + hyphen, first 5 words of the task joined by `-`. Example: "Add OAuth login to the API" → `add-oauth-login-to-the`.
+**Slug derivation rule** (used in branch 1, and matches what `hyper-research` writes into the artifact frontmatter): lowercase, ASCII only, alphanumerics + hyphen, first 5 words of the task joined by `-`. Example: "Add OAuth login to the API" → `add-oauth-login-to-the`. A task with no ASCII words (e.g. all-Korean) has an **empty slug**, as the bridge does: skip the branch-1 scan — an empty slug would match every other no-ASCII research artifact — and rely on any research already in this conversation for context.
 
 ### Step 2 — Resolve plan path
 
 ```bash
 mkdir -p .hyperclaude/plans
-date +%Y%m%d-%H%M
+date -u +%Y%m%d-%H%M
 ```
 
-Base path: `.hyperclaude/plans/<timestamp>-<slug>.md`. If it exists, append `-2`, `-3`, … until free.
+Base path: `.hyperclaude/plans/<timestamp>-<slug>.md` (`<timestamp>.md` when the slug is empty). If it exists, append `-2`, `-3`, … until free.
 
 ### Step 3 — Dispatch planner (scope-aware)
 
@@ -132,7 +132,7 @@ Derive the plan slug from **Milestone K's title** using the Step 1 slug rule —
 
 ```bash
 mkdir -p .hyperclaude/plans
-date +%Y%m%d-%H%M
+date -u +%Y%m%d-%H%M
 ```
 
 Base path `.hyperclaude/plans/<timestamp>-<milestone-slug>.md`; append `-2`, `-3`, … if it exists.

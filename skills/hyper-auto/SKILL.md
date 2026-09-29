@@ -45,7 +45,7 @@ On a **clean composed exit** (guard below), FIRST run the terminal recap, THEN e
 - implement-loop reached its Step 7 review-convergence report (not a Step 6 cap/failure STOP), AND
 - that Step 7's `fix(review):` convergence commit reported SUCCESS (commit SHA + clean tree) OR SKIP (nothing staged, clean tree).
 
-Non-clean terminals NEVER auto-run recap, and the deleted recap-recommendation bullet is NEVER re-introduced:
+Non-clean terminals NEVER auto-run recap, and NEVER relay the implement-loop's standalone recap-recommendation bullet:
 - (a) plan-loop cap/failure STOPs at Step 2 — no implement phase ran, no recap.
 - (b) implement-loop cap/failure Step 6 STOP surfaces the loop's own Step 6 report (which carries no Step-7 recap bullet) — no recap.
 - (c) a Step 7 whose `fix(review):` convergence commit FAILED (dirty tree / not-ready-to-push) surfaces the loop's Step 7 report with the recap-recommendation bullet STILL suppressed; hyper-auto REPLACES it with an explicit `auto-recap skipped — convergence commit failed, tree not clean; run /hyperclaude:hyper-recap <plan-path> manually after resolving` line — never the standalone recommendation.
@@ -84,4 +84,4 @@ This "ALWAYS" scopes to the two Step-7-reaching exits only — Step 2 and Step 6
 - Calling this skill when a plan already exists. Use `hyper-implement-loop` directly; running plan-loop on a plan-shaped task description duplicates work.
 - Hiding the intermediate plan-loop failure under a generic "auto failed" message — always surface the underlying terminal state so the user can diagnose.
 - Modifying the plan between Step 1 and Step 3. The implement-loop receives the canonical plan-loop output as-is; out-of-band edits break the audit trail.
-- Auto-running the terminal recap on any non-clean composed exit; re-introducing the standalone recap-recommendation bullet on a failed-convergence exit instead of the `auto-recap skipped (<reason>)` line; or invoking `hyper-recap` no-arg instead of with the captured canonical plan path.
+- Auto-running the terminal recap on any non-clean composed exit; relaying the implement-loop's standalone recap-recommendation bullet on a failed-convergence exit instead of the `auto-recap skipped (<reason>)` line; or invoking `hyper-recap` no-arg instead of with the captured canonical plan path.

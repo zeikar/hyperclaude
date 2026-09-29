@@ -9,7 +9,7 @@ Requirements-clarification gate. Turns a vague idea into a clear spec through a 
 
 **Claude-only — no Codex.** Critique belongs downstream, where it has something concrete to critique (`hyper-plan-review` on the plan, `hyper-code-review` on the diff). This gate's job is *clarity*, not review: get the requirements right so the plan isn't built on guesses. Anything off in the spec is caught when the plan is reviewed.
 
-This is the **light** interview — the brainstorming-style conversational flow with deep-interview's weakest-dimension targeting, minus the heavy machinery (no numeric ambiguity scoring, no topology/ontology bookkeeping, no challenge-mode state machine, no resume).
+This is a **light** interview: a conversational flow that aims each question at the least-clear requirement dimension, judged qualitatively, with no state kept beyond the spec file.
 
 ## When to use
 
@@ -118,16 +118,15 @@ Do NOT produce a task breakdown here — decomposition into `## Task N:` blocks 
 ### Step 5 — User review + handoff
 
 1. Tell the user the spec path and ask them to review it. **Wait for approval** (the HARD-GATE). If they request changes, revise the spec at the same path and re-confirm.
-2. On approval, hand off — do NOT implement here. **Pass the ORIGINAL idea text as the task argument** — verbatim, the same text recorded in the spec's `idea:` frontmatter — NOT the reworded Goal. This is what keeps the slug aligned: `hyper-plan` / `hyper-research` derive their slug from `$ARGUMENTS` with the *same* rule used in Step 4, so the same idea text yields the same slug and the `research → plan → plan-review` trace stays linked. A reworded Goal would derive a *different* slug and silently break the trace. (`hyper-plan` does not read `specs/` — the slug match is what links them, plus the spec content you already hold in context.)
-   - **Straight to planning** → `/hyperclaude:hyper-plan <original idea>`. The spec's resolved requirements (Goal / Constraints / Acceptance Criteria) are already in this conversation from Step 4 — feed them to the planner as context.
-   - **Research first** (when prior-art / pitfalls matter) → `/hyperclaude:hyper-research <original idea>`, then `hyper-plan`.
+2. On approval, hand off — do NOT implement here. **Pass the ORIGINAL idea text as the task argument** — verbatim, the same text recorded in the spec's `idea:` frontmatter — NOT the reworded Goal. This is what keeps the slug aligned: `hyper-plan-loop` / `hyper-plan` / `hyper-research` derive their slug from `$ARGUMENTS` with the *same* rule used in Step 4, so the same idea text yields the same slug and the `research → plan → plan-review` trace stays linked. A reworded Goal would derive a *different* slug and silently break the trace. (The planning skills do not read `specs/` — the slug match is what links them, plus the spec content you already hold in context.)
+   - **Straight to planning** → `/hyperclaude:hyper-plan-loop <original idea>` (plan ↔ review until clean; `/hyperclaude:hyper-plan` when the user wants round-by-round control). The spec's resolved requirements (Goal / Constraints / Acceptance Criteria) are already in this conversation from Step 4 — feed them to the planner as context.
+   - **Research first** (when prior-art / pitfalls matter) → `/hyperclaude:hyper-research <original idea>`, then `hyper-plan-loop`.
 
-   Default recommendation: `hyper-plan`; prepend `hyper-research` when the approach has real unknowns.
+   Default recommendation: `hyper-plan-loop`; prepend `hyper-research` when the approach has real unknowns.
 
 ## Anti-patterns
 
 - **Calling Codex / the bridge.** This gate is Claude-only; review is downstream (`hyper-plan-review`, `hyper-code-review`).
-- **Numeric ambiguity scoring, topology/ontology bookkeeping, challenge-mode state machines, resume state.** Out of scope — this is the light interview, deliberately not deep-interview.
 - **Batching questions.** One per round; multiple at once produces shallow answers and blurs which dimension is being improved.
 - **Asking what the code already tells you.** Explore first (brownfield) and cite the evidence in the question.
 - **Decomposing into tasks.** That's `hyper-plan`. The spec states *what* to build and how success is verified — not the ordered task list.

@@ -194,5 +194,3 @@ Cross-loop invariants (passing `name:` at spawn, re-spawning each round, seating
 - Letting the documenter edit source code, tests, scripts, or config to make a doc claim "true". The doc is what changes; if the doc was actually right, the documenter reports `status: not-applicable` with a `notes:` reason.
 - Changing `docs_target` mid-run. The same `--docs-path` / `--docs-dir` argv tokens are REQUIRED on every iteration, including Codex resumes — the bridge enforces this.
 - Auto-fixing items from `### Gaps`, `### Broken Or Suspect Links`, or `### Cross-Doc Inconsistencies`. Only `### Findings` drives fix rounds; the other sections need human judgment and are reported in Step 7 only.
-- Editing `hyper-docs-review` or `hyper-docs-sync`. This skill is purely additive.
-- Editing `agents/documenter.md` to encode this loop's structured findings schema. That schema is loop-specific and lives ONLY in this SKILL.md's Step 5 spawn prompt; the documenter stays a general-purpose, loop-agnostic agent (still primarily dispatched by `hyper-docs-sync` for its UPDATE/CREATE mode).

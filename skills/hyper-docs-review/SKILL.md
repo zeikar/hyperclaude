@@ -70,7 +70,7 @@ Split Group 1 on whitespace into tokens (or default to `docs/` when empty). Clas
 
 ### Step 2 — Run the bridge
 
-Use the Bash tool with `timeout: 600000` and **`run_in_background: true`** (invocation mode: `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md`). Pass each argument as a separate token (no shell interpolation of user-supplied substrings):
+Use the Bash tool with **`run_in_background: true`** (invocation mode: `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md`). Pass each argument as a separate token (no shell interpolation of user-supplied substrings):
 
 ```bash
 # Single file
@@ -118,4 +118,4 @@ Each `### Findings` item includes severity (Blocker / Major / Minor), doc path, 
 - `/hyperclaude:hyper-code-review` — Codex critiques code diffs
 - `/hyperclaude:hyper-plan-review` — Codex critiques implementation plans
 
-Scope is STRICT: accuracy / drift / completeness / broken links / cross-doc inconsistencies / redundancy (in-doc duplicated or appended-beside claims — reported Minor; deliberate cross-doc propagation exempt). NOT style or prose quality — that's the documenter agent's domain.
+Scope is STRICT: accuracy / drift / completeness / broken links / cross-doc inconsistencies / redundancy (in-doc duplicated or appended-beside claims — reported Minor; deliberate cross-doc propagation exempt). NOT style or prose quality — prose polish is a direct edit; the documenter agent makes accuracy edits only.

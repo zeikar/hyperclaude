@@ -334,8 +334,6 @@ for f in \
   skills/hyper-plan-loop/SKILL.md \
   skills/hyper-plan-loop/references/failure-protocol.md \
   skills/hyper-plan-review/SKILL.md \
-  skills/hyper-tdd/SKILL.md \
-  skills/hyper-debug/SKILL.md \
   skills/hyper-implement/SKILL.md \
   skills/hyper-implement-loop/SKILL.md \
   skills/hyper-implement-loop/references/failure-protocol.md \

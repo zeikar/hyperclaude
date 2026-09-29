@@ -30,7 +30,9 @@ export function renderFrontmatter({
   for (const line of String(task).split('\n')) {
     lines.push(`  ${line}`);
   }
-  lines.push(`slug: ${slug}`);
+  // A no-ASCII task slugifies to null; write the bare empty key the Claude-side
+  // artifacts use, so a reader never takes the string "null" for a slug.
+  lines.push(`slug: ${slug ?? ''}`);
   lines.push(`generated: ${generated}`);
   lines.push(`plugin-version: ${pluginVersion}`);
   lines.push(`codex-version: ${codexVersion}`);

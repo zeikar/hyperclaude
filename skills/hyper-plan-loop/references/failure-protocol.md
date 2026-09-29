@@ -66,7 +66,7 @@ The cross-loop anti-patterns (passing `name:` at spawn, re-spawning fresh each r
 
 Plan-loop-specific:
 
-- Accepting an existing-plan-path argument. Not a v1 input mode — `$ARGUMENTS` is a task description only.
+- Accepting an existing-plan-path argument. Not an input mode — `$ARGUMENTS` is a task description only.
 - Writing `<plan>-v2.md` (or any) sibling files. Always overwrite the same plan path; `--resume` keys on it.
 - Reading the plan body into lead context each revise round. Use the quiet `ok`/`bad` check — Read-caching the body reintroduces the token cost this skill removes.
 - Accepting any non-`WROTE:` reply (body echo, prose, preamble, wrong path) as success. The accept rule is exact-match only.
@@ -75,4 +75,3 @@ Plan-loop-specific:
 - Treating non-blocking findings as revise targets. SKILL.md Step 5 classifies by **meaning** (correctness, wrong paths, broken ordering, unverifiable steps, missing required behavior) — pure style nits, vague "consider X" suggestions, and prose-polish do NOT gate the loop regardless of which severity word the reviewer attached. Trust the meaning judgment; do not invent revisions for non-blocking findings.
 - Omitting `--plan-path` or `--resume auto` on iteration 2+ (Codex seat). `--plan-path` is required every iteration; `--resume auto` from iteration 2 onward.
 - Stopping silently at the cap. Always emit the named cap report.
-- Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.

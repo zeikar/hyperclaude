@@ -146,7 +146,7 @@ test('loadResumeContext: docs-target mismatch rejected', async () => {
       mode: 'docs-review',
       cwd: process.cwd(),
       'docs-target': '/tmp/api.md',
-      'template-version': 3,
+      'template-version': 4,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
@@ -165,7 +165,7 @@ test('loadResumeContext: diff-base null vs set mismatch rejected', async () => {
       mode: 'docs-review',
       cwd: process.cwd(),
       'docs-target': '/tmp/api.md',
-      'template-version': 3,
+      'template-version': 4,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
       // no diff-base
@@ -187,7 +187,7 @@ test('loadResumeContext: diff-base set vs null mismatch rejected', async () => {
       cwd: process.cwd(),
       'docs-target': '/tmp/api.md',
       'diff-base': 'main',
-      'template-version': 3,
+      'template-version': 4,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
@@ -207,7 +207,7 @@ test('loadResumeContext: diff-base equal strings pass', async () => {
       cwd: process.cwd(),
       'docs-target': '/tmp/api.md',
       'diff-base': 'main',
-      'template-version': 3,
+      'template-version': 4,
       'codex-thread-id': 'tid',
       'codex-resume-status': 'fresh',
     });
@@ -231,7 +231,7 @@ test('loadResumeContext: docs-review multi docs-target set match, reordered → 
       mode: 'docs-review',
       cwd: process.cwd(),
       'docs-target': [a, b],
-      'template-version': 3,
+      'template-version': 4,
       'codex-thread-id': 'thread-multi',
       'codex-resume-status': 'fresh',
     });
@@ -253,7 +253,7 @@ test('loadResumeContext: docs-review legacy scalar docs-target vs single-element
       mode: 'docs-review',
       cwd: process.cwd(),
       'docs-target': api,
-      'template-version': 3,
+      'template-version': 4,
       'codex-thread-id': 'thread-legacy',
       'codex-resume-status': 'fresh',
     });
@@ -276,7 +276,7 @@ test('loadResumeContext: docs-review docs-target superset (cur adds an extra fil
       mode: 'docs-review',
       cwd: process.cwd(),
       'docs-target': [a, b],
-      'template-version': 3,
+      'template-version': 4,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
@@ -297,7 +297,7 @@ test('loadResumeContext: docs-review docs-target subset (cur missing a file) rej
       mode: 'docs-review',
       cwd: process.cwd(),
       'docs-target': [a, b],
-      'template-version': 3,
+      'template-version': 4,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
@@ -316,7 +316,7 @@ test('loadResumeContext: docs-review malformed prior docs-target array ([null]) 
       mode: 'docs-review',
       cwd: process.cwd(),
       'docs-target': [null],
-      'template-version': 3,
+      'template-version': 4,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });
@@ -335,7 +335,7 @@ test('loadResumeContext: docs-review malformed prior docs-target array ([1]) rej
       mode: 'docs-review',
       cwd: process.cwd(),
       'docs-target': [1],
-      'template-version': 3,
+      'template-version': 4,
       'codex-thread-id': 't',
       'codex-resume-status': 'fresh',
     });

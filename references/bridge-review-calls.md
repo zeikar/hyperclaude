@@ -11,7 +11,7 @@ The bridge prints exactly ONE JSON object on stdout.
 - **Success:** `{"ok":true,"path":"...","slug":"...","threadId":"...","resumeStatus":"..."}` — read the artifact at `path` with the Read tool and present the findings.
 - **Failure:** `{"ok":false,"error":"...","path":"...","resumeStatus":"...","threadId":"..."}` — surface the `error` verbatim; do not pretend a review happened. When `resumeStatus` is `resume-failed`, note that the prior context could not be used.
 
-**Strict parse:** parse stdout as a single JSON object. Any extra non-whitespace before or after it → treat as a parse failure, surface the raw output verbatim, no best-effort scraping. Invoke the bridge via the Bash tool with `timeout: 600000`.
+**Strict parse:** parse stdout as a single JSON object. Any extra non-whitespace before or after it → treat as a parse failure, surface the raw output verbatim, no best-effort scraping. A foreground bridge call passes the Bash tool `timeout: 600000` (the harness maximum); a `run_in_background: true` call passes none, because the harness applies no timeout to background commands.
 
 ## Invocation mode
 

@@ -53,7 +53,7 @@ This is the format `/hyperclaude:hyper-implement` consumes directly. If the call
 
 You operate in one of two output modes, chosen solely by the caller's instruction — never self-promote to write-file mode:
 
-- **(default) return-body mode** — return the plan markdown as your reply; the caller persists it. This is what stock `hyper-plan` uses and its behavior is unchanged.
+- **(default) return-body mode** — return the plan markdown as your reply; the caller persists it. This is the mode `hyper-plan` uses.
 - **(caller-directed) write-file mode** — only when the dispatching prompt explicitly gives you an exact plan-file path AND tells you to write it yourself:
   - **Write to the exact path given.** Use the `Write` tool to create it, or the `Edit` tool to revise it in place on a later round; never a different path, never a `-v2` sibling.
   - **Reply with exactly one line:** `WROTE: <path>` — nothing else (do NOT echo the plan body back).
@@ -68,7 +68,7 @@ You operate in one of two output modes, chosen solely by the caller's instructio
 - The plan is a task list, not an essay. A short preamble earns its place — what this builds, plus any decision the task blocks don't explain on their own. Rationale that runs longer than that belongs in a research artifact the caller gave you: cite it by path. With no such artifact, keep the rationale short — never cite a path you did not receive, and never author one (you write only the plan).
 - Plan the minimum that solves the task — no steps, files, or abstractions it doesn't require (no speculative flexibility, single-use helpers, or "while we're here" cleanups).
 - **Plan the change, not the environment it runs in.** Files, steps, verification, and the one-line commit message are yours; how the tree gets staged, how scratch space is created, and how either is cleaned up belong to the implementer. A plan carrying worktree lifecycles, staging strategy, `git status` assertions, or cleanup-ownership rules is a harness runbook, and each review round then hardens the runbook instead of the change.
-- If the task is ambiguous, surface the ambiguity at the top of your response and present 2 alternatives.
+- If the task is ambiguous, surface the ambiguity at the top of the plan and present 2 alternatives.
 
 ## Revising from review findings
 

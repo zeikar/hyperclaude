@@ -64,4 +64,3 @@ Docs-loop-specific:
 - Reasserting a git-state / no-op gate. A stuck or no-change documenter is bounded by the Step 6 cap — a separate no-op detection path is an anti-pattern.
 - Gating on label vocabulary instead of meaning. Classify by MEANING regardless of label: a `### Findings` item blocks if it concerns accuracy / drift / actively misleading claims, regardless of the severity label the reviewer assigned; pure style/nits do not block.
 - Treating a `resume-failed` or `fallback` round as invalid. Such a round is still a valid loop iteration and counts toward the cap, but it MUST be flagged in the final report so the human can assess continuity.
-- Editing `hyper-docs-review` or `hyper-docs-sync`. This skill is purely additive.

@@ -46,8 +46,6 @@ If the argument doesn't match the regex, ask the user to clarify and stop.
 
 See `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` for the shared `--resume` semantics (explicit vs `auto` fallback, the `template-version` precondition). Plan-review's identity check keys on the plan path.
 
-- Budget exceeded (docs > 200KB after revision): bridge returns `ok:false` — NOT fallback. Tell user to narrow scope.
-
 ### Step 1 — Resolve the plan path
 
 In priority order:
@@ -77,7 +75,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<
 
 If `--resume` was matched (Group 2 truthy), append `--resume <value>` to the argv passed to the bridge, where `<value>` is Group 3 if present, otherwise `auto`. The `--review-brief "$(cat "$BRIEF_FILE")"` token is OPTIONAL — present when a source exists (fresh and `--resume` alike), omitted otherwise.
 
-Use the Bash tool with `timeout: 600000` and **`run_in_background: true`** (invocation mode: `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md`).
+Use the Bash tool with **`run_in_background: true`** (invocation mode: `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md`).
 
 ### Step 4 — Surface the review
 

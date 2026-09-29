@@ -1,6 +1,6 @@
 # Session-Start Workflow Router
 
-Multi-step hyper-* chains. Single-skill triggers (hyper-code-review, hyper-docs-review, hyper-tdd, hyper-debug used on their own) fire from their own skill descriptions — this table only lists chained workflows.
+Multi-step hyper-* chains. Single-skill triggers (hyper-code-review, hyper-docs-review used on their own) fire from their own skill descriptions — this table only lists chained workflows.
 
 The autonomous **loop** variants are the default here — they harden work to convergence in one gesture. Drop to the manual round-by-round variants only when you want to inspect/checkpoint between rounds, or when the task is a single step.
 

@@ -42,7 +42,7 @@ If the next reply still fails the gate → STOP (**"hyper-implement-loop reply-c
 
 **The ordered pipeline** every fixer reply must pass (named inline in SKILL.md Step 5): (1) **schema gate** → (2) **semantic finding-map check**: the lead reads the fixer reply and confirms that EVERY cited blocking finding maps to `status: fixed` OR `status: not-applicable` with a non-empty `notes:` reason. A corrective redo re-enters the pipeline from the schema gate — never "just the finding-map check". The budget is per stage: exactly ONE corrective redo each, then STOP.
 
-There is **NO git-working-tree / no-op / `.bak` / restore mechanism**. A fixer that applies no real change is bounded by the Step 6 cap (the loop re-reviews and re-issues findings until convergence or the cap, then STOPs with the cap report) — reasserting a git-diff gate here is an anti-pattern and is intentionally not a separate failure path.
+A fixer reply is judged by these two stages alone, whether or not it changed any files. A fixer that applies no real change is bounded by the Step 6 cap: the loop re-reviews and re-issues findings until convergence or the cap, then STOPs with the cap report.
 
 **Gate failure in Step 5:** apply the corrective + escalation above (escalating to **"hyper-implement-loop reply-contract failure"** if it still fails).
 
@@ -62,4 +62,3 @@ Implement-loop-specific:
 - Reasserting a git-state / no-op gate. A stuck or no-change fixer is bounded by the Step 6 cap — a separate no-op detection path is an anti-pattern.
 - Gating on label vocabulary instead of meaning. Either seat's artifact emits `### Findings` Blocker/Major/Minor bullets + `### Verdict`. Classify by MEANING regardless of label: a finding blocks if it concerns correctness, data loss, security, a broken build/tests, a regression, or missing required behavior, regardless of the severity label the reviewer assigned; pure style/nits do not block.
 - Treating a `resume-failed` or `fallback` round as invalid. Such a round is still a valid loop iteration and counts toward the cap, but it MUST be flagged in the final report so the human can assess continuity.
-- Editing `hyper-implement` or `hyper-plan-loop`. This skill is purely additive.

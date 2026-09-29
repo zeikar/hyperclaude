@@ -52,13 +52,13 @@ Read all three files before spawning: `${CLAUDE_PLUGIN_ROOT}/references/loop-pro
 
 Reuse the stock `hyper-plan` logic — see `skills/hyper-plan/SKILL.md` Steps 1–2; do not duplicate the rule text. In brief:
 
-1. Derive the canonical slug deterministically (lowercase, ASCII, alphanumerics + hyphen, first 5 words of the task joined by `-`).
+1. Derive the canonical slug deterministically (lowercase, ASCII, alphanumerics + hyphen, first 5 words of the task joined by `-`). A task with no ASCII words gets an empty slug, a timestamp-only plan path, and no research scan — per `hyper-plan` Step 1.
 2. Scan **all** `.hyperclaude/research/*.md` frontmatter `slug:` fields (the canonical key — not the filename). If one OR MORE equals the derived slug (there may be a Codex + Claude pair), treat ALL matching files as the linked research artifacts and inline the full contents of ALL of them as context in Step 2.
 3. Resolve the plan path:
 
    ```bash
    mkdir -p .hyperclaude/plans
-   date +%Y%m%d-%H%M
+   date -u +%Y%m%d-%H%M
    ```
 
    Base path: `.hyperclaude/plans/<timestamp>-<slug>.md`. If it exists, append `-2`, `-3`, … until free.
@@ -115,7 +115,7 @@ If missing or empty → apply the file-check corrective + escalation in `referen
 
 **Seat the reviewer** per `${CLAUDE_PLUGIN_ROOT}/references/reviewer-seat.md` **Decide the seat**. In either seat, leave the plan path alone while the review runs — the planner must not be sent a round's findings until this review has landed — then continue at Step 5 with the Read artifact.
 
-**Codex seat.** Invoke via the Bash tool with **`run_in_background: true`** and `timeout: 600000` — this loop's own measured review boundaries were 469s and 1393s, past the 600s FOREGROUND ceiling the harness imposes, and a killed call costs the whole review with no artifact and no diagnostics. If `review_brief_file` is non-null, assign it to `BRIEF_FILE` per the shell-safety recipe in `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md` and append `--review-brief "$(cat "$BRIEF_FILE")"`; omit both when `review_brief_file` is `null`:
+**Codex seat.** Invoke via the Bash tool with **`run_in_background: true`** — this loop's own measured review boundaries were 469s and 1393s, past the 600s FOREGROUND ceiling the harness imposes, and a killed call costs the whole review with no artifact and no diagnostics. If `review_brief_file` is non-null, assign it to `BRIEF_FILE` per the shell-safety recipe in `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md` and append `--review-brief "$(cat "$BRIEF_FILE")"`; omit both when `review_brief_file` is `null`:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<resolved path>" [--review-brief "$(cat "$BRIEF_FILE")"]
@@ -171,7 +171,7 @@ node -e 'try{process.stdout.write(/^##\s*Task\s/m.test(require("fs").readFileSyn
 
 `bad` → corrective + terminal handling per that pipeline. On `ok`, increment the iteration counter and re-review in the run's seat, then loop back to Step 5. Never regenerate `review_brief_file` from the planner's just-revised plan (that would let the planner bless its own scope additions) — only a NEW user decision may update it.
 
-**Codex seat:** re-invoke the bridge via the Bash tool with **`run_in_background: true`** and `timeout: 600000` (Step 4's reason), reading that round's envelope from the output file the completion notification names. Same `review_brief_file`-gated `BRIEF_FILE` assignment + `--review-brief` token as Step 4 — per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s two re-supply reasons (fallback survival on an `auto`→fresh fallback, and mid-loop updates), re-pass it on every round:
+**Codex seat:** re-invoke the bridge via the Bash tool with **`run_in_background: true`** (Step 4's reason), reading that round's envelope from the output file the completion notification names. Same `review_brief_file`-gated `BRIEF_FILE` assignment + `--review-brief` token as Step 4 — per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s two re-supply reasons (fallback survival on an `auto`→fresh fallback, and mid-loop updates), re-pass it on every round:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<same path>" --resume auto [--review-brief "$(cat "$BRIEF_FILE")"]
@@ -210,5 +210,4 @@ Cross-loop invariants (passing `name:` at spawn, re-spawning each round, seating
 - Reading the plan body into lead context each revise round, or accepting any non-`WROTE:` reply as success.
 - Writing `<plan>-v2.md` (or any) sibling files. Always overwrite the same plan path; `--resume` keys on it.
 - Treating non-blocking findings as revise targets. Step 5 classifies by **meaning** — style nits, vague "consider X" suggestions, and pure prose-polish do NOT block, regardless of what severity label the reviewer attached. Only plan-level correctness / wrong paths / broken ordering / unverifiable steps / missing required behavior gate the loop.
-- Editing `hyper-plan` or `hyper-plan-review`. This skill is purely additive.
 - Restating `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s rules inside this SKILL.md instead of pointing at it; fabricating `review_brief_file` from the planner's plan prose; or letting a brief ask the reviewer to suppress correctness / security / data-loss findings.

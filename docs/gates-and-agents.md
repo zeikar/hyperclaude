@@ -54,7 +54,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 - **Slash:** `/hyperclaude:hyper-plan [task]`
 - **Mechanics:** *not* a Codex gate. The skill resolves the task (from `$ARGUMENTS`, or the latest research file's `task:` frontmatter), derives or reuses a slug, and dispatches the [`planner`](#planner) agent. The planner first assesses scope: a task that fits one cohesive plan (~≤10 tasks) yields a **detailed** `## Task N:` plan written verbatim to `.hyperclaude/plans/<timestamp>-<slug>.md`; an **oversized** task (would exceed ~10–12 tasks, or spans independent milestones) yields an **epic roadmap** of `## Milestone N:` chunks instead. For the epic case the skill prepends a `tier: epic` frontmatter block and writes the roadmap to `.hyperclaude/epics/<timestamp>-<slug>.md`, then dispatches the planner once more to expand **Milestone 1** into a detailed plan saved at the canonical `.hyperclaude/plans/<timestamp>-<slug>.md` (no `-mN` suffix — the roadmap's `epics/` location means no collision, so Milestone 1 keeps the shared slug). Mode is detected from the planner's heading style. Vocabulary: epic → milestone → task.
 - **Writes:** detailed task plan → `.hyperclaude/plans/<timestamp>-<slug>.md` (plain markdown, no skill-authored frontmatter, `## Task N:` sections that `/hyperclaude:hyper-implement` consumes directly; a PostToolUse stamp hook adds a `plugin-version` line post-write). Oversized task → a `tier: epic` roadmap under `.hyperclaude/epics/<timestamp>-<slug>.md` PLUS a runnable `.hyperclaude/plans/<timestamp>-<slug>.md` detailed plan for Milestone 1 (canonical slug, so the `research → plan → plan-review` trace holds). The roadmap carries the only `tier:` frontmatter; the stamp hook adds `plugin-version` to both the roadmap and detailed plans, but no `tier:` marker ever lands on a detailed plan. `/hyperclaude:hyper-implement` refuses a `tier: epic` file, and the roadmap living outside `.hyperclaude/plans/` keeps it off the newest-plan auto-pick entirely. Later milestones are expanded with `/hyperclaude:hyper-plan milestone <K>` — epic-aware: it reads the newest `epics/` roadmap, carries Milestone K's `Depends on:` context, and writes a normal detailed plan slugged from the milestone's own title (no `-mN`/epic-slug encoding, so `slug.mjs` is untouched; the epic linkage rides in the plan content).
-- **Slug:** reused from the matching `hyper-research` artifact's `slug:` when one exists, so the `research → plan → plan-review` trio shares one slug. Otherwise derived from task text (lowercase, ASCII, ≤5 words, kebab-case).
+- **Slug:** reused from the matching `hyper-research` artifact's `slug:` when one exists, so the `research → plan → plan-review` trio shares one slug. Otherwise derived from task text (lowercase, ASCII, ≤5 words, kebab-case); a no-ASCII task gets an empty slug and a timestamp-only filename, and links no research by slug.
 - **`--resume`:** not supported — re-plan by re-running with a refined task.
 - **Use when:** about to start multi-task work and you want a plan `/hyperclaude:hyper-plan-review` can critique and `/hyperclaude:hyper-implement` can execute.
 - **Skip when:** the task is one step (dispatch `implementer` directly with `run_in_background: false`); a recent plan already covers it.
@@ -201,7 +201,7 @@ A gate skill mediates a step in the cycle that produces a canonical `.hyperclaud
 
 ---
 
-## Helper skills (3)
+## Helper skills (1)
 
 Helper skills shape Claude's behavior on tasks. They are not Codex gates themselves and don't directly produce `.hyperclaude/` artifacts. (`hyper-implement` may chain into `/hyperclaude:hyper-code-review` during its final pass — that nested gate writes a `.hyperclaude/code-reviews/` file via the regular gate path, but the helper skill itself doesn't.)
 
@@ -216,20 +216,6 @@ Helper skills shape Claude's behavior on tasks. They are not Codex gates themsel
 - **Final pass:** runs whatever the plan defines as final acceptance (e.g. `bash scripts/test/smoke.sh` for hyperclaude itself) and, if available, `/hyperclaude:hyper-code-review` after the last task. On full completion (all tasks executed + acceptance green) it archives the executed **canonical** plan (direct child of `.hyperclaude/plans/`) to `.hyperclaude/plans/done/` (plain `mv`) so it stops surfacing as the newest plan / SessionStart "Active plan". Archival is the plan-implemented signal — independent of the optional code-review's findings (review fixes are downstream hardening) — and applies in nested `hyper-implement-loop` runs too. Only `plans/` is archived (`research/` and `*-reviews/` stay put — `--resume` depends on prior review artifacts).
 - **Skip when:** the plan is one step, tasks are tightly coupled, or you're prototyping fast.
 - **Source:** [skills/hyper-implement/SKILL.md](../skills/hyper-implement/SKILL.md).
-
-### `hyper-tdd` — test-driven discipline
-
-- **What it does:** enforces a tight TDD loop — fail first, minimal pass, refactor, repeat.
-- **Use when:** about to write or modify behavior-bearing code (functions, modules, business logic).
-- **Skip when:** pure config edits, doc-only changes, one-shot scripts where tests would not outlive the change.
-- **Source:** [skills/hyper-tdd/SKILL.md](../skills/hyper-tdd/SKILL.md).
-
-### `hyper-debug` — debugging discipline
-
-- **What it does:** systematic debugging — reproduce, isolate, instrument, root-cause.
-- **Use when:** something is unexpectedly broken and the cause is not obvious.
-- **Skip when:** "I know what's wrong" one-line fixes.
-- **Source:** [skills/hyper-debug/SKILL.md](../skills/hyper-debug/SKILL.md).
 
 ---
 
@@ -255,7 +241,7 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 ### `fixer`
 
 - **Tools:** `Read, Edit, Write, Glob, Grep, Bash`.
-- **Job:** apply ONLY the code-review findings explicitly cited in each `SendMessage` from the lead. Re-reads current diff/files each round (context may be stale across rounds), makes the minimum targeted fix per finding (a prose finding gets the wrong sentence revised, not a correct one added beside it), runs relevant verification, and replies with the structured per-finding schema (`finding:` / `status:` / `files-changed:` / `verification:` / `notes:`) as its final text — which the harness delivers to the lead as that round's task-notification `<result>` (transport is skill-injected, not part of this agent definition). There is no canonical output file — the fixer edits in place.
+- **Job:** apply ONLY the code-review findings explicitly cited in each `SendMessage` from the lead. Re-reads current diff/files each round (context may be stale across rounds), makes the minimum targeted fix per finding (a prose finding gets the wrong sentence revised, not a correct one added beside it), runs relevant verification, and replies with the structured per-finding schema (`finding:` / `status:` / `files-changed:` / `verification:` / `notes:`) as its final text — which the harness delivers to the lead as that round's task-notification `<result>` (transport and the loop's spawn-prompt contract are skill-injected, not part of this agent definition, which stays loop-agnostic). There is no canonical output file — the fixer edits in place.
 - **Constraints:** fix ONLY cited findings — no opportunistic refactors, no scope expansion; NEVER commit or push; NEVER invoke codex or `scripts/codex-bridge.mjs`; never act as reviewer. Spotting additional issues beyond the cited findings is noted in `notes:` only, not acted on.
 - **Dispatched by:** `hyper-implement-loop` — spawned once (with no `name:`) on the first round that carries blocking findings; every later fix round reuses its retained context via a `SendMessage` to the returned `agentId`.
 - **Source:** [agents/fixer.md](../agents/fixer.md).
@@ -310,6 +296,4 @@ Agents are sub-Claude personas with restricted tool sets. They are dispatched by
 | Docs need accuracy gate | `/hyperclaude:hyper-docs-review` |
 | Want autonomous docs-review → fix loop in one gesture | `/hyperclaude:hyper-docs-loop` |
 | Code diff needs Codex review | `/hyperclaude:hyper-code-review` |
-| About to write behavior-bearing code | apply `hyper-tdd` |
-| Test failed unexpectedly | apply `hyper-debug` |
 | A batch of `.hyperclaude/` artifacts accumulated; want to mine durable repo-local knowledge | `/hyperclaude:hyper-memory` |

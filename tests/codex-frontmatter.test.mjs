@@ -65,6 +65,24 @@ test('renderFrontmatter: multi-line task indents each line', () => {
   });
   assert.match(fm, /task: \|-\n {2}line one\n {2}line two\n {2} {2}indented\n/);
 });
+
+test('renderFrontmatter: no-ASCII task (null slug) writes a bare empty slug, not the string "null"', () => {
+  const fm = renderFrontmatter({
+    mode: 'research',
+    task: '한글만',
+    slug: slugify('한글만'),
+    generated: '2026-05-10T10:15:00.000Z',
+    codexVersion: '0.128.0',
+    templateVersion: 1,
+    cwd: '/tmp',
+    gitHead: 'unknown',
+    codexThreadId: null,
+    codexResumeStatus: 'fresh',
+    codexResumedFrom: undefined,
+  });
+  assert.match(fm, /\nslug: \n/);
+  assert.equal(parseFrontmatter(fm).slug ?? '', '');
+});
 // ── slugifyRef ────────────────────────────────────────────────────────────────
 
 test('slugifyRef: main returns vs-main', () => {

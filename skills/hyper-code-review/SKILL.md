@@ -64,7 +64,7 @@ Two distinct, independently-gated channels — do not conflate them:
 
 ### Step 3 — Run the bridge
 
-Use the Bash tool with `timeout: 600000` and **`run_in_background: true`** (invocation mode: `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md`). Pass each argument as a separate token — never interpolate user-supplied substrings into a single quoted string.
+Use the Bash tool with **`run_in_background: true`** (invocation mode: `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md`). Pass each argument as a separate token — never interpolate user-supplied substrings into a single quoted string.
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" code-review <flags from table above> [--resume <Group 3 or 'auto'>] [--review-brief "$(cat "$BRIEF_FILE")"] [--background "$(cat "$BACKGROUND_FILE")"]
@@ -83,9 +83,7 @@ Once the bridge task completes, parse the single JSON line from its stdout. See 
 
 Parse the bridge's single stdout JSON envelope per `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` (envelope shape + strict-parse rule).
 
-Code-review files have YAML frontmatter (`mode: code-review`, `slug`, `generated`, `plugin-version`, `codex-version`, `template-version`, `git-head`, `cwd`, `codex-thread-id` (when available), `codex-resume-status` (one of `fresh | resumed | fallback | resume-failed`), `codex-resumed-from` (path when resumed successfully), `review-brief` (present when a brief was supplied, or carried forward from a successfully-resolved resume), `codex-input-tokens`, `codex-cached-input-tokens`, `codex-output-tokens`, `codex-reasoning-output-tokens` (each emitted independently when Codex reported that token field in usage; omitted when Codex did not emit usage), plus either `base-ref` or `commit`, and an optional `title`) followed by a Codex review body (`### Findings` with Blocker/Major/Minor + `### Verdict`). Do not modify the file.
-
-**Legacy-artifact resume:** a legacy artifact from the old native `codex exec review` path lacks `template-version` and so is not resumable — see the shared `template-version` precondition in `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` (`--resume auto` falls back to fresh; explicit `--resume <legacy-path>` returns `resume rejected`).
+Code-review files have YAML frontmatter — among it `codex-resume-status` (`fresh | resumed | fallback | resume-failed`), `codex-resumed-from` when resumed, `review-brief` when a brief was supplied or carried forward, and the target (`base-ref` or `commit`); the full key list is in `${CLAUDE_PLUGIN_ROOT}/docs/architecture.md` — followed by a Codex review body (`### Findings` with Blocker/Major/Minor + `### Verdict`). Do not modify the file.
 
 ## Distinction note
 

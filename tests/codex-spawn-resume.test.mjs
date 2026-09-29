@@ -160,7 +160,7 @@ test('resume happy path: docs-review --resume <prev> spawns exec resume and writ
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 3,
+        'template-version': 4,
         'codex-thread-id': 'thread-resume-1',
         'codex-resume-status': 'fresh',
       });
@@ -314,7 +314,7 @@ test('resume size-budget exceeded (200KB docs payload on resume) → ok:false, f
         slug: 'big',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 3,
+        'template-version': 4,
         'codex-thread-id': 'thread-budget',
         'codex-resume-status': 'fresh',
       });
@@ -365,7 +365,7 @@ test('resume spawn fails (codex exits 7) → status resume-failed, failure body 
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 3,
+        'template-version': 4,
         'codex-thread-id': 'thread-spawnfail',
         'codex-resume-status': 'fresh',
       });
@@ -415,7 +415,7 @@ test('resume auto honors --out: discovers prior under custom dir, not the defaul
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 3,
+        'template-version': 4,
         'codex-thread-id': 'thread-from-custom-dir',
         'codex-resume-status': 'fresh',
       });
@@ -1422,7 +1422,7 @@ test('resume auto over dir whose only docs-review artifact is OLD-VERSION → fr
       const outputContent = readFileSync(json.path, 'utf8');
       const fm = parseFrontmatter(outputContent);
       assert.equal(fm['codex-resume-status'], 'fallback', 'frontmatter codex-resume-status should be fallback');
-      assert.equal(fm['template-version'], '3', 'fresh fallback must emit the current docs-review template-version');
+      assert.equal(fm['template-version'], '4', 'fresh fallback must emit the current docs-review template-version');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
@@ -1456,7 +1456,7 @@ test('resume model/effort mismatch → fresh-spawn fallback (auto, no matching c
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 3,
+        'template-version': 4,
         'codex-thread-id': 'thread-resume-1',
         'codex-resume-status': 'fresh',
         'codex-model-requested': 'gpt-4',
@@ -1513,7 +1513,7 @@ test('resume auto skips mismatched newest artifact and resumes older matching on
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 3,
+        'template-version': 4,
         'codex-thread-id': 'thread-newer-mismatch',
         'codex-resume-status': 'fresh',
         'codex-model-requested': 'gpt-4',
@@ -1526,7 +1526,7 @@ test('resume auto skips mismatched newest artifact and resumes older matching on
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 3,
+        'template-version': 4,
         'codex-thread-id': 'thread-older-match',
         'codex-resume-status': 'fresh',
       });
@@ -1586,7 +1586,7 @@ test('resume auto: candidate ran under a different effective model → fallback,
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 3,
+        'template-version': 4,
         'codex-thread-id': 'thread-resume-1',
         'codex-resume-status': 'fresh',
         'codex-model-effective': 'gpt-5.6-sol',
@@ -1644,7 +1644,7 @@ test('resume explicit path: same effective-model mismatch does NOT block — res
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 3,
+        'template-version': 4,
         'codex-thread-id': 'thread-resume-1',
         'codex-resume-status': 'fresh',
         'codex-model-effective': 'gpt-5.6-sol',
@@ -1699,7 +1699,7 @@ test('resume auto: probe failure (unknown current model) never excludes — resu
         slug: 'api',
         cwd: process.cwd(),
         'docs-target': docPath,
-        'template-version': 3,
+        'template-version': 4,
         'codex-thread-id': 'thread-resume-1',
         'codex-resume-status': 'fresh',
         'codex-model-effective': 'gpt-5.6-sol',

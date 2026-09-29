@@ -386,6 +386,10 @@ A review session with Codex's collaboration tools can fan out — `spawn_agent` 
 
 What decides it is an instruction: Codex spawns only when the user or an `AGENTS.md` explicitly asks for delegation, and here the global `~/.codex/AGENTS.md` was a symlink to the Claude Code `CLAUDE.md`, whose "Delegate What Pays" section is exactly that ask. So the fix belongs in that file. The one hard bridge-side lever — a patched catalog passed as `model_catalog_json` — was rejected: an extra probe per run, a resume gate for every thread begun before it, and a silent failure if codex renames the field, all to override a behavior Codex already defaults off. Measurements: [measurements.md](measurements.md).
 
+### 2026-09-29 — `hyper-tdd` and `hyper-debug` removed; skill-only agents carry no `<example>` routing blocks
+
+A prompt audit against current models found both discipline skills near-dead: they rarely triggered, current models already test first and debug by hypothesis unprompted, and their "commit after each step" contradicted the harness default of committing only on request while their broad descriptions could auto-trigger in any session. The implementer keeps its one test-first line. The same audit dropped the `<example>` blocks from `reviewer`, `fixer`, and `documenter`: skills dispatch them by name, so the examples routed nothing while riding in every main-session request; their one real routing hint (when *not* to dispatch) moved into the description prose. Agents the main session may pick on its own keep their examples.
+
 ---
 
 ## Pointers (decisions documented elsewhere)

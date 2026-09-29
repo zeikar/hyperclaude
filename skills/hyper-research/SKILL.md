@@ -26,10 +26,10 @@ Skip when:
 
 Two research paths exist (Codex and Claude). Pick by reading the user's intent — this is a plain-language rule, **not** a flag/token/`$ARGUMENTS` grammar:
 
-- **Default** (a normal `/hyperclaude:hyper-research <task>`, or any case not explicitly single-path) → **both paths in parallel** (Codex + Claude), producing two artifacts that share one slug.
-- ONLY if the user EXPLICITLY asks for **Codex only / no Claude** → **Codex path** alone.
-- ONLY if the user EXPLICITLY asks for **Claude only / Claude-native / no-Codex / a Claude second opinion** → **Claude path** alone.
-- If the intent is genuinely unclear → treat it as the default (both paths in parallel). Only narrow to a single path on an unambiguous explicit request.
+- **Default** (a normal `/hyperclaude:hyper-research <task>`) → **both paths in parallel** (Codex + Claude), producing two artifacts that share one slug.
+- The user asks for **Codex only / no Claude** → **Codex path** alone.
+- The user asks for **Claude only / Claude-native / no-Codex / a Claude second opinion** → **Claude path** alone.
+- When the request doesn't clearly ask for one path, run both.
 
 All cases first resolve the task description the same way:
 
@@ -46,7 +46,7 @@ This is the default. Run the Codex and Claude research paths concurrently so the
 
 3. **Launch both in ONE message, both backgrounded** — neither blocks, so the lead stays free while the two multi-minute operations run:
    - The `researcher` agent via the Agent tool, `subagent_type: hyperclaude:researcher`, in return-body mode, using the same prompt contract as the Claude path step 4 below (Task verbatim + required section structure).
-   - The bridge via the Bash tool, **`run_in_background: true`** with `timeout: 600000`: `node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task-file "<temp file path>"`. It writes `.hyperclaude/research/<timestamp>-<slug>.md`.
+   - The bridge via the Bash tool, **`run_in_background: true`**: `node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task-file "<temp file path>"`. It writes `.hyperclaude/research/<timestamp>-<slug>.md`.
 
    Both deliver their result as a completion notification. End the turn and let them run; answer the user if they ask something else meanwhile.
 
@@ -63,9 +63,9 @@ This is the default. Run the Codex and Claude research paths concurrently so the
 
 1. Resolve the task description as described in **Path selection** above.
 
-2. Write the resolved task description to a temp file using the **Write tool** (not the Bash tool — this avoids shell quoting). Pick a path under the system temp dir; for example: `/tmp/hyperclaude-task-<unix-timestamp>.txt`. Save the task as plain text; no escaping needed.
+2. Write the resolved task description with the **Write tool** (not the Bash tool — this avoids shell quoting) to a file in the session scratchpad, outside the repo. Save the task as plain text; no escaping needed.
 
-3. Run the bridge in research mode using the Bash tool with **`run_in_background: true`** and `timeout: 600000`:
+3. Run the bridge in research mode using the Bash tool with **`run_in_background: true`**:
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task-file "<temp file path>"
@@ -116,7 +116,7 @@ This path runs Claude-native research via the `researcher` agent. It uses `WebFe
    node -e 'const c=require("child_process");let h;try{h=c.execSync("git rev-parse HEAD").toString().trim();}catch(e){h="unknown";}console.log(JSON.stringify({generated:new Date().toISOString(),cwd:process.cwd(),gitHead:h}))'
    ```
 
-6. Write the artifact with the Write tool to the path from step 3. Frontmatter is ONLY the keys below, in this order (do NOT byte-match `renderFrontmatter()`, do NOT add Codex-only conditional keys like `codex-thread-id`, and do NOT author `plugin-version` — the PostToolUse stamp hook adds it after the write):
+6. Write the artifact with the Write tool to the path from step 3. Its frontmatter is exactly the keys below, in this order — the PostToolUse stamp hook adds `plugin-version` after the write:
 
    ```
    ---

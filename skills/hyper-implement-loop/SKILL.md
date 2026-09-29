@@ -132,7 +132,7 @@ The `prompt` string MUST contain:
 - **Role framing** — you are the fixer for this hyper-implement-loop run; your job is to apply code-review findings to the working tree in targeted, minimal fixes.
 - **This round's findings** — the verbatim blocking findings, the relevant verdict direction, and the code-review artifact path.
 - **Reply format** — for EVERY cited finding emit its own `finding:` / `status:` / `files-changed:` / `verification:` / `notes:` block (`status` exactly `fixed` or `not-applicable`; `notes:` required when `not-applicable`), delivered as your FINAL TEXT. No diff dump, no patch block, no source-body echo. This applies identically to every later round's reply.
-- **Constraints echo** — fix ONLY the findings explicitly cited in each round; no opportunistic refactors; NEVER commit or push; NEVER invoke codex or `scripts/codex-bridge.mjs`; re-read the current diff/files each round before applying any fix (context may be stale across rounds).
+- **Constraints echo** — fix only the findings cited in each round, with no opportunistic refactors; leave the tree uncommitted and unpushed; don't invoke codex or `scripts/codex-bridge.mjs`; re-read the current diff/files each round before applying any fix (context may be stale across rounds).
 - State that the fixer stays live between rounds, will receive further review findings in later turns, and must retain its full context across rounds.
 
 **After the `Agent(...)` call** — capture the returned `agent_id` verbatim into run-state; it addresses every later fix round.
@@ -209,6 +209,4 @@ Cross-loop invariants (passing `name:` at spawn, re-spawning each round, seating
 - Committing or pushing from the fixer, or letting the fixer invoke codex or `scripts/codex-bridge.mjs`.
 - Using `--commit <sha>` as the diff target, or omitting `--base main` on any iteration (Codex seat). `--base main` is the fixed target for all code-review invocations.
 - Reasserting a git-state / no-op gate. A stuck or no-change fixer is bounded by the Step 6 cap — a separate no-op detection path is an anti-pattern.
-- Editing `hyper-implement` or `hyper-plan-loop`. This skill is purely additive.
-- Editing `agents/fixer.md` to encode this loop's spawn-prompt contract. That contract is loop-specific and lives ONLY in this SKILL.md's Step 5 spawn prompt; the fixer stays a general-purpose, loop-agnostic agent.
-- Restating `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s rules inside this SKILL.md instead of pointing at it; fabricating `review_brief_file` from plan prose; or letting a brief ask the reviewer to suppress correctness / security / data-loss findings. Also: composing `--background` in this loop — the review brief is this loop's context channel, `--background` is never composed here.
+- Fabricating `review_brief_file` from plan prose; or letting a brief ask the reviewer to suppress correctness / security / data-loss findings. Also: composing `--background` in this loop — the review brief is this loop's context channel, `--background` is never composed here.

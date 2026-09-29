@@ -71,8 +71,8 @@ checking the actual file):
 |---|---|---|
 | Hooks | `hooks.json` matcher semantics (hyphen/comma/regex), SessionStart & PostToolUse events, hook stderr/exit-code behavior | `hooks/hooks.json`, `hooks/*.mjs` |
 | Loop spawn/reply transport | background-agent spawn semantics for a no-`name:` `Agent` call, whether the final text still arrives as the task-notification `<result>`, `SendMessage` routing by returned `agentId`, subagent prompt-cache TTL, and any change to plugin-agent definition resolution (upstream #78234 / #81746) | `references/loop-protocol.md`, `skills/hyper-*-loop/**` |
-| Agent dispatch (non-loop) | `run_in_background` default, subagent depth cap, `Agent(type)` deny/allow rules, subagent model inheritance | `skills/hyper-implement/SKILL.md`, `skills/hyper-plan`, `hyper-tdd`, `hyper-debug`, `hyper-research`, `hyper-docs-sync` |
-| Skill/agent/command frontmatter | `name`/`description`/`metadata.*` parsing, kebab/snake/camel, malformed-YAML handling, slash-command loading | `skills/**/SKILL.md`, `agents/*.md`, `commands/*.md` |
+| Agent dispatch (non-loop) | `run_in_background` default, subagent depth cap, `Agent(type)` deny/allow rules, subagent model inheritance | `skills/hyper-implement/SKILL.md`, `skills/hyper-plan`, `hyper-research`, `hyper-docs-sync` |
+| Skill/agent frontmatter | `name`/`description`/`metadata.*` parsing, kebab/snake/camel, malformed-YAML handling, slash-command loading | `skills/**/SKILL.md`, `agents/*.md` |
 | Codex bridge / Bash spawn | anything changing how `Bash` spawns or sandboxes child processes (Codex is external, but the bridge is spawned via Bash) | `scripts/codex-bridge.mjs`, `scripts/codex/*.mjs` |
 | Plugin manifest / validate / release | `claude plugin validate`, `plugin.json`, marketplace/rename behavior | `.claude-plugin/plugin.json`, `docs/development.md` |
 | Overlapping built-ins | built-in `/code-review`, `/agents` wizard, default model, `/review` — usually informational, but flag stale **doc references** | `docs/**`, `README.md` |

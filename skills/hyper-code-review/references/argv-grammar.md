@@ -4,7 +4,7 @@ Detailed parsing rules for `$ARGUMENTS` in `/hyperclaude:hyper-code-review`. Loa
 
 ## Pre-normalization
 
-If the first whitespace-delimited token equals `uncommitted` case-insensitively, lowercase that single token to `uncommitted` first. This preserves backward-compatible case-insensitive behavior. No other tokens are normalized.
+If the first whitespace-delimited token equals `uncommitted` case-insensitively, lowercase that single token to `uncommitted` first. No other tokens are normalized.
 
 ## Regex (case-sensitive — no `/i` flag)
 
@@ -16,7 +16,7 @@ If the first whitespace-delimited token equals `uncommitted` case-insensitively,
 - **Group 2** — literal `--resume` token (truthy when present, undefined when absent).
 - **Group 3** — optional resume artifact path. Negative lookahead `(?!-)` forbids leading `-` (e.g. `--resume -bad` rejected at the skill layer).
 - Bare `--resume` (Group 2 truthy, Group 3 undefined) maps to bridge argv `--resume auto`.
-- Default target (Group 1 absent) — the bridge's `parseArgs` itself defaults code-review to `reviewTarget: 'base'`, `baseRef: 'main'`, so the skill passes no target flag.
+- Default target (Group 1 absent) → `--base main`. The dispatch table passes it explicitly; it is also the bridge's own `parseArgs` default.
 
 ## Valid invocations
 
@@ -40,13 +40,13 @@ If the first whitespace-delimited token equals `uncommitted` case-insensitively,
 
 ## Resume semantics
 
-See `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` for the shared `--resume` semantics (explicit vs `auto` fallback, the `template-version` precondition — a legacy artifact from the old native `codex exec review` path has no `template-version` and is not resumable). Code-review-specific detail:
+See `${CLAUDE_PLUGIN_ROOT}/references/bridge-review-calls.md` for the shared `--resume` semantics (explicit vs `auto` fallback, the `template-version` precondition). Code-review-specific detail:
 
 - Identity check (fresh vs resumed): same `cwd`, same target (base-ref NAME match for `--base`, exact SHA match for `--commit`, symmetric absence of both for `--uncommitted`), prior thread present, prior status ∈ {fresh, resumed}.
 
 ## Bridge invocation cookbook
 
-Build argv following the dispatch table in `SKILL.md` and pass each argument as a separate token — never interpolate user-supplied substrings into a single quoted string. Use the Bash tool with `timeout: 600000`.
+Build argv following the dispatch table in `SKILL.md` and pass each argument as a separate token — never interpolate user-supplied substrings into a single quoted string. Invoke it with `run_in_background: true`, as `SKILL.md` does.
 
 ```bash
 # Default — branch vs main, fresh
