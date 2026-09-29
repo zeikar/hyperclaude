@@ -45,7 +45,7 @@ Otherwise, resolve task + slug in priority order:
    ls -1t .hyperclaude/research/*.md 2>/dev/null | head -1
    ```
 
-   Read the latest file's frontmatter `task:` + `slug:` and use both. If no research file exists, fall back to the user's most recent build/implement intent in this conversation; if none, ask the user and stop.
+   Read the latest file's frontmatter `task:` + `slug:` and use both; that file is itself a linked research artifact for Step 3, even when its slug is empty. If no research file exists, fall back to the user's most recent build/implement intent in this conversation; if none, ask the user and stop.
 
 **Slug derivation rule** (used in branch 1, and matches what `hyper-research` writes into the artifact frontmatter): lowercase, ASCII only, alphanumerics + hyphen, first 5 words of the task joined by `-`. Example: "Add OAuth login to the API" → `add-oauth-login-to-the`. A task with no ASCII words (e.g. all-Korean) has an **empty slug**, as the bridge does: skip the branch-1 scan — an empty slug would match every other no-ASCII research artifact — and rely on any research already in this conversation for context.
 

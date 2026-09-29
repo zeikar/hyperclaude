@@ -199,7 +199,7 @@ The frontmatter shape:
 ```yaml
 ---
 mode: research | plan-review | code-review | docs-review
-slug: <kebab-case>
+slug: <kebab-case>                     # bare empty (`slug: `) when a research task has no ASCII words
 generated: <ISO-8601 timestamp>
 plugin-version: <hyperclaude version of the loaded copy that ran, or "unknown">
 codex-version: <semver from `codex --version`>

@@ -119,10 +119,10 @@ Do NOT produce a task breakdown here — decomposition into `## Task N:` blocks 
 
 1. Tell the user the spec path and ask them to review it. **Wait for approval** (the HARD-GATE). If they request changes, revise the spec at the same path and re-confirm.
 2. On approval, hand off — do NOT implement here. **Pass the ORIGINAL idea text as the task argument** — verbatim, the same text recorded in the spec's `idea:` frontmatter — NOT the reworded Goal. This is what keeps the slug aligned: `hyper-plan-loop` / `hyper-plan` / `hyper-research` derive their slug from `$ARGUMENTS` with the *same* rule used in Step 4, so the same idea text yields the same slug and the `research → plan → plan-review` trace stays linked. A reworded Goal would derive a *different* slug and silently break the trace. (The planning skills do not read `specs/` — the slug match is what links them, plus the spec content you already hold in context.)
-   - **Straight to planning** → `/hyperclaude:hyper-plan-loop <original idea>` (plan ↔ review until clean; `/hyperclaude:hyper-plan` when the user wants round-by-round control). The spec's resolved requirements (Goal / Constraints / Acceptance Criteria) are already in this conversation from Step 4 — feed them to the planner as context.
-   - **Research first** (when prior-art / pitfalls matter) → `/hyperclaude:hyper-research <original idea>`, then `hyper-plan-loop`.
+   - **Straight to planning** → `/hyperclaude:hyper-plan-loop <original idea>` (plan ↔ review until clean; `/hyperclaude:hyper-plan` when the user wants round-by-round control). For an **oversized** spec (beyond ~10–12 tasks, or several independent milestones) → `/hyperclaude:hyper-plan <original idea>` instead: the loop always produces one detailed plan, while `hyper-plan` splits an oversized task into an epic roadmap. Either way, the spec's resolved requirements (Goal / Constraints / Acceptance Criteria) are already in this conversation from Step 4 — feed them to the planner as context.
+   - **Research first** (when prior-art / pitfalls matter) → `/hyperclaude:hyper-research <original idea>`, then the planning skill chosen above.
 
-   Default recommendation: `hyper-plan-loop`; prepend `hyper-research` when the approach has real unknowns. When the spec is oversized (beyond ~10–12 tasks, or several independent milestones), recommend `hyper-plan` instead — the loop always produces one detailed plan, while `hyper-plan` splits an oversized task into an epic roadmap.
+   Default recommendation: `hyper-plan-loop` (`hyper-plan` for an oversized spec); prepend `hyper-research` when the approach has real unknowns.
 
 ## Anti-patterns
 

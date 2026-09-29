@@ -53,7 +53,7 @@ Read all three files before spawning: `${CLAUDE_PLUGIN_ROOT}/references/loop-pro
 Reuse the stock `hyper-plan` logic — see `skills/hyper-plan/SKILL.md` Steps 1–2; do not duplicate the rule text. In brief:
 
 1. Derive the canonical slug deterministically (lowercase, ASCII, alphanumerics + hyphen, first 5 words of the task joined by `-`). A task with no ASCII words gets an empty slug, per `hyper-plan` Step 1.
-2. Unless the slug is empty (it would match every other no-ASCII artifact), scan **all** `.hyperclaude/research/*.md` frontmatter `slug:` fields (the canonical key — not the filename). If one OR MORE equals the derived slug (there may be a Codex + Claude pair), treat ALL matching files as the linked research artifacts and inline the full contents of ALL of them as context in Step 2.
+2. Unless the slug is empty (it would match every other no-ASCII artifact), scan **all** `.hyperclaude/research/*.md` frontmatter `slug:` fields (the canonical key — not the filename). If one OR MORE equals the derived slug (there may be a Codex + Claude pair), treat ALL matching files as the linked research artifacts and inline the full contents of ALL of them as context in Step 2. The research file an empty `$ARGUMENTS` took its task from is always linked, whatever its slug.
 3. Resolve the plan path:
 
    ```bash
