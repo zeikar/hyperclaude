@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Served at https://zeikar.dev/hyperclaude/sitemap.xml, and listed from the
+  account's root robots.txt and sitemap index in the zeikar.github.io repo.
+  <loc> only, matching the other sub-sites; no robots.txt here, since crawlers
+  only read robots.txt at the host root.
+-->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://zeikar.dev/hyperclaude/</loc>
-    <lastmod>2026-05-19</lastmod>
-    <changefreq>monthly</changefreq>
   </url>
 </urlset>
