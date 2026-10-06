@@ -15,8 +15,8 @@ export const BRIDGE = path.join(
 // Inline mock codex scripts.
 //
 // Codex >= 0.130 exposes `--json` + `--output-last-message <path>`. The bridge
-// inserts those flags right after the subcommand tokens. Each `exec`/`exec review`
-// mock therefore:
+// inserts those flags right after the subcommand tokens. Each `exec` mock
+// therefore:
 //   - replies "codex-cli 0.130.0" to `--version`
 //   - records the full argv (one per line) to argv.log
 //   - parses --output-last-message from argv and writes the expected body there
@@ -105,7 +105,7 @@ printf 'mock codex failure' >&2
 exit 7
 `;
 
-// Mock codex script for `codex exec review` success: JSONL shape (v0.4+).
+// Mock codex script for a `code-review` spawn success: JSONL shape (v0.4+).
 export const MOCK_CODEX_REVIEW_SUCCESS = `#!/usr/bin/env bash
 if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'
@@ -127,7 +127,7 @@ printf '%s\\n' '{"type":"turn.completed","usage":{"input_tokens":8,"cached_input
 exit 0
 `;
 
-// Mock codex script for `codex exec review` failure: JSONL shape, no turn.completed.
+// Mock codex script for a `code-review` spawn failure: JSONL shape, no turn.completed.
 export const MOCK_CODEX_REVIEW_FAILURE = `#!/usr/bin/env bash
 if [ "$1" = "--version" ]; then
   echo 'codex-cli 0.130.0'

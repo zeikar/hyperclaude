@@ -115,7 +115,7 @@ If missing or empty → apply the file-check corrective + escalation in `referen
 
 **Seat the reviewer** per `${CLAUDE_PLUGIN_ROOT}/references/reviewer-seat.md` **Decide the seat**. In either seat, leave the plan path alone while the review runs — the planner must not be sent a round's findings until this review has landed — then continue at Step 5 with the Read artifact.
 
-**Codex seat.** Invoke via the Bash tool with **`run_in_background: true`** — this loop's own measured review boundaries were 469s and 1393s, past the 600s FOREGROUND ceiling the harness imposes, and a killed call costs the whole review with no artifact and no diagnostics. If `review_brief_file` is non-null, assign it to `BRIEF_FILE` per the shell-safety recipe in `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md` and append `--review-brief "$(cat "$BRIEF_FILE")"`; omit both when `review_brief_file` is `null`:
+**Codex seat.** Invoke via the Bash tool with **`run_in_background: true`** and `timeout: 7200000` — this loop's own measured review boundaries were 469s and 1393s, past the 600s FOREGROUND ceiling the harness imposes, and a killed call costs the whole review with no artifact and no diagnostics. If `review_brief_file` is non-null, assign it to `BRIEF_FILE` per the shell-safety recipe in `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md` and append `--review-brief "$(cat "$BRIEF_FILE")"`; omit both when `review_brief_file` is `null`:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<resolved path>" [--review-brief "$(cat "$BRIEF_FILE")"]
@@ -171,7 +171,7 @@ node -e 'try{process.stdout.write(/^##\s*Task\s/m.test(require("fs").readFileSyn
 
 `bad` → corrective + terminal handling per that pipeline. On `ok`, increment the iteration counter and re-review in the run's seat, then loop back to Step 5. Never regenerate `review_brief_file` from the planner's just-revised plan (that would let the planner bless its own scope additions) — only a NEW user decision may update it.
 
-**Codex seat:** re-invoke the bridge via the Bash tool with **`run_in_background: true`** (Step 4's reason), reading that round's envelope from the output file the completion notification names. Same `review_brief_file`-gated `BRIEF_FILE` assignment + `--review-brief` token as Step 4 — per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s two re-supply reasons (fallback survival on an `auto`→fresh fallback, and mid-loop updates), re-pass it on every round:
+**Codex seat:** re-invoke the bridge via the Bash tool with **`run_in_background: true`** and `timeout: 7200000` (Step 4's reasons), reading that round's envelope from the output file the completion notification names. Same `review_brief_file`-gated `BRIEF_FILE` assignment + `--review-brief` token as Step 4 — per `${CLAUDE_PLUGIN_ROOT}/references/review-brief.md`'s two re-supply reasons (fallback survival on an `auto`→fresh fallback, and mid-loop updates), re-pass it on every round:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" plan-review --plan-path "<same path>" --resume auto [--review-brief "$(cat "$BRIEF_FILE")"]

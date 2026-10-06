@@ -19,7 +19,7 @@ git --version
 
 See [architecture.md](architecture.md#directory-layout). The shapes that matter for development:
 
-- [skills/](../skills/) — one `SKILL.md` per skill. Edits are picked up by Claude Code on next session start (or `/plugin reload` if available).
+- [skills/](../skills/) — one `SKILL.md` per skill. Edits are picked up by Claude Code on next session start (or `/reload-plugins`).
 - [agents/](../agents/) — one `<name>.md` per agent.
 - [scripts/codex-bridge.mjs](../scripts/codex-bridge.mjs) plus leaf modules under [scripts/codex/](../scripts/codex/) — the only Codex-spawning code in the plugin. Hooks under [hooks/](../hooks/) are also executable Node scripts but pure orchestration (they never spawn Codex).
 - [tests/](../tests/) — `node --test` unit tests.
@@ -101,7 +101,7 @@ version=$(node -e 'console.log(require("./.claude-plugin/plugin.json").version)'
 ln -s "$(pwd)" ~/.claude/plugins/cache/hyperclaude/hyperclaude/"$version"
 ```
 
-After symlinking, restart Claude Code or use `/plugin reload` if available. To switch back to a clean GitHub install:
+After symlinking, restart Claude Code or run `/reload-plugins`. To switch back to a clean GitHub install:
 
 ```bash
 rm ~/.claude/plugins/cache/hyperclaude/hyperclaude/"$version"

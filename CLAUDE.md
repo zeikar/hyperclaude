@@ -35,7 +35,7 @@ version=$(node -e 'console.log(require("./.claude-plugin/plugin.json").version)'
 ln -s "$(pwd)" ~/.claude/plugins/cache/hyperclaude/hyperclaude/"$version"
 ```
 
-Restart Claude Code (or `/plugin reload` if available) to pick up edits.
+Restart Claude Code (or run `/reload-plugins`) to pick up edits.
 
 ## The bridge
 

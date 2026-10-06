@@ -1,5 +1,5 @@
 // Codex CLI wrapper for the bridge.
-// Spawns `codex exec`, `codex exec resume`, `codex exec review`; parses the
+// Spawns `codex exec` and `codex exec resume`; parses the
 // resulting JSONL stream; surfaces a structured success / failure result.
 // Also runs the non-model probes: `codex --version`, `codex doctor --json`,
 // `codex debug models`, and a short-lived `codex -c sandbox_mode=read-only
@@ -319,7 +319,7 @@ export function buildCodexSelectionArgs({ model, effort }) {
 }
 
 // Insert `--json --output-last-message <tmp>` into a SEMANTIC argv right after
-// the codex subcommand tokens (`exec`, `exec resume`, `exec review`) and BEFORE
+// the codex subcommand tokens (`exec`, `exec resume`) and BEFORE
 // any positional / `-` token. Argv ordering is pinned by spawn tests.
 function injectJsonAndOutputFlags(semanticArgv, lastMessagePath) {
   const args = [...semanticArgv];
@@ -327,7 +327,7 @@ function injectJsonAndOutputFlags(semanticArgv, lastMessagePath) {
   let i = 0;
   if (args[i] === 'exec') {
     i += 1;
-    if (args[i] === 'resume' || args[i] === 'review') {
+    if (args[i] === 'resume') {
       i += 1;
     }
   }
@@ -336,7 +336,7 @@ function injectJsonAndOutputFlags(semanticArgv, lastMessagePath) {
   return args;
 }
 
-// runCodexExec: unified codex spawn for `exec`, `exec resume`, `exec review`.
+// runCodexExec: unified codex spawn for `exec` and `exec resume`.
 //
 // `argv` is the SEMANTIC argv (e.g. `['exec', '--sandbox', 'read-only', '-']`).
 // The helper inserts `--json --output-last-message <tmp>` after the subcommand

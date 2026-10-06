@@ -46,7 +46,7 @@ This is the default. Run the Codex and Claude research paths concurrently so the
 
 3. **Launch both in ONE message, both backgrounded** — neither blocks, so the lead stays free while the two multi-minute operations run:
    - The `researcher` agent via the Agent tool, `subagent_type: hyperclaude:researcher`, in return-body mode, using the same prompt contract as the Claude path step 4 below (Task verbatim + required section structure).
-   - The bridge via the Bash tool, **`run_in_background: true`**: `node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task-file "<temp file path>"`. It writes `.hyperclaude/research/<timestamp>-<slug>.md`.
+   - The bridge via the Bash tool, **`run_in_background: true`** with `timeout: 7200000`: `node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task-file "<temp file path>"`. It writes `.hyperclaude/research/<timestamp>-<slug>.md`.
 
    Both deliver their result as a completion notification. End the turn and let them run; answer the user if they ask something else meanwhile.
 
@@ -65,7 +65,7 @@ This is the default. Run the Codex and Claude research paths concurrently so the
 
 2. Write the resolved task description with the **Write tool** (not the Bash tool — this avoids shell quoting) to a file in the session scratchpad, outside the repo. Save the task as plain text; no escaping needed.
 
-3. Run the bridge in research mode using the Bash tool with **`run_in_background: true`**:
+3. Run the bridge in research mode using the Bash tool with **`run_in_background: true`** and `timeout: 7200000`:
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-bridge.mjs" research --task-file "<temp file path>"
