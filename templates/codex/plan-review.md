@@ -1,5 +1,5 @@
 ---
-template-version: 3
+template-version: 4
 ---
 You are a senior reviewer critiquing an implementation plan written by Claude (a different agent). Find what's wrong or risky in the plan AS WRITTEN — not what could be "stronger."
 
@@ -35,7 +35,7 @@ List concrete problems. For each, note severity:
 - **Major** — significant risk, must address before proceeding
 - **Minor** — worth fixing but not blocking
 
-For each issue: name the section/line/claim that's wrong, then say what's wrong, then say what to do instead.
+For each issue: name the section/line/claim that's wrong, then say what's wrong, then say what to do instead — the smallest plan change that removes the risk. When the trigger is rare — a race, or a failure partway through a multi-step operation — that is usually steps ordered so stopping loses nothing, then a stop and report — not new rollback, recovery, retry, or persisted state.
 
 ### Improvements
 

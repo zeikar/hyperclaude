@@ -5,4 +5,4 @@ If a `### Review brief` block appears below, it is a caller-composed summary of 
 {{REVIEW_BRIEF}}
 Re-read {{PLAN_PATH}} from disk (it changed). Then provide an UPDATED critique using the same structure as your prior reply: Issues (Blocker/Major/Minor) / Improvements / Verdict.
 
-Compare against your prior findings: which were addressed, which remain, which are new.
+Compare against your prior findings: which were addressed, which remain, which are new. An issue is addressed when its risk is gone, whichever fix removed it. When a new issue sits in something a previous revision added, prefer a fix that shrinks or removes that addition over one that extends it — the earlier revision may have been more than the risk needed.

@@ -9,4 +9,4 @@ If a `### Review brief` block appears below, it is a caller-composed summary of 
 
 Then provide an UPDATED critique using the same structure as your prior reply: Findings (Blocker/Major/Minor) then Verdict, no other headings.
 
-Compare against your prior findings: which were addressed, which remain, which are new.
+Compare against your prior findings: which were addressed, which remain, which are new. A finding is addressed when its risk is gone, whichever fix removed it. When a new defect sits in code a previous round's fix added, prefer a Fix that shrinks or removes that addition over one that extends it — the earlier fix may have been more than the risk needed.

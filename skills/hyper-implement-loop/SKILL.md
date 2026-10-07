@@ -103,12 +103,12 @@ End the turn. Until the reply lands — this round and every later one — leave
 
 ### Step 4 — Severity gate
 
-Read the artifact body and judge by **meaning**, not regex. Either seat's artifact carries `### Findings` (Blocker/Major/Minor bullets) then `### Verdict` — but still classify by meaning, not by the severity label the reviewer assigned: a finding **blocks** if it concerns **correctness, data loss, security, a broken build/tests, a regression, or missing required behavior**. Pure **style / nits / opinions do NOT block**.
+Read the artifact body and judge by **meaning**, not regex. Either seat's artifact carries `### Findings` (Blocker/Major/Minor bullets) then `### Verdict` — but still classify by meaning, not by the severity label the reviewer assigned: a finding **blocks** if it concerns **correctness, data loss, security, a broken build/tests, a regression, or missing required behavior**. Pure **style / nits / opinions do NOT block**, and neither does a finding labelled **Minor** about wording nothing executes — a comment, docstring, doc, or message text (the one place the label counts).
 
 **Claude seat:** a blocking finding counts only once confirmed at its cited `file:line` per `reviewer-seat.md` **The lead verifies before acting** (Grep for a claimed absence).
 
 - Any blocking finding → fix (Step 5).
-- No blocking findings (style/nits only, or an approving verdict) → **clean convergence**: exit the loop and report (Step 7). Non-blocking findings are reported, never gating.
+- No blocking findings (style/nits only, or an approving verdict) → **clean convergence**: exit the loop and report (Step 7). Non-blocking findings are reported, never gating — and they stay out of a fix round even when one runs anyway, since every edit is reviewed again next round.
 
 **Conservative branch:** if the body cannot be confidently judged by meaning (unparseable, truncated, or no recognizable structure) → STOP with a named-loop report (**"hyper-implement-loop unparseable review, iter N"**) surfacing the artifact path for manual triage.
 
@@ -148,7 +148,7 @@ Failure handling — `hyper-implement` has already committed the implementation 
 SendMessage({
   to: "<agent_id>",
   summary: "Fix blocking review findings",
-  message: "<verbatim blocking findings + relevant verdict direction + the code-review artifact path; instruct: re-read current diff/files, apply ONLY these fixes, run relevant verification, reply with the structured per-finding schema as your final text>"
+  message: "<verbatim blocking findings + relevant verdict direction + the code-review artifact path; instruct: re-read current diff/files, fix ONLY these findings, run relevant verification, reply with the structured per-finding schema as your final text>"
 })
 ```
 

@@ -139,7 +139,7 @@ Read the artifact body and judge by **meaning**, not regex. Either seat's artifa
 **Claude seat:** a blocking finding counts only once confirmed at its cited `file:line` per `reviewer-seat.md` **The lead verifies before acting** (for a plan citation, Read the `## Task` block(s) the claim spans, or Grep the plan for a claimed absence — never the whole plan).
 
 - Any blocking finding → revise (Step 6).
-- No blocking findings (style/nits only, or an approving verdict) → exit the loop and report (Step 8). Non-blocking findings are reported, never gating.
+- No blocking findings (style/nits only, or an approving verdict) → exit the loop and report (Step 8). Non-blocking findings are reported, never gating — and they stay out of a revise round even when one runs anyway, since every edit is reviewed again next round.
 
 **Conservative branch:** if severity cannot be confidently judged by meaning (no recognizable `### Issues` / `### Verdict` structure, truncated body, etc.) — do NOT assume "no blocking findings": instead STOP with a named-loop report (**"hyper-plan-loop unparseable review, iter N"**) surfacing the artifact path for manual triage.
 
@@ -155,7 +155,7 @@ Send the blocking findings (Claude seat: the confirmed ones) to the still-live p
 SendMessage({
   to: "<agent_id>",
   summary: "Revise plan from review findings",
-  message: "<verbatim blocking findings + relevant ### Verdict text when it explains the required direction; instruct: first Read <the exact resolved plan path> to refresh, then re-read the files, symbols, and commands the findings cite (Read/Grep) — and for a finding that names none, the tasks it implicates and the code that would have to change — so each fix is checked against the tree rather than recalled, then revise THAT SAME path in place (Edit it, or re-Write it), fixing each finding at its source rather than rewording the sentence that triggered it, and without adding a changelog of the round or a reply to the reviewer; reply with exactly 'WROTE: <that exact path>' and nothing else — no plan body, no preamble>"
+  message: "<verbatim blocking findings + relevant ### Verdict text when it explains the required direction; instruct: first Read <the exact resolved plan path> to refresh, then re-read the files, symbols, and commands the findings cite (Read/Grep) — and for a finding that names none, the tasks it implicates and the code that would have to change — so each fix is checked against the tree rather than recalled, then revise THAT SAME path in place (Edit it, or re-Write it), fixing each finding at its source rather than rewording the sentence that triggered it, with the least plan change that removes the risk (for a rare failure, a step that stops and reports; shrinking an earlier revision's addition to the least that still meets its finding counts), and without adding a changelog of the round or a reply to the reviewer; reply with exactly 'WROTE: <that exact path>' and nothing else — no plan body, no preamble>"
 })
 ```
 

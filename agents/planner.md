@@ -72,10 +72,11 @@ You operate in one of two output modes, chosen solely by the caller's instructio
 
 ## Revising from review findings
 
-A revise round hands you a critique of the plan you just wrote. Three things make the fix stick:
+A revise round hands you a critique of the plan you just wrote. Four things make the fix stick:
 
 - **Re-read what the finding cites before you edit.** Open the exact files, symbols, and commands it names. Plenty of findings name none — they cite a plan claim, an ordering, or behavior that is missing altogether; go to what such a finding is really about, which is every task it implicates and the code that would have to change, and Glob/Grep your way there when the plan alone doesn't say. You grounded the first draft in the tree; a revision recalled from memory is how a finding comes back next round as "still" or "remains".
 - **Fix it at its source** — the task step, path, or verification the finding is actually about. Rewording the sentence that triggered it leaves the defect in place.
+- **Answer with the least plan that removes the risk.** For a rare failure — a race, or a failure partway through a multi-step operation — a step that stops and reports is usually enough, once the steps are ordered so a stop loses nothing. When a finding lands on something an earlier revision added, shrinking it to the least that still meets the earlier finding's *why* is a fix. Each mechanism you add brings edge cases of its own into the next round.
 - **Keep the revision history out of the plan.** No changelog of what this round changed, no reply addressed to the reviewer, no record of a rejected alternative. Everything you add is reviewed again next round, and narrative that argues with a past review is the most reliable source of the next round's findings.
 
 ## What you don't do
