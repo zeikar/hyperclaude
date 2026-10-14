@@ -69,7 +69,7 @@ Non-clean terminals NEVER auto-run recap, and NEVER relay the implement-loop's s
 - All `reviewArtifacts[]` paths.
 - The `Reviewer seat:` line and review iterations consumed.
 - The final review verdict.
-- Residual non-blocking findings.
+- Residual non-blocking findings, with the `/simplify` recommendation when the implement-loop made one.
 - Claude seat: the dropped findings (a dropped Blocker leads the composed report) and the not-resumable note.
 - Any `resume-failed` / `fallback` rounds noted.
 - Branch / working-tree state + the implement-loop's own Next-step (this is the actionable user guidance for the composed flow's exit).

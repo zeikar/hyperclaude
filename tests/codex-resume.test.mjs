@@ -533,13 +533,12 @@ test('discoverResumeArtifact: skips ineligible artifacts (mode mismatch) and fin
 
 // ── Task 3: discoverResumeArtifact codex-model-effective drift (auto-only) ──
 
-test('discoverResumeArtifact: newest mismatched is skipped, and among the remaining ELIGIBLE candidates the newest one wins (proves ordering, not just single-valid-answer)', async () => {
+test('discoverResumeArtifact: newest candidate under another model ends the walk — older same-model candidates are not resumed', async () => {
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-modeldrift-'));
   try {
     const planPath = path.join(tmp, 'plan.md');
     writeFileSync(planPath, '# plan');
-    const newest = path.join(tmp, '20260601-0000-newest.md');
-    writePriorReview(newest, {
+    writePriorReview(path.join(tmp, '20260601-0000-newest.md'), {
       mode: 'plan-review',
       cwd: process.cwd(),
       'plan-path': planPath,
@@ -548,69 +547,21 @@ test('discoverResumeArtifact: newest mismatched is skipped, and among the remain
       'codex-resume-status': 'fresh',
       'codex-model-effective': 'gpt-5.6-sol',
     });
-    // TWO eligible (matching-model) candidates remain after the newest is
-    // skipped, so returning the newer of the two actually exercises the
-    // newest-first sort — a single eligible candidate could pass regardless
-    // of traversal order.
-    const middle = path.join(tmp, '20260510-1015-middle.md');
-    writePriorReview(middle, {
-      mode: 'plan-review',
-      cwd: process.cwd(),
-      'plan-path': planPath,
-      'template-version': 4,
-      'codex-thread-id': 'tid-middle',
-      'codex-resume-status': 'fresh',
-      'codex-model-effective': 'gpt-6-astra',
-    });
-    const oldest = path.join(tmp, '20260101-0000-oldest.md');
-    writePriorReview(oldest, {
-      mode: 'plan-review',
-      cwd: process.cwd(),
-      'plan-path': planPath,
-      'template-version': 4,
-      'codex-thread-id': 'tid-oldest',
-      'codex-resume-status': 'fresh',
-      'codex-model-effective': 'gpt-6-astra',
-    });
+    // Older series that ran under the current model: resuming either would
+    // skip the newest round, so neither may be picked.
+    for (const [name, tid] of [['20260510-1015-middle.md', 'tid-middle'], ['20260101-0000-oldest.md', 'tid-oldest']]) {
+      writePriorReview(path.join(tmp, name), {
+        mode: 'plan-review',
+        cwd: process.cwd(),
+        'plan-path': planPath,
+        'template-version': 4,
+        'codex-thread-id': tid,
+        'codex-resume-status': 'fresh',
+        'codex-model-effective': 'gpt-6-astra',
+      });
+    }
     const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath }, 'gpt-6-astra');
-    assert.equal(r.error, undefined);
-    assert.equal(r.path, middle, 'must pick the NEWER of the two eligible candidates, not the oldest');
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
-});
-
-test('discoverResumeArtifact: multiple mismatched candidates → error names the NEWEST skipped one, not the oldest', async () => {
-  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-modelmiss-multi-'));
-  try {
-    const planPath = path.join(tmp, 'plan.md');
-    writeFileSync(planPath, '# plan');
-    // Both candidates are excluded on the model rule, each under a DIFFERENT
-    // recorded model, so the assertion can only pass if the reported name/model
-    // is the NEWEST skip — not the oldest, and not whichever the loop visited
-    // last (a single-candidate fixture cannot distinguish "remember the first"
-    // from "remember the last"/"overwrite every time").
-    const newest = path.join(tmp, '20260601-0000-newest.md');
-    writePriorReview(newest, {
-      mode: 'plan-review',
-      cwd: process.cwd(),
-      'plan-path': planPath,
-      'template-version': 4,
-      'codex-thread-id': 'tid-newest',
-      'codex-resume-status': 'fresh',
-      'codex-model-effective': 'gpt-5.6-sol',
-    });
-    const older = path.join(tmp, '20260510-1015-older.md');
-    writePriorReview(older, {
-      mode: 'plan-review',
-      cwd: process.cwd(),
-      'plan-path': planPath,
-      'template-version': 4,
-      'codex-thread-id': 'tid-older',
-      'codex-resume-status': 'fresh',
-      'codex-model-effective': 'gpt-4-legacy',
-    });
-    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath }, 'gpt-6-astra');
+    assert.equal(r.path, undefined);
     assert.equal(
       r.error,
       `no matching artifact in ${tmp} (20260601-0000-newest.md ran under "gpt-5.6-sol"; this run resolves to "gpt-6-astra")`
@@ -712,47 +663,7 @@ test('discoverResumeArtifact: single mismatched candidate → error names both m
   }
 });
 
-test('discoverResumeArtifact: older artifact sharing the rejected thread id is also excluded, not just the newest', async () => {
-  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-modelmiss-samethread-'));
-  try {
-    const planPath = path.join(tmp, 'plan.md');
-    writeFileSync(planPath, '# plan');
-    // Newest was explicitly resumed under a different model — model rule skips it.
-    const newest = path.join(tmp, '20260601-0000-newest.md');
-    writePriorReview(newest, {
-      mode: 'plan-review',
-      cwd: process.cwd(),
-      'plan-path': planPath,
-      'template-version': 4,
-      'codex-thread-id': 'tid-shared',
-      'codex-resume-status': 'resumed',
-      'codex-model-effective': 'gpt-5.6-sol',
-    });
-    // Older artifact records the SAME thread id (it was resumed into the newer
-    // one above) but under the CURRENT model — without thread-level exclusion,
-    // auto-discovery would select it and resume tid-shared anyway, silently
-    // continuing the thread the model rule just rejected.
-    const older = path.join(tmp, '20260510-1015-older.md');
-    writePriorReview(older, {
-      mode: 'plan-review',
-      cwd: process.cwd(),
-      'plan-path': planPath,
-      'template-version': 4,
-      'codex-thread-id': 'tid-shared',
-      'codex-resume-status': 'fresh',
-      'codex-model-effective': 'gpt-6-astra',
-    });
-    const r = await discoverResumeArtifact('plan-review', { out: tmp, planPath }, 'gpt-6-astra');
-    assert.equal(
-      r.error,
-      `no matching artifact in ${tmp} (20260601-0000-newest.md ran under "gpt-5.6-sol"; this run resolves to "gpt-6-astra")`
-    );
-  } finally {
-    rmSync(tmp, { recursive: true, force: true });
-  }
-});
-
-test('discoverResumeArtifact: older artifact sharing a thread a FAILED cross-model resume touched is also excluded (resume-failed carries provenance even though ineligible)', async () => {
+test('discoverResumeArtifact: a resume-failed candidate under another model still ends the walk (it carries thread provenance though ineligible)', async () => {
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-modelmiss-resumefailed-'));
   try {
     const planPath = path.join(tmp, 'plan.md');
@@ -761,8 +672,8 @@ test('discoverResumeArtifact: older artifact sharing a thread a FAILED cross-mod
     // FAILED (codex-resume-status: resume-failed) — ineligible as a resume
     // candidate on its own, but it may have added real turns to tid-shared
     // under gpt-5.6-sol before failing. loadResumeContext rejects it (bad
-    // status), so without provenance-independent exclusion, discovery would
-    // never even look at its recorded thread/model.
+    // status), so without that provenance discovery would never even look
+    // at its recorded thread/model.
     const newest = path.join(tmp, '20260601-0000-newest.md');
     writePriorReview(newest, {
       mode: 'plan-review',
@@ -1073,6 +984,38 @@ test('discoverResumeArtifact: code-review --base skips newer wrong-target artifa
     const r = await discoverResumeArtifact('code-review', { out: tmp, reviewTarget: 'base', baseRef: 'main' });
     assert.equal(r.error, undefined);
     assert.equal(r.path, middle);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('discoverResumeArtifact: code-review --base whose newest review ran under another model falls back to fresh, never an older series', async () => {
+  // pianoize 2026-10-12: round 1 of a new series ran under gpt-6-astra, round 2
+  // resolved to gpt-6.1-sol, and auto-resume skipped round 1 into the previous
+  // feature's thread, which shares `base-ref: main`.
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'hyperclaude-disc-cr-modelbreak-'));
+  try {
+    writePriorReview(path.join(tmp, '20261012-1222-vs-main.md'), {
+      mode: 'code-review',
+      'template-version': 6,
+      cwd: process.cwd(),
+      'base-ref': 'main',
+      'codex-thread-id': 'thread-m3',
+      'codex-resume-status': 'fresh',
+      'codex-model-effective': 'gpt-6-astra',
+    });
+    writePriorReview(path.join(tmp, '20261011-1158-vs-main.md'), {
+      mode: 'code-review',
+      'template-version': 6,
+      cwd: process.cwd(),
+      'base-ref': 'main',
+      'codex-thread-id': 'thread-m2',
+      'codex-resume-status': 'resumed',
+      'codex-model-effective': 'gpt-6.1-sol',
+    });
+    const r = await discoverResumeArtifact('code-review', { out: tmp, reviewTarget: 'base', baseRef: 'main' }, 'gpt-6.1-sol');
+    assert.equal(r.path, undefined, 'must not resume the previous series');
+    assert.match(r.error, /20261012-1222-vs-main\.md ran under "gpt-6-astra"/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

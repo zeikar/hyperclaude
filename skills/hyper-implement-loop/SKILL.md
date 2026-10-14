@@ -197,6 +197,7 @@ Report the **actual** git outcome (never assume success): the commit SHA + clean
 - The `Reviewer seat:` line from Step 3, and review iterations consumed.
 - The final review verdict.
 - Residual non-blocking findings (informational, never gating).
+- When residual findings ask to remove or simplify code (over-engineering, dead code, duplication), list them apart from the rest and recommend Claude Code's built-in `/simplify main...HEAD`; when a review brief exists, name its requirements as what `/simplify` must not change. A recommendation only, never run here: simplification stays a human call, and its edits would land after the last review.
 - Claude seat: the dropped findings (`reviewer-seat.md` **The lead verifies before acting**) and that its artifacts are not resumable.
 - Any `resume-failed` / `fallback` rounds noted.
 - Branch / working-tree state: `hyper-implement` committed each task on the feature branch it created/used (`hyper/<slug>` when started from `main`/`master`); on clean convergence the lead committed the fixer's fix edits in one `fix(review):` commit on top (working tree now clean — or no fix edits to commit). Nothing was pushed. Next step: push the branch when ready.

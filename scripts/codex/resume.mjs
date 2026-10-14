@@ -120,11 +120,10 @@ export function reviewTargetMismatch(mode, fm, currentArgs) {
 // confirmed the artifact is about the CURRENT scan's subject and only its
 // resume-status (step 8, last) disqualifies it — that case also returns
 // { threadId, frontmatter } alongside the error, so a caller can still read
-// this artifact's thread/model PROVENANCE (e.g. cross-artifact thread
-// exclusion in discoverResumeArtifact) without treating it as a resume
-// candidate. Every earlier failure means identity was never confirmed, so
-// threadId/frontmatter stay absent there — using them would risk excluding
-// an unrelated artifact that merely happens to reuse a thread id. (Step 3b
+// this artifact's thread/model PROVENANCE (the model-mismatch walk stop in
+// discoverResumeArtifact) without treating it as a resume candidate. Every
+// earlier failure means identity was never confirmed, so threadId/frontmatter
+// stay absent there — using them would let an unrelated artifact stop the walk. (Step 3b
 // returns frontmatter but never a threadId: discovery needs the frontmatter
 // to decide whether a Claude-seat artifact breaks THIS target's chain.)
 //
@@ -247,12 +246,14 @@ export async function resolveResume(mode, args, currentEffectiveModel = null) {
 // `auto` miss: fresh run, `codex-resume-status: fallback`, stderr note.
 //
 // currentEffectiveModel: the resolved model this run will actually use
-// (args.model ?? getCodexEffectiveModel(), computed by the caller). A
-// candidate that otherwise passes loadResumeContext is still skipped when its
-// recorded codex-model-effective differs from currentEffectiveModel — this is
-// an AUTO-ONLY exclusion, not an identity gate, so it lives here rather than
-// in loadResumeContext: explicit `--resume <path>` must not block on it, only
-// `--resume auto`'s own candidate search.
+// (args.model ?? getCodexEffectiveModel(), computed by the caller). The newest
+// identity-confirmed candidate whose recorded codex-model-effective differs
+// from it STOPS the walk the same way a Claude-seat break does: its own thread
+// would continue turns run under another model, and every older candidate is
+// either that thread or another series that never saw this round (for
+// `--base main`, often a different feature). This is an AUTO-ONLY rule, not an
+// identity gate, so it lives here rather than in loadResumeContext: explicit
+// `--resume <path>` must not block on it, only `--resume auto`'s own search.
 export async function discoverResumeArtifact(mode, args, currentEffectiveModel = null) {
   const dir = args.out ?? defaultModeDir(mode);
   let entries;
@@ -276,28 +277,6 @@ export async function discoverResumeArtifact(mode, args, currentEffectiveModel =
       return b.localeCompare(a);
     });
   const isNonEmptyString = (v) => typeof v === 'string' && v.length > 0;
-  let modelSkip = null; // { name, priorModel } of the newest candidate directly skipped on the model rule
-  // excludedThreadIds: thread ids confirmed to have run under a model other
-  // than currentEffectiveModel. Populated from ANY candidate that exposes
-  // real provenance, not just resume-ELIGIBLE ones: loadResumeContext returns
-  // threadId/frontmatter both on success and on its one ineligible-but-
-  // identity-confirmed failure — a bad codex-resume-status (fallback /
-  // resume-failed) — because every other identity check already had to pass
-  // first (see loadResumeContext's docstring). This matters because a failed
-  // cross-model resume can still add real turns to a thread before erroring
-  // out, and that thread id is the SAME one an older, otherwise-eligible
-  // artifact also carries; without this, discovery would skip the ineligible
-  // artifact on status alone (ctx.error, but never examining its metadata)
-  // and silently resume the older artifact into that now cross-model-
-  // contaminated thread. Any OTHER rejection reason (mode/cwd/template-
-  // version/mode-specific-identity/requested-override mismatch) leaves
-  // ctx.threadId undefined — that artifact was never confirmed to be about
-  // THIS scan's subject, so using its thread id here would risk excluding an
-  // unrelated one. A 'fallback' artifact's own thread id is always a fresh
-  // spawn's brand-new thread (fallback means the run never resumed anything),
-  // so it can never coincide with another artifact's thread id in practice —
-  // adding it here is a no-op, not a risk.
-  const excludedThreadIds = new Set();
   for (const name of candidates) {
     const candidatePath = path.join(dir, name);
     const ctx = await loadResumeContext(candidatePath, mode, args);
@@ -305,24 +284,15 @@ export async function discoverResumeArtifact(mode, args, currentEffectiveModel =
       if (reviewTargetMismatch(mode, ctx.frontmatter, args)) continue; // another target's review — not our break
       return { error: `a Claude reviewer-seat artifact (${name}) for this review target breaks the resume chain; nothing older is resumed` };
     }
+    // threadId is present only once identity is confirmed — on success or on a
+    // bad resume-status — so the model rule never fires on another target's artifact.
     if (!ctx.threadId) continue;
     const priorModel = ctx.frontmatter['codex-model-effective'];
-    const modelMismatch = isNonEmptyString(priorModel) && isNonEmptyString(currentEffectiveModel)
-      && priorModel !== currentEffectiveModel;
-    if (modelMismatch || excludedThreadIds.has(ctx.threadId)) {
-      // Either this candidate itself ran under a different model, or an
-      // already-seen NEWER candidate for the same thread did — either way,
-      // resuming this thread would continue turns recorded under a model
-      // other than currentEffectiveModel.
-      excludedThreadIds.add(ctx.threadId);
-      if (modelMismatch && !modelSkip) modelSkip = { name, priorModel };
-      continue;
+    if (isNonEmptyString(priorModel) && isNonEmptyString(currentEffectiveModel) && priorModel !== currentEffectiveModel) {
+      return { error: `no matching artifact in ${dir} (${name} ran under "${priorModel}"; this run resolves to "${currentEffectiveModel}")` };
     }
     if (ctx.error) continue; // resume-ineligible (fallback/resume-failed), no model conflict — not selectable
     return { path: candidatePath };
-  }
-  if (modelSkip) {
-    return { error: `no matching artifact in ${dir} (${modelSkip.name} ran under "${modelSkip.priorModel}"; this run resolves to "${currentEffectiveModel}")` };
   }
   return { error: `no matching artifact in ${dir}` };
 }
