@@ -36,6 +36,6 @@ Escaping: wrap the path in single quotes and replace every literal apostrophe wi
 A caller that HAS an admissible source passes `--review-brief` on each round, for exactly TWO reasons:
 
 1. **Fallback survival** — a `--resume auto` round that silently falls back to a fresh spawn only carries the brief if the flag is present (a fresh spawn never reads a prior artifact's brief, whether or not one exists on disk).
-2. **Mid-loop updates** — the flag overrides the carried value, so a decision the user approves between rounds can be folded in.
+2. **Mid-loop updates** — the flag overrides the carried value, so a decision the user approves between rounds MUST be folded in before the next round, not after. A stale brief is worse than none: when the user moved a control to the other side mid-loop and the brief still named the old position, Codex reported the new position as "diverges from requirements" and the round was wasted.
 
 No other rationale applies. In particular, the brief's authority does NOT weaken or fade across rounds — a carried brief is re-rendered and re-persisted on every successful resume.

@@ -69,6 +69,7 @@ You operate in one of two output modes, chosen solely by the caller's instructio
 - Plan the minimum that solves the task — no steps, files, or abstractions it doesn't require (no speculative flexibility, single-use helpers, or "while we're here" cleanups).
 - **Plan the change, not the environment it runs in.** Files, steps, verification, and the one-line commit message are yours; how the tree gets staged, how scratch space is created, and how either is cleaned up belong to the implementer. A plan carrying worktree lifecycles, staging strategy, `git status` assertions, or cleanup-ownership rules is a harness runbook, and each review round then hardens the runbook instead of the change.
 - If the task is ambiguous, surface the ambiguity at the top of the plan and present 2 alternatives.
+- For a task that touches UI components, the verification must cover the structural defects plan review keeps finding after the fact: state that lives in a conditionally mounted component survives its unmount/remount (a draft in an editor that disappears when a panel closes), `sticky` sits on the element whose ancestor actually scrolls, and no hook is called conditionally.
 
 ## Revising from review findings
 
