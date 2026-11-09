@@ -219,7 +219,7 @@ Status taxonomy recorded in `codex-resume-status` frontmatter:
 | `fallback` | `--resume auto` miss; ran fresh |
 | `resume-failed` | resume spawn died after validation passed |
 
-Resume also covers **new work after a loop converged**. More commits on the same branch — a follow-up the user asked for, a late fix — get `/hyperclaude:hyper-code-review --resume`: the default target is `--base main`, the same base the implement-loop reviewed against, so `auto` picks up the loop's last code-review thread and Codex sees only what changed since. If the user changed a decision in between, compose a fresh brief ([references/review-brief.md](../references/review-brief.md), re-supply reason 2) — the carried one describes the old decision.
+Resume also covers **new work after a loop converged**. More commits on the same branch — a follow-up the user asked for, a late fix — get `/hyperclaude:hyper-code-review --resume`: the default target is `--base main`, the same base the implement-loop reviewed against, so `auto` picks up the loop's last code-review thread: Codex re-reads the full diff against main, but with the context of what it already reviewed. If the user changed a decision in between, compose a fresh brief ([references/review-brief.md](../references/review-brief.md), re-supply reason 2) — the carried one describes the old decision.
 
 `research` does NOT support `--resume` (deferred; see decisions.md).
 
